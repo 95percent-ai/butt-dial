@@ -1,0 +1,263 @@
+<!-- version: 2.4 | updated: 2026-02-14 -->
+
+# TODO — AgentOS Communication MCP Server
+
+Philosophy: Infrastructure first. Verify it runs. Small wins that prove the core loop. Expand to MVP. Then layer features. Never go deep before proving the foundation works.
+
+---
+
+## Phase 0 — Third-Party Setup & Credentials
+Only set up what's needed for the next few phases. Add providers when their phase arrives.
+
+### Now (needed for Phases 1-5)
+- [ ] Twilio — verify Account SID + Auth Token work (already have account)
+- [ ] Twilio — create Restricted API Key via API (script will automate)
+- [ ] Twilio — buy one test phone number via API (script will automate)
+- [ ] ElevenLabs — verify API key works (already have account)
+- [ ] SQLite — no setup needed (local file, zero signup)
+- [ ] Edge TTS — no setup needed (free, no API key)
+- [ ] Copy .env.example → .env, fill in Twilio + ElevenLabs credentials
+- [ ] **Verify:** Twilio API responds, ElevenLabs API responds
+
+### Later (set up when phase arrives)
+- [ ] Phase 6 (email): Sign up for Resend, verify domain
+- [ ] Phase 7 (WhatsApp): Sign up for GreenAPI (dev). Start Meta Business Verification for Twilio WhatsApp (production, 5-20 days)
+- [ ] Production DB: Sign up for Neon (or other Postgres provider)
+- [ ] A2P 10DLC: Submit campaign registration for US SMS (1-2 week approval)
+
+### Automatable via API (for customer onboarding)
+- [ ] Document which steps can be automated per customer:
+  - Twilio subaccount creation (Accounts API) — instant
+  - Phone number purchase + webhook config (API) — instant
+  - WhatsApp sender registration (Senders API) — minutes-hours
+  - GreenAPI instance creation (API) — instant
+  - Resend domain creation (API generates DNS records, customer adds them)
+  - A2P 10DLC campaign submission (API, 1-2 week approval)
+- [ ] Build setup script (scripts/setup.ts) that automates API key creation, number purchase, DB migration
+
+---
+
+## Phase 1 — Infrastructure & Verification
+Get a running server with zero business logic. Prove everything connects.
+
+- [x] Project scaffolding (package.json, tsconfig.json, .env.example, folder structure)
+- [x] Install dependencies (@modelcontextprotocol/sdk, express, typescript, etc.)
+- [x] MCP server skeleton (index.ts, server.ts) — starts and registers one dummy tool
+- [x] Express HTTP server — starts alongside MCP, responds to GET /health
+- [x] Database connection via provider interface (SQLite for local dev)
+- [x] Run schema migration (core tables only: agent_channels, messages, agent_pool)
+- [x] Provider interfaces (ITelephonyProvider, IEmailProvider, IWhatsAppProvider, ITTSProvider, ISTTProvider, IVoiceOrchestrator, IDBProvider, IStorageProvider)
+- [x] Provider factory skeleton (config → adapter, returns stub for now)
+- [x] Config loader (.env → typed config object with validation)
+- [x] **Verify:** Server starts, /health returns 200, DB connects, MCP client can list the dummy tool
+
+## Phase 2 — First Small Win: Send an SMS
+Prove the core loop: agent → send message → human receives it.
+
+- [x] Twilio telephony adapter — just `sendSms()` method
+- [x] Mock telephony adapter (for demo mode / dev testing)
+- [x] `comms_send_message` tool (SMS only, minimal fields)
+- [x] Basic agent_channels table seeding (manually insert one test agent)
+- [x] **Verify (dry):** Mock adapter — 21/21 tests pass (tool listing, send, DB record, error handling)
+- [x] **Verify (live):** `comms_send_message` → real Twilio SMS sent (SM7cba9d63830ce9e2188805e6e5e45687)
+
+## Phase 3 — Small Win: Receive an SMS
+Close the loop. Inbound message routes back to the agent.
+
+- [x] Inbound SMS webhook (POST /webhooks/:agentId/sms)
+- [x] Webhook router (Express)
+- [x] Store inbound message metadata in messages table
+- [x] Forward inbound to agent callback URL (AGENTOS_CALLBACK_URL)
+- [x] `comms_get_messages` tool (basic — list messages for an agent)
+- [x] Twilio `configureWebhooks` method (look up phone SID, update SMS URL)
+- [x] **Verify (dry):** Simulated webhook — 20/20 tests pass (store, retrieve, errors)
+- [x] **Verify (live):** Real SMS received via Twilio webhook → ngrok → stored in DB (SM4f23ba2cfed794fd50be75ada8da7386)
+
+## Phase 4 — Small Win: Make a Phone Call
+Agent calls a human, plays a pre-recorded voice message.
+
+- [ ] Twilio adapter — `makeCall()` method
+- [ ] ElevenLabs TTS adapter — `synthesize()` method (generate audio)
+- [ ] Media store — upload audio to storage provider
+- [ ] `comms_send_voice_message` tool
+- [ ] Outbound call webhook (Twilio hits your URL when human picks up → TwiML plays audio)
+- [ ] **Verify:** Agent generates voice message → calls your phone → you hear it
+
+## Phase 5 — Small Win: Live Voice AI Conversation
+The big one. Human calls agent's number, talks to an LLM in real-time.
+
+- [ ] Inbound call webhook → returns ConversationRelay TwiML
+- [ ] Voice WebSocket handler (voice-ws.ts) — receives text prompts, sends text responses
+- [ ] LLM integration in WebSocket handler (stream response tokens back)
+- [ ] Interruption handling
+- [ ] `comms_make_call` tool (outbound AI voice call)
+- [ ] **Verify:** Call the agent's number → have a live conversation with the AI
+
+## Phase 6 — Expand: Email Channel
+Add email send/receive using the same patterns.
+
+- [ ] SendGrid email adapter — `send()` method
+- [ ] Extend `comms_send_message` to support email channel
+- [ ] Inbound email webhook (SendGrid Inbound Parse → POST /webhooks/:agentId/email)
+- [ ] **Verify:** Agent sends email → arrives in inbox. Reply → agent receives it.
+
+## Phase 7 — Expand: WhatsApp Channel
+Add WhatsApp with pool strategy.
+
+- [ ] WhatsApp send via Twilio adapter
+- [ ] Extend `comms_send_message` to support WhatsApp channel
+- [ ] Inbound WhatsApp webhook (POST /webhooks/:agentId/whatsapp)
+- [ ] WhatsApp number pool manager (assign from pool on provision)
+- [ ] whatsapp_pool table + seeding script
+- [ ] Template support (for messages outside 24h window)
+- [ ] **Verify:** Agent sends WhatsApp → arrives. Reply → agent receives it. Pool assignment works.
+
+## Phase 8 — MVP: Provisioning & Teardown
+Automate what we've been doing manually. Full agent lifecycle + customer onboarding via API.
+
+- [ ] `comms_provision_channels` tool (buy number, configure webhooks, assign WhatsApp from pool, set up email)
+- [ ] `comms_deprovision_channels` tool (release number, return pool slot, clean up)
+- [ ] `comms_get_channel_status` tool
+- [ ] Agent pool management (configurable pool size, default 5)
+- [ ] Configuration architecture: identity mode (dedicated/shared/hybrid), isolation mode (single account/per-agent subaccount/per-customer subaccount)
+- [ ] Automated customer onboarding:
+  - Twilio subaccount creation via API
+  - Phone number purchase + webhook config via API
+  - WhatsApp sender registration via Senders API (assign from pool)
+  - SendGrid subuser creation via API
+  - Email DNS record generation (return records for customer to add)
+  - A2P 10DLC campaign submission via API (track approval status)
+- [ ] `comms_register_provider` tool (register/verify third-party credentials)
+- [ ] **Verify:** Provision a new agent via MCP tool → all channels active. Deprovision → everything cleaned up. Customer onboarding creates subaccount + buys number + assigns WhatsApp.
+
+## Phase 9 — MVP: Security & Auth
+Lock it down. Every tool call authenticated.
+
+- [ ] Agent registration + security token issuance (token-manager.ts)
+- [ ] Auth middleware (validate token on every MCP tool call)
+- [ ] Impersonation guard (token bound to agentId)
+- [ ] Webhook signature validation (Twilio X-Twilio-Signature, SendGrid)
+- [ ] Input sanitizer (SQL injection, XSS, header injection, path traversal)
+- [ ] Provider credentials encrypted at rest (AES-256)
+- [ ] agent_tokens table + spending_limits table + provider_credentials table
+- [ ] **Verify:** Valid token → tool works. Wrong token → rejected. Spoofed agentId → rejected. Unsigned webhook → rejected.
+
+## Phase 10 — MVP: Rate Limiting & Cost Tracking
+Prevent abuse and track spend.
+
+- [ ] Rate limiter (sliding window: per-minute, per-hour, per-day)
+- [ ] Spending caps (per-day, per-month) — enforced, not advisory
+- [ ] Anti-harassment frequency tracking (max calls/day to same number)
+- [ ] Cost tracker (per-action cost recording in usage_logs)
+- [ ] `comms_get_usage_dashboard` tool
+- [ ] `comms_set_agent_limits` tool
+- [ ] rate_limits + usage_logs + contact_frequency tables
+- [ ] **Verify:** Hit rate limit → action blocked with remaining quota. Exceed spending cap → blocked. Dashboard shows correct totals.
+
+## Phase 11 — Feature: Observability & Admin Alerts
+Full visibility without reading private messages.
+
+- [ ] Health check endpoints (/health liveness, /health/ready provider check)
+- [ ] Prometheus metrics endpoint (/metrics)
+- [ ] Structured JSON logger (no PII)
+- [ ] Audit log with SHA-256 hash chain (audit_log table)
+- [ ] Alert manager (severity routing: CRITICAL/HIGH/MEDIUM/LOW)
+- [ ] WhatsApp alerter to admin (ADMIN_WHATSAPP_NUMBER)
+- [ ] **Verify:** /metrics returns counters. Trigger a CRITICAL event → admin gets WhatsApp alert. Audit log entries are hash-chained.
+
+## Phase 12 — Feature: Attack Hardening
+Layer on protection now that the core works.
+
+- [ ] DDoS protection middleware (global + per-IP rate limits, payload caps, slowloris)
+- [ ] IP allowlist/denylist for admin + webhook endpoints
+- [ ] Replay attack prevention (webhook timestamp validation, 5-min window)
+- [ ] CORS + CSP headers
+- [ ] Anomaly detector (volume spikes, geo anomalies, brute force, rapid token rotation)
+- [ ] Brute-force lockout on auth endpoints
+- [ ] **Verify:** Replay an old webhook → rejected. Flood requests → throttled. Anomaly triggers alert.
+
+## Phase 13 — Feature: Advanced Voice
+Expand voice capabilities.
+
+- [ ] `comms_transfer_call` tool (transfer live call to human)
+- [ ] Call logging (call_logs table, duration, cost, recording URL)
+- [ ] Route duplication (live call + simultaneous recording)
+- [ ] Agent-to-agent voice calls
+- [ ] STT adapter — Deepgram (default)
+- [ ] At least one alternative TTS adapter (WAPI or OpenAI TTS)
+- [ ] Audio format conversion (mu-law 8kHz)
+- [ ] **Verify:** Transfer a live call → human picks up. Agent A calls Agent B → two AIs converse. Recording saved.
+
+## Phase 14 — Feature: Provider Adapters
+Prove the pluggable architecture with real alternatives.
+
+- [ ] `comms_register_provider` tool
+- [ ] At least one alternative telephony adapter (Vonage)
+- [ ] At least one alternative email adapter (Resend)
+- [ ] Mock adapters for demo mode (DEMO_MODE=true)
+- [ ] SQLite database adapter (local dev)
+- [ ] Convex database adapter
+- [ ] Turso/libSQL database adapter
+- [ ] S3 storage adapter
+- [ ] R2 storage adapter
+- [ ] **Verify:** Swap Twilio for Vonage in config → SMS still works. DEMO_MODE=true → no real calls/costs.
+
+## Phase 15 — Feature: Swagger + API Explorer
+Make it testable and explorable without an MCP client.
+
+- [ ] OpenAPI 3.1 spec generation
+- [ ] Swagger UI at /admin/api-docs
+- [ ] Demo mode banner in Swagger UI
+- [ ] Scenario test runner (5 end-to-end scenarios in demo mode)
+- [ ] **Verify:** Open Swagger UI → browse all tools → send test request → get response.
+
+## Phase 16 — Feature: Setup UI + Admin Dashboard
+Web-based setup and monitoring.
+
+- [ ] Setup wizard (7-step flow) at /admin/setup
+- [ ] Setup wizard API backend
+- [ ] Admin dashboard at /admin/dashboard (agent status, costs, alerts)
+- [ ] Static asset serving
+- [ ] **Verify:** Walk through setup wizard → server configured. Dashboard shows live agent data.
+
+## Phase 17 — Feature: Compliance
+Regulatory requirements.
+
+- [ ] Content filtering on outbound messages (profanity, abuse, threats)
+- [ ] DNC list checking before outbound calls
+- [ ] TCPA time-of-day enforcement (no calls before 8am / after 9pm local)
+- [ ] Recording consent announcements (two-party consent jurisdictions)
+- [ ] CAN-SPAM: physical address + unsubscribe in outbound emails
+- [ ] GDPR right-to-erasure support
+- [ ] **Verify:** Send abusive message → blocked. Call at 11pm → blocked. Erasure request → data deleted.
+
+## Phase 18 — Feature: Billing & Markup
+Revenue layer.
+
+- [ ] Configurable markup percentage on provider costs
+- [ ] Tier/quota enforcement (configurable limits per agent/tenant)
+- [ ] Provider billing passthrough/tracking
+- [ ] Spending alert fine-tuning
+- [ ] **Verify:** Set 20% markup → usage dashboard shows marked-up costs. Hit tier limit → action blocked.
+
+## Phase 19 — Documentation
+Ship with comprehensive docs.
+
+- [ ] README.md (quick start)
+- [ ] SETUP.md (full setup guide)
+- [ ] API.md (REST API reference)
+- [ ] MCP-TOOLS.md (tool reference with examples)
+- [ ] PROVIDERS.md (provider adapter guide)
+- [ ] SECURITY.md (threat model, hardening)
+- [ ] OBSERVABILITY.md (monitoring guide)
+- [ ] TROUBLESHOOTING.md (common issues)
+- [ ] ARCHITECTURE.md (diagrams, data flow)
+
+## Phase 20 — Polish
+Final refinements.
+
+- [ ] Unified conversation threading (Twilio Conversations API)
+- [ ] Agent pool expansion tooling
+- [ ] Documentation review
+- [ ] Demo scenario coverage
+- [ ] Comprehensive test suite (security, rate limits, attack sims, providers, channels, webhooks)
