@@ -1,4 +1,4 @@
-<!-- version: 2.4 | updated: 2026-02-14 -->
+<!-- version: 2.5 | updated: 2026-02-14 -->
 
 # Decisions Log
 
@@ -103,6 +103,19 @@
 **What:** The `comms_send_voice_message` tool generates audio via TTS, stores it locally in a `storage/` directory served by Express at `/storage/{key}`, and places a Twilio call with inline TwiML (`<Play>` pointing to the audio URL). `MakeCallParams` accepts optional `twiml` as an alternative to `webhookUrl`.
 **Why:** Inline TwiML is simpler than hosting a separate webhook endpoint for call instructions. Local storage avoids needing S3/R2 for dev. The audio URL must be publicly accessible (ngrok in dev, real domain in production) so Twilio can fetch it when the call connects.
 **Alternatives considered:** Webhook-based TwiML (more complex, needed for Phase 5 live calls but overkill here). Base64 audio in TwiML (not supported by Twilio). External storage (S3/R2 — adds provider dependency for Phase 4).
+
+---
+
+## DEC-017: Email Provider — Resend (Not SendGrid)
+**Date:** 2026-02-14
+**What:** Phase 6 uses Resend as the email provider instead of SendGrid (which the original TODO referenced). The `comms_send_message` tool now supports `channel: "email"` alongside SMS. Inbound emails arrive via Resend webhook at `/webhooks/:agentId/email`.
+**Why:** SendGrid dropped its free tier in May 2025. Resend offers 3,000 emails/month free (100/day), simple REST API (no SDK needed), and better DX. The adapter is behind `IEmailProvider` — swapping to another provider later is straightforward.
+**Alternatives considered:** SendGrid (no free tier), AWS SES (complex setup), Mailgun (less generous free tier).
+
+## DEC-018: Email Channel — Double Validation Mirrors SMS Pattern
+**Date:** 2026-02-14
+**What:** The inbound email webhook validates both `agentId` from the URL and `to` (email address) from the payload match the same agent record — same double-validation pattern as the SMS webhook (DEC-015).
+**Why:** Consistency. Prevents routing errors where a webhook URL points to the wrong agent.
 
 ---
 

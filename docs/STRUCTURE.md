@@ -1,4 +1,4 @@
-<!-- version: 1.5 | updated: 2026-02-14 -->
+<!-- version: 1.6 | updated: 2026-02-14 -->
 
 # Project Structure
 
@@ -27,6 +27,8 @@ agentos-comms-mcp/
 │   │   ├── tts-elevenlabs.ts     # ElevenLabs TTS (text → audio via API)
 │   │   ├── tts-edge.ts           # Edge TTS (free Microsoft TTS, no API key)
 │   │   ├── storage-local.ts      # Local filesystem storage (serves via /storage route)
+│   │   ├── email-resend.ts        # Resend email adapter (send + verifyDomain via REST API)
+│   │   ├── email-mock.ts         # Mock email adapter (demo/dev mode)
 │   │   ├── voice-conversation-relay.ts # ConversationRelay TwiML generator (live voice)
 │   │   └── voice-mock.ts         # Mock voice orchestrator (demo mode — simple Say TwiML)
 │   │
@@ -39,12 +41,13 @@ agentos-comms-mcp/
 │   ├── webhooks/                 # Inbound webhook handlers
 │   │   ├── router.ts             # Express router (/health, /health/ready, webhook routes)
 │   │   ├── inbound-sms.ts        # POST /webhooks/:agentId/sms — Twilio inbound SMS handler
+│   │   ├── inbound-email.ts      # POST /webhooks/:agentId/email — Resend inbound email handler
 │   │   ├── inbound-voice.ts      # POST /webhooks/:agentId/voice + outbound-voice — ConversationRelay TwiML
 │   │   ├── voice-ws.ts           # WebSocket handler for live voice (prompt → LLM → stream tokens)
 │   │   └── voice-sessions.ts     # Shared in-memory store for voice call configs + conversations
 │   │
 │   ├── tools/                    # MCP tools
-│   │   ├── send-message.ts       # comms_send_message (SMS via telephony provider)
+│   │   ├── send-message.ts       # comms_send_message (SMS + email via provider routing)
 │   │   ├── get-messages.ts       # comms_get_messages (list messages for an agent)
 │   │   ├── send-voice-message.ts # comms_send_voice_message (TTS → call → play audio)
 │   │   └── make-call.ts          # comms_make_call (outbound AI voice call via ConversationRelay)
@@ -71,7 +74,8 @@ agentos-comms-mcp/
 │   ├── live-inbound-sms.test.ts  # Live test for inbound SMS via Twilio webhook
 │   ├── voice-message.test.ts     # Dry test for comms_send_voice_message (26 assertions)
 │   ├── live-voice.test.ts        # Live test for voice message (real TTS + real Twilio)
-│   └── voice-call.test.ts        # Dry test for comms_make_call + voice WebSocket (25 assertions)
+│   ├── voice-call.test.ts        # Dry test for comms_make_call + voice WebSocket (25 assertions)
+│   └── email.test.ts             # Dry test for email send/receive (38 assertions)
 │
 └── docs/
     ├── SPEC.md                   # Project specification (source of truth)

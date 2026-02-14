@@ -38,6 +38,9 @@ const configSchema = z.object({
   elevenlabsApiKey: z.string().optional(),
   elevenlabsDefaultVoice: z.string().optional(),
 
+  // Resend (email)
+  resendApiKey: z.string().optional(),
+
   // Anthropic (LLM for voice conversations)
   anthropicApiKey: z.string().optional(),
 
@@ -89,6 +92,7 @@ function loadConfig() {
     twilioApiSecret: process.env.TWILIO_API_SECRET,
     elevenlabsApiKey: process.env.ELEVENLABS_API_KEY,
     elevenlabsDefaultVoice: process.env.ELEVENLABS_DEFAULT_VOICE,
+    resendApiKey: process.env.RESEND_API_KEY,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     voiceDefaultGreeting: process.env.VOICE_DEFAULT_GREETING,
     voiceDefaultSystemPrompt: process.env.VOICE_DEFAULT_SYSTEM_PROMPT,

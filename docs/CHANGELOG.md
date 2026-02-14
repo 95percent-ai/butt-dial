@@ -1,4 +1,4 @@
-<!-- version: 1.6 | updated: 2026-02-14 -->
+<!-- version: 1.7 | updated: 2026-02-14 -->
 
 # Changelog
 
@@ -216,3 +216,35 @@
 - Build passes clean
 - Dry test: 25/25 assertions pass (mock telephony + mock voice orchestrator + no Anthropic key fallback)
 - Live test pending (needs ngrok + real Twilio + real Anthropic API key)
+
+---
+
+## Session 7 — 2026-02-14
+
+### Phase 6 — Email Channel (Resend)
+
+#### New Files
+- `src/providers/email-resend.ts` — Resend email adapter (send emails + verify domains via REST API, no SDK)
+- `src/providers/email-mock.ts` — mock email adapter for demo/dev mode (fake messageId, mock DNS records)
+- `src/webhooks/inbound-email.ts` — inbound email webhook handler (POST /webhooks/:agentId/email, Resend payload, store + forward)
+- `tests/email.test.ts` — dry test (38 assertions: send email, DB record, inbound webhook, get_messages filter, error cases, SMS regression)
+
+#### Modified Files
+- `src/lib/config.ts` — added `resendApiKey` (reads `RESEND_API_KEY` from .env)
+- `src/providers/factory.ts` — wires email provider (demo → mock, Resend key → Resend, fallback → mock with warning)
+- `src/tools/send-message.ts` — extended `comms_send_message` with `channel` (sms/email), `subject`, and `html` params; routes to email or SMS provider; split into helper functions
+- `src/webhooks/router.ts` — registered `POST /webhooks/:agentId/email` route
+
+#### How It Works
+- **Outbound email:** `comms_send_message(channel: "email", subject: "...", ...)` → looks up agent's `email_address` → calls Resend API (or mock) → stores in messages table with channel "email"
+- **Inbound email:** Resend webhook POSTs to `/webhooks/:agentId/email` → validates agentId + email_address match → stores in messages table → forwards to callback URL
+- **SMS unchanged:** Default channel remains "sms", existing behavior preserved
+
+#### Verification
+- Build passes clean
+- Dry test: 38/38 assertions pass (demo mode with mock email adapter)
+- SMS regression: confirmed working alongside new email channel
+
+### Decisions
+- DEC-017: Resend over SendGrid (SendGrid lost free tier May 2025, Resend has 3K/month free)
+- DEC-018: Inbound email webhook uses same double-validation pattern as SMS (DEC-015)

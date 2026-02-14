@@ -19,6 +19,8 @@ import { createEdgeTTSProvider } from "./tts-edge.js";
 import { createLocalStorageProvider } from "./storage-local.js";
 import { createConversationRelayOrchestrator } from "./voice-conversation-relay.js";
 import { createMockVoiceOrchestrator } from "./voice-mock.js";
+import { createMockEmailProvider } from "./email-mock.js";
+import { createResendEmailProvider } from "./email-resend.js";
 
 type ProviderMap = {
   telephony: ITelephonyProvider;
@@ -99,7 +101,22 @@ export function initProviders(): void {
     logger.info("provider_initialized", { slot: "voiceOrchestration", provider: "conversation-relay" });
   }
 
-  // Email, WhatsApp, STT — stubs for now
+  // Email
+  if (config.demoMode) {
+    providers.email = createMockEmailProvider();
+    logger.info("provider_initialized", { slot: "email", provider: "mock (demo mode)" });
+  } else if (config.resendApiKey) {
+    providers.email = createResendEmailProvider({ apiKey: config.resendApiKey });
+    logger.info("provider_initialized", { slot: "email", provider: "resend" });
+  } else {
+    providers.email = createMockEmailProvider();
+    logger.warn("provider_fallback_mock", {
+      slot: "email",
+      reason: "No Resend API key found — using mock adapter",
+    });
+  }
+
+  // WhatsApp, STT — stubs for now
   // Real adapters will be added in their respective phases
   logger.info("providers_init_complete", {
     database: config.providerDatabase,

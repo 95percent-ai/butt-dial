@@ -1,4 +1,4 @@
-<!-- version: 2.6 | updated: 2026-02-14 -->
+<!-- version: 2.7 | updated: 2026-02-14 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -95,15 +95,17 @@ The big one. Human calls agent's number, talks to an LLM in real-time.
 - [x] Interruption handling
 - [x] `comms_make_call` tool (outbound AI voice call)
 - [x] **Verify (dry):** 25/25 assertions pass — make call, DB record, WebSocket setup/prompt/response, error cases
-- [ ] **Verify (live):** Call the agent's number → have a live conversation with the AI
+- [ ] **Verify (live):** Call the agent's number → have a live conversation with the AI *(blocked: Twilio trial account restrictions — inbound/outbound calls require verified numbers. Resume after upgrading to full Twilio account)*
 
 ## Phase 6 — Expand: Email Channel
-Add email send/receive using the same patterns.
+Add email send/receive using Resend as the provider.
 
-- [ ] SendGrid email adapter — `send()` method
-- [ ] Extend `comms_send_message` to support email channel
-- [ ] Inbound email webhook (SendGrid Inbound Parse → POST /webhooks/:agentId/email)
-- [ ] **Verify:** Agent sends email → arrives in inbox. Reply → agent receives it.
+- [x] Resend email adapter — `send()` + `verifyDomain()` methods
+- [x] Mock email adapter — for demo/dev mode
+- [x] Extend `comms_send_message` to support email channel (channel, subject, html params)
+- [x] Inbound email webhook (Resend webhook → POST /webhooks/:agentId/email)
+- [x] Config: `resendApiKey` added, factory wires email provider
+- [x] **Verify (dry):** 38/38 assertions pass — send email, DB record, inbound webhook, get_messages filter, error cases, SMS regression
 
 ## Phase 7 — Expand: WhatsApp Channel
 Add WhatsApp with pool strategy.

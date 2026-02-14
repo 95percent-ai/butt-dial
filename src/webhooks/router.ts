@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { config } from "../lib/config.js";
 import { handleInboundSms } from "./inbound-sms.js";
 import { handleInboundVoice, handleOutboundVoice } from "./inbound-voice.js";
+import { handleInboundEmail } from "./inbound-email.js";
 
 export const webhookRouter = Router();
 
@@ -19,6 +20,9 @@ webhookRouter.get("/health", (_req: Request, res: Response) => {
 
 // Inbound SMS webhook — Twilio POSTs here when someone texts the agent's number
 webhookRouter.post("/webhooks/:agentId/sms", handleInboundSms);
+
+// Inbound email webhook — Resend POSTs here when someone emails the agent's address
+webhookRouter.post("/webhooks/:agentId/email", handleInboundEmail);
 
 // Voice webhooks — Twilio POSTs here when a call connects
 webhookRouter.post("/webhooks/:agentId/voice", handleInboundVoice);
