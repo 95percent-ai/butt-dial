@@ -14,27 +14,30 @@ interface AgentRow {
   agent_id: string;
   phone_number: string | null;
   email_address: string | null;
+  whatsapp_sender_sid: string | null;
   status: string;
 }
 
 export function registerSendMessageTool(server: McpServer): void {
   server.tool(
     "comms_send_message",
-    "Send a message (SMS or email) from an agent to a recipient.",
+    "Send a message (SMS, email, or WhatsApp) from an agent to a recipient.",
     {
       agentId: z.string().describe("The agent ID that owns the sending address"),
-      to: z.string().describe("Recipient address (phone number in E.164 for SMS, or email address)"),
+      to: z.string().describe("Recipient address (phone number in E.164 for SMS/WhatsApp, or email address)"),
       body: z.string().describe("The message text to send"),
-      channel: z.enum(["sms", "email"]).default("sms").describe("Channel to send via (default: sms)"),
+      channel: z.enum(["sms", "email", "whatsapp"]).default("sms").describe("Channel to send via (default: sms)"),
       subject: z.string().optional().describe("Email subject line (required for email channel)"),
       html: z.string().optional().describe("Optional HTML body for email"),
+      templateId: z.string().optional().describe("WhatsApp content template SID (e.g. HX...) for messages outside 24h window"),
+      templateVars: z.record(z.string()).optional().describe("Template variable substitutions (e.g. {\"1\": \"John\"})"),
     },
-    async ({ agentId, to, body, channel, subject, html }) => {
+    async ({ agentId, to, body, channel, subject, html, templateId, templateVars }) => {
       const db = getProvider("database");
 
       // Look up the agent
       const rows = db.query<AgentRow>(
-        "SELECT agent_id, phone_number, email_address, status FROM agent_channels WHERE agent_id = ?",
+        "SELECT agent_id, phone_number, email_address, whatsapp_sender_sid, status FROM agent_channels WHERE agent_id = ?",
         [agentId]
       );
 
@@ -59,6 +62,8 @@ export function registerSendMessageTool(server: McpServer): void {
       // Route based on channel
       if (channel === "email") {
         return await sendEmail(db, agent, agentId, to, body, subject, html);
+      } else if (channel === "whatsapp") {
+        return await sendWhatsApp(db, agent, agentId, to, body, templateId, templateVars);
       } else {
         return await sendSms(db, agent, agentId, to, body);
       }
@@ -188,6 +193,68 @@ async function sendEmail(
         success: true, messageId, externalId: result.messageId,
         status: result.status, cost: result.cost ?? null,
         channel: "email", from: agent.email_address, to, subject,
+      }, null, 2),
+    }],
+  };
+}
+
+async function sendWhatsApp(
+  db: ReturnType<typeof getProvider<"database">>,
+  agent: { agent_id: string; whatsapp_sender_sid: string | null },
+  agentId: string,
+  to: string,
+  body: string,
+  templateId?: string,
+  templateVars?: Record<string, string>,
+) {
+  if (!agent.whatsapp_sender_sid) {
+    logger.warn("send_message_no_whatsapp", { agentId });
+    return {
+      content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" has no WhatsApp sender assigned` }) }],
+      isError: true,
+    };
+  }
+
+  const whatsapp = getProvider("whatsapp");
+
+  let result;
+  try {
+    result = await whatsapp.send({
+      from: agent.whatsapp_sender_sid,
+      to,
+      body,
+      templateId,
+      templateVars,
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    logger.error("send_message_provider_error", { agentId, to, channel: "whatsapp", error: errMsg });
+    return {
+      content: [{ type: "text" as const, text: JSON.stringify({ error: errMsg }) }],
+      isError: true,
+    };
+  }
+
+  const messageId = randomUUID();
+  db.run(
+    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost)
+     VALUES (?, ?, 'whatsapp', 'outbound', ?, ?, ?, ?, ?, ?)`,
+    [messageId, agentId, agent.whatsapp_sender_sid, to, body, result.messageId, result.status, result.cost ?? null]
+  );
+
+  logger.info("send_message_success", {
+    messageId, agentId, to, channel: "whatsapp",
+    externalId: result.messageId, status: result.status,
+    hasTemplate: !!templateId,
+  });
+
+  return {
+    content: [{
+      type: "text" as const,
+      text: JSON.stringify({
+        success: true, messageId, externalId: result.messageId,
+        status: result.status, cost: result.cost ?? null,
+        channel: "whatsapp", from: agent.whatsapp_sender_sid, to,
       }, null, 2),
     }],
   };

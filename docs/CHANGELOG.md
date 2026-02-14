@@ -1,4 +1,4 @@
-<!-- version: 1.7 | updated: 2026-02-14 -->
+<!-- version: 1.8 | updated: 2026-02-14 -->
 
 # Changelog
 
@@ -248,3 +248,33 @@
 ### Decisions
 - DEC-017: Resend over SendGrid (SendGrid lost free tier May 2025, Resend has 3K/month free)
 - DEC-018: Inbound email webhook uses same double-validation pattern as SMS (DEC-015)
+
+---
+
+## Session 8 — 2026-02-14
+
+### Phase 7 — WhatsApp Channel (Twilio)
+
+#### New Files
+- `src/providers/whatsapp-twilio.ts` — Twilio WhatsApp adapter (send via same Messages API with `whatsapp:` prefix, template support via ContentSid/ContentVariables)
+- `src/providers/whatsapp-mock.ts` — mock WhatsApp adapter for demo/dev mode
+- `src/webhooks/inbound-whatsapp.ts` — inbound WhatsApp webhook handler (POST /webhooks/:agentId/whatsapp, strips `whatsapp:` prefix, store + forward)
+- `tests/whatsapp.test.ts` — dry test (37 assertions: send WhatsApp, template params, inbound webhook, DB records, get_messages filter, error cases, SMS + email regression)
+
+#### Modified Files
+- `src/db/schema.sql` — added `whatsapp_pool` table (phone_number, sender_sid, status, assigned_to_agent)
+- `src/providers/factory.ts` — wires WhatsApp provider (demo → mock, Twilio creds → Twilio, fallback → mock with warning)
+- `src/tools/send-message.ts` — extended `comms_send_message` with `channel: "whatsapp"`, `templateId`, `templateVars` params; added `sendWhatsApp()` helper; added `whatsapp_sender_sid` to agent query
+- `src/webhooks/router.ts` — registered `POST /webhooks/:agentId/whatsapp` route
+- `src/db/seed.ts` — test agent now gets `whatsapp_sender_sid` (+1234567890)
+
+#### How It Works
+- **Outbound WhatsApp:** `comms_send_message(channel: "whatsapp", ...)` → looks up agent's `whatsapp_sender_sid` → calls Twilio Messages API with `From: whatsapp:+X`, `To: whatsapp:+Y` → stores in DB with channel "whatsapp"
+- **Template messages:** Pass `templateId` (ContentSid) + `templateVars` for messages outside 24h window
+- **Inbound WhatsApp:** Twilio webhook POSTs to `/webhooks/:agentId/whatsapp` → strips `whatsapp:` prefix from From/To → stores in DB → forwards to callback URL
+- **SMS + email unchanged:** Existing channels work exactly as before
+
+#### Verification
+- Build passes clean
+- Dry test: 37/37 assertions pass (demo mode with mock WhatsApp adapter)
+- SMS + email regression: confirmed working alongside new WhatsApp channel

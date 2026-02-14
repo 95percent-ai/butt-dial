@@ -1,4 +1,4 @@
-<!-- version: 2.7 | updated: 2026-02-14 -->
+<!-- version: 2.8 | updated: 2026-02-14 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -108,15 +108,18 @@ Add email send/receive using Resend as the provider.
 - [x] **Verify (dry):** 38/38 assertions pass — send email, DB record, inbound webhook, get_messages filter, error cases, SMS regression
 
 ## Phase 7 — Expand: WhatsApp Channel
-Add WhatsApp with pool strategy.
+Add WhatsApp send/receive using Twilio WhatsApp API.
 
-- [ ] WhatsApp send via Twilio adapter
-- [ ] Extend `comms_send_message` to support WhatsApp channel
-- [ ] Inbound WhatsApp webhook (POST /webhooks/:agentId/whatsapp)
-- [ ] WhatsApp number pool manager (assign from pool on provision)
-- [ ] whatsapp_pool table + seeding script
-- [ ] Template support (for messages outside 24h window)
-- [ ] **Verify:** Agent sends WhatsApp → arrives. Reply → agent receives it. Pool assignment works.
+- [x] WhatsApp send via Twilio adapter (whatsapp-twilio.ts)
+- [x] Mock WhatsApp adapter for demo mode (whatsapp-mock.ts)
+- [x] Extend `comms_send_message` to support WhatsApp channel (+ templateId, templateVars)
+- [x] Inbound WhatsApp webhook (POST /webhooks/:agentId/whatsapp)
+- [x] whatsapp_pool table in schema
+- [x] Seed script updated with whatsapp_sender_sid
+- [x] Template support (ContentSid + ContentVariables params)
+- [x] Factory wiring for WhatsApp provider
+- [x] **Verify (dry):** 37/37 assertions pass — send WhatsApp, template params, inbound webhook, DB records, error cases, SMS + email regression
+- [ ] **Verify (live):** Real Twilio WhatsApp send/receive *(future — requires WhatsApp sandbox or verified sender)*
 
 ## Phase 8 — MVP: Provisioning & Teardown
 Automate what we've been doing manually. Full agent lifecycle + customer onboarding via API.

@@ -22,12 +22,12 @@ export function seedTestAgent(db: ReturnType<typeof createSqliteProvider>): void
   }
 
   db.run(
-    `INSERT INTO agent_channels (id, agent_id, display_name, phone_number, status)
-     VALUES (?, ?, ?, ?, 'active')`,
-    [randomUUID(), agentId, "Test Agent", "+1234567890"]
+    `INSERT INTO agent_channels (id, agent_id, display_name, phone_number, whatsapp_sender_sid, status)
+     VALUES (?, ?, ?, ?, ?, 'active')`,
+    [randomUUID(), agentId, "Test Agent", "+1234567890", "+1234567890"]
   );
 
-  console.log(`Seeded agent "${agentId}" with phone +1234567890`);
+  console.log(`Seeded agent "${agentId}" with phone +1234567890, whatsapp +1234567890`);
 }
 
 // Run directly as a script

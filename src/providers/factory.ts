@@ -21,6 +21,8 @@ import { createConversationRelayOrchestrator } from "./voice-conversation-relay.
 import { createMockVoiceOrchestrator } from "./voice-mock.js";
 import { createMockEmailProvider } from "./email-mock.js";
 import { createResendEmailProvider } from "./email-resend.js";
+import { createMockWhatsAppProvider } from "./whatsapp-mock.js";
+import { createTwilioWhatsAppProvider } from "./whatsapp-twilio.js";
 
 type ProviderMap = {
   telephony: ITelephonyProvider;
@@ -116,8 +118,25 @@ export function initProviders(): void {
     });
   }
 
-  // WhatsApp, STT — stubs for now
-  // Real adapters will be added in their respective phases
+  // WhatsApp
+  if (config.demoMode) {
+    providers.whatsapp = createMockWhatsAppProvider();
+    logger.info("provider_initialized", { slot: "whatsapp", provider: "mock (demo mode)" });
+  } else if (config.twilioAccountSid && config.twilioAuthToken) {
+    providers.whatsapp = createTwilioWhatsAppProvider({
+      accountSid: config.twilioAccountSid,
+      authToken: config.twilioAuthToken,
+    });
+    logger.info("provider_initialized", { slot: "whatsapp", provider: "twilio" });
+  } else {
+    providers.whatsapp = createMockWhatsAppProvider();
+    logger.warn("provider_fallback_mock", {
+      slot: "whatsapp",
+      reason: "No Twilio credentials found — using mock adapter",
+    });
+  }
+
+  // STT — stub for now
   logger.info("providers_init_complete", {
     database: config.providerDatabase,
     telephony: config.demoMode ? "mock" : config.providerTelephony,

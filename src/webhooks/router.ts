@@ -4,6 +4,7 @@ import { config } from "../lib/config.js";
 import { handleInboundSms } from "./inbound-sms.js";
 import { handleInboundVoice, handleOutboundVoice } from "./inbound-voice.js";
 import { handleInboundEmail } from "./inbound-email.js";
+import { handleInboundWhatsApp } from "./inbound-whatsapp.js";
 
 export const webhookRouter = Router();
 
@@ -23,6 +24,9 @@ webhookRouter.post("/webhooks/:agentId/sms", handleInboundSms);
 
 // Inbound email webhook — Resend POSTs here when someone emails the agent's address
 webhookRouter.post("/webhooks/:agentId/email", handleInboundEmail);
+
+// Inbound WhatsApp webhook — Twilio POSTs here when someone sends WhatsApp to agent's number
+webhookRouter.post("/webhooks/:agentId/whatsapp", handleInboundWhatsApp);
 
 // Voice webhooks — Twilio POSTs here when a call connects
 webhookRouter.post("/webhooks/:agentId/voice", handleInboundVoice);
