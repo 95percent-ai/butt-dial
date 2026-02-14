@@ -41,8 +41,18 @@ export function createMockTelephonyProvider(): ITelephonyProvider {
       };
     },
 
-    async makeCall(_params: MakeCallParams): Promise<MakeCallResult> {
-      throw new Error("makeCall is not implemented in mock adapter");
+    async makeCall(params: MakeCallParams): Promise<MakeCallResult> {
+      const callSid = `mock-call-${Date.now()}-${++counter}`;
+
+      logger.info("mock_call_made", {
+        callSid,
+        from: params.from,
+        to: params.to,
+        hasTwiml: !!params.twiml,
+        webhookUrl: params.webhookUrl ?? null,
+      });
+
+      return { callSid, status: "queued" };
     },
 
     async buyNumber(_params: BuyNumberParams): Promise<BuyNumberResult> {

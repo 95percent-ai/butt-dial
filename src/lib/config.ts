@@ -38,6 +38,15 @@ const configSchema = z.object({
   elevenlabsApiKey: z.string().optional(),
   elevenlabsDefaultVoice: z.string().optional(),
 
+  // Anthropic (LLM for voice conversations)
+  anthropicApiKey: z.string().optional(),
+
+  // Voice conversation defaults
+  voiceDefaultGreeting: z.string().default("Hello! How can I help you?"),
+  voiceDefaultSystemPrompt: z.string().default("You are a helpful AI assistant. Keep your responses concise and conversational."),
+  voiceDefaultVoice: z.string().default("cgSgspJ2msm6clMCkdW9"),
+  voiceDefaultLanguage: z.string().default("en-US"),
+
   // Callback
   agentosCallbackUrl: z.string().default("http://localhost:3100/callback/{agentId}/inbound"),
 
@@ -80,6 +89,11 @@ function loadConfig() {
     twilioApiSecret: process.env.TWILIO_API_SECRET,
     elevenlabsApiKey: process.env.ELEVENLABS_API_KEY,
     elevenlabsDefaultVoice: process.env.ELEVENLABS_DEFAULT_VOICE,
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+    voiceDefaultGreeting: process.env.VOICE_DEFAULT_GREETING,
+    voiceDefaultSystemPrompt: process.env.VOICE_DEFAULT_SYSTEM_PROMPT,
+    voiceDefaultVoice: process.env.VOICE_DEFAULT_VOICE,
+    voiceDefaultLanguage: process.env.VOICE_DEFAULT_LANGUAGE,
     agentosCallbackUrl: process.env.AGENTOS_CALLBACK_URL,
     defaultMaxActionsPerMinute: process.env.DEFAULT_MAX_ACTIONS_PER_MINUTE,
     defaultMaxActionsPerHour: process.env.DEFAULT_MAX_ACTIONS_PER_HOUR,

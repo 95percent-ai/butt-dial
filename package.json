@@ -17,17 +17,21 @@
   },
   "license": "UNLICENSED",
   "dependencies": {
+    "@andresaya/edge-tts": "^1.8.0",
+    "@anthropic-ai/sdk": "^0.74.0",
     "@modelcontextprotocol/sdk": "^1.12.1",
-    "express": "^5.1.0",
     "better-sqlite3": "^11.8.1",
     "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "ws": "^8.19.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "typescript": "^5.7.3",
-    "tsx": "^4.19.3",
-    "@types/node": "^22.13.4",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.0",
-    "@types/better-sqlite3": "^7.6.13"
+    "@types/node": "^22.13.4",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
   }
 }

@@ -13,6 +13,12 @@ import type {
 import { createSqliteProvider } from "../db/client.js";
 import { createMockTelephonyProvider } from "./telephony-mock.js";
 import { createTwilioTelephonyProvider } from "./telephony-twilio.js";
+import { createMockTTSProvider } from "./tts-mock.js";
+import { createElevenLabsTTSProvider } from "./tts-elevenlabs.js";
+import { createEdgeTTSProvider } from "./tts-edge.js";
+import { createLocalStorageProvider } from "./storage-local.js";
+import { createConversationRelayOrchestrator } from "./voice-conversation-relay.js";
+import { createMockVoiceOrchestrator } from "./voice-mock.js";
 
 type ProviderMap = {
   telephony: ITelephonyProvider;
@@ -65,7 +71,35 @@ export function initProviders(): void {
     });
   }
 
-  // Email, WhatsApp, TTS, STT, voice, storage — stubs for now
+  // TTS
+  if (config.demoMode) {
+    providers.tts = createMockTTSProvider();
+    logger.info("provider_initialized", { slot: "tts", provider: "mock (demo mode)" });
+  } else if (config.elevenlabsApiKey) {
+    providers.tts = createElevenLabsTTSProvider({
+      apiKey: config.elevenlabsApiKey,
+      defaultVoice: config.elevenlabsDefaultVoice,
+    });
+    logger.info("provider_initialized", { slot: "tts", provider: "elevenlabs" });
+  } else {
+    providers.tts = createEdgeTTSProvider();
+    logger.info("provider_initialized", { slot: "tts", provider: "edge-tts (free, no API key)" });
+  }
+
+  // Storage — always local for now
+  providers.storage = createLocalStorageProvider();
+  logger.info("provider_initialized", { slot: "storage", provider: "local" });
+
+  // Voice orchestration
+  if (config.demoMode) {
+    providers.voiceOrchestration = createMockVoiceOrchestrator();
+    logger.info("provider_initialized", { slot: "voiceOrchestration", provider: "mock (demo mode)" });
+  } else {
+    providers.voiceOrchestration = createConversationRelayOrchestrator();
+    logger.info("provider_initialized", { slot: "voiceOrchestration", provider: "conversation-relay" });
+  }
+
+  // Email, WhatsApp, STT — stubs for now
   // Real adapters will be added in their respective phases
   logger.info("providers_init_complete", {
     database: config.providerDatabase,

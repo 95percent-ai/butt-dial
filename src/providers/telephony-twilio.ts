@@ -89,8 +89,62 @@ export function createTwilioTelephonyProvider(cfg: TwilioConfig): ITelephonyProv
       };
     },
 
-    async makeCall(_params: MakeCallParams): Promise<MakeCallResult> {
-      throw new Error("makeCall is not implemented yet");
+    async makeCall(params: MakeCallParams): Promise<MakeCallResult> {
+      const body = new URLSearchParams({
+        From: params.from,
+        To: params.to,
+      });
+
+      if (params.twiml) {
+        body.set("Twiml", params.twiml);
+      } else if (params.webhookUrl) {
+        body.set("Url", params.webhookUrl);
+      } else {
+        throw new Error("makeCall requires either twiml or webhookUrl");
+      }
+
+      if (params.statusCallbackUrl) {
+        body.set("StatusCallback", params.statusCallbackUrl);
+      }
+
+      const response = await fetch(`${baseUrl}/Calls.json`, {
+        method: "POST",
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: body.toString(),
+      });
+
+      const rawBody = await response.text();
+      let data: { sid?: string; status?: string; code?: number; message?: string };
+      try {
+        data = JSON.parse(rawBody);
+      } catch {
+        logger.error("twilio_call_parse_error", { status: response.status, body: rawBody.slice(0, 500) });
+        throw new Error(`Twilio call failed: unexpected response (HTTP ${response.status})`);
+      }
+
+      if (!response.ok) {
+        logger.error("twilio_call_failed", {
+          status: response.status,
+          errorCode: data.code,
+          errorMessage: data.message,
+        });
+        throw new Error(`Twilio call failed (${data.code}): ${data.message || response.statusText}`);
+      }
+
+      logger.info("twilio_call_created", {
+        callSid: data.sid,
+        status: data.status,
+        from: params.from,
+        to: params.to,
+      });
+
+      return {
+        callSid: data.sid!,
+        status: data.status ?? "queued",
+      };
     },
 
     async buyNumber(_params: BuyNumberParams): Promise<BuyNumberResult> {

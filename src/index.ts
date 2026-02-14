@@ -1,4 +1,7 @@
+import http from "http";
 import express from "express";
+import path from "path";
+import { WebSocketServer } from "ws";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { config } from "./lib/config.js";
 import { logger } from "./lib/logger.js";
@@ -7,6 +10,7 @@ import { runMigrations } from "./db/migrate.js";
 import { createMcpServer } from "./server.js";
 import { webhookRouter } from "./webhooks/router.js";
 import { adminRouter } from "./admin/router.js";
+import { handleVoiceWebSocket } from "./webhooks/voice-ws.js";
 
 async function main() {
   // 1. Initialize providers (DB first)
@@ -52,15 +56,39 @@ async function main() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
+  // 6. Static file serving for audio storage (Twilio fetches audio from here)
+  app.use("/storage", express.static(path.resolve("storage")));
+
   app.use(webhookRouter);
   app.use(adminRouter);
 
-  // 7. Start server
-  app.listen(config.port, () => {
+  // 7. Wrap Express with http.createServer for WebSocket support
+  const server = http.createServer(app);
+
+  // 8. WebSocket server (noServer mode — we handle upgrade routing manually)
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on("upgrade", (req, socket, head) => {
+    const url = req.url || "";
+
+    // Route voice WebSocket connections: /webhooks/:agentId/voice-ws
+    if (/\/webhooks\/[^/]+\/voice-ws/.test(url)) {
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        handleVoiceWebSocket(ws, req);
+      });
+    } else {
+      // Not a recognized WebSocket path — reject
+      socket.destroy();
+    }
+  });
+
+  // 9. Start server
+  server.listen(config.port, () => {
     logger.info("server_started", {
       port: config.port,
       mcpEndpoint: "/sse",
       healthEndpoint: "/health",
+      voiceWsEndpoint: "/webhooks/:agentId/voice-ws",
       environment: config.nodeEnv,
       demoMode: config.demoMode,
     });

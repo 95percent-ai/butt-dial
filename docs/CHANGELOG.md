@@ -1,4 +1,4 @@
-<!-- version: 1.4 | updated: 2026-02-14 -->
+<!-- version: 1.6 | updated: 2026-02-14 -->
 
 # Changelog
 
@@ -144,3 +144,75 @@
 
 ### Decisions
 - DEC-015: Webhook uses agentId from URL path + phone_number match for double validation
+
+---
+
+## Session 5 — 2026-02-14
+
+### Phase 4 — Small Win: Make a Phone Call (Pre-recorded Voice Message)
+
+#### New Files
+- `src/providers/tts-mock.ts` — mock TTS adapter (returns silent WAV, used in demo mode and dry tests)
+- `src/providers/tts-elevenlabs.ts` — ElevenLabs TTS adapter (text → audio via API, ulaw_8000 format for Twilio)
+- `src/providers/storage-local.ts` — local filesystem storage adapter (saves to `storage/`, serves at `/storage/{key}`)
+- `src/tools/send-voice-message.ts` — `comms_send_voice_message` MCP tool (TTS → upload → Twilio call → DB log)
+- `tests/voice-message.test.ts` — dry test (26 assertions: tool listing, voice send, audio file verification, DB record, error cases)
+
+#### Modified Files
+- `src/providers/interfaces.ts` — added optional `twiml` field to `MakeCallParams`
+- `src/providers/telephony-mock.ts` — implemented `makeCall()` (returns fake call SID)
+- `src/providers/telephony-twilio.ts` — implemented `makeCall()` (POST to Calls.json with TwiML or webhook URL)
+- `src/providers/factory.ts` — wired up TTS provider (demo → mock, ElevenLabs key → ElevenLabs, fallback → mock) and storage provider (always local)
+- `src/index.ts` — added `/storage` static file serving route
+- `src/server.ts` — registered `comms_send_voice_message` tool
+
+#### Verification
+- Build passes clean
+- Dry test: 26/26 assertions pass (mock TTS + mock telephony)
+- Live test pending (needs ngrok + real ElevenLabs + real Twilio call)
+
+#### Live Verification (Virtual)
+- Built Edge TTS adapter (`tts-edge.ts`) — free Microsoft TTS, no API key needed
+- Installed `@andresaya/edge-tts` package
+- Updated factory.ts — ElevenLabs if key present, Edge TTS as free fallback
+- Edge TTS generates real MP3 audio (45-49KB per message)
+- Audio stored locally and served via ngrok public URL (HTTP 200, size match confirmed)
+- Twilio API called correctly — only blocked by trial account restriction (error 21219)
+- Full pipeline verified: MCP tool → Edge TTS → local storage → public URL → Twilio API
+
+### Decisions
+- DEC-016: Inline TwiML with local audio storage (simplest approach for one-way voice messages)
+
+---
+
+## Session 6 — 2026-02-14
+
+### Phase 5 — Live Voice AI Conversation
+
+#### New Files
+- `src/providers/voice-conversation-relay.ts` — ConversationRelay TwiML generator (builds `<Connect><ConversationRelay>` XML with ElevenLabs TTS + Deepgram STT)
+- `src/providers/voice-mock.ts` — mock voice orchestrator for demo mode (returns simple `<Say>` TwiML)
+- `src/webhooks/inbound-voice.ts` — webhook handlers for inbound (`POST /webhooks/:agentId/voice`) and outbound (`POST /webhooks/:agentId/outbound-voice`) voice calls
+- `src/webhooks/voice-ws.ts` — WebSocket handler for live voice conversations (receives transcribed speech, streams LLM responses back via Anthropic Claude)
+- `src/webhooks/voice-sessions.ts` — shared in-memory store for voice call configs and active conversations
+- `src/tools/make-call.ts` — `comms_make_call` MCP tool (initiates outbound AI voice call)
+- `tests/voice-call.test.ts` — dry test (25 assertions: tool registration, make call, DB record, WebSocket connectivity, setup/prompt/response cycle, error handling)
+
+#### Modified Files
+- `src/lib/config.ts` — added `anthropicApiKey`, `voiceDefaultGreeting`, `voiceDefaultSystemPrompt`, `voiceDefaultVoice`, `voiceDefaultLanguage`
+- `src/providers/factory.ts` — wired up voice orchestrator (demo → mock, else → conversation-relay)
+- `src/webhooks/router.ts` — registered voice webhook routes
+- `src/index.ts` — wrapped Express with `http.createServer`, added `WebSocketServer` with upgrade routing for `/webhooks/:agentId/voice-ws`
+- `src/server.ts` — registered `comms_make_call` tool
+- `package.json` — added `ws`, `@types/ws`, `@anthropic-ai/sdk` dependencies
+
+#### How It Works
+- **Inbound call:** Human dials agent's number → Twilio hits voice webhook → returns ConversationRelay TwiML → Twilio opens WebSocket → human speaks → Twilio STT → prompt sent to our WebSocket → Claude LLM streams response → Twilio TTS → human hears AI
+- **Outbound call:** `comms_make_call` → stores session config → Twilio makes call → outbound-voice webhook → same ConversationRelay flow
+- **Interruption:** When human speaks while AI is talking, Twilio sends `interrupt` → abort controller cancels LLM generation
+- **Demo mode:** No real LLM call — returns a fallback message
+
+#### Verification
+- Build passes clean
+- Dry test: 25/25 assertions pass (mock telephony + mock voice orchestrator + no Anthropic key fallback)
+- Live test pending (needs ngrok + real Twilio + real Anthropic API key)

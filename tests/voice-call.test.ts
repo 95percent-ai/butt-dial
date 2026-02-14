@@ -1,0 +1,234 @@
+/**
+ * Dry test for Phase 5 — Live Voice AI Conversation.
+ *
+ * Tests with DEMO_MODE=true (no real APIs):
+ * 1. comms_make_call tool — initiates outbound AI voice call
+ * 2. Message stored in DB (channel: voice, direction: outbound)
+ * 3. WebSocket endpoint accessible and responds to messages
+ * 4. Mock prompt/response cycle (no real LLM in demo mode)
+ * 5. Error cases: unknown agent, missing params
+ *
+ * Prerequisites:
+ *   - Server running with DEMO_MODE=true
+ *   - Test agent seeded (npm run seed)
+ *
+ * Usage: npx tsx tests/voice-call.test.ts
+ */
+
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+import Database from "better-sqlite3";
+import WebSocket from "ws";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SERVER_URL = "http://localhost:3100";
+const WS_URL = "ws://localhost:3100";
+const DB_PATH = path.join(__dirname, "..", "data", "comms.db");
+
+let passed = 0;
+let failed = 0;
+
+function assert(condition: boolean, label: string) {
+  if (condition) {
+    console.log(`  ✓ ${label}`);
+    passed++;
+  } else {
+    console.error(`  ✗ ${label}`);
+    failed++;
+  }
+}
+
+/** Helper: open a WebSocket and collect messages until timeout or close */
+function openWs(path: string, timeoutMs = 3000): Promise<{ messages: unknown[]; connected: boolean }> {
+  return new Promise((resolve) => {
+    const messages: unknown[] = [];
+    let connected = false;
+
+    const ws = new WebSocket(`${WS_URL}${path}`);
+
+    const timer = setTimeout(() => {
+      ws.close();
+      resolve({ messages, connected });
+    }, timeoutMs);
+
+    ws.on("open", () => {
+      connected = true;
+    });
+
+    ws.on("message", (data) => {
+      try {
+        messages.push(JSON.parse(data.toString()));
+      } catch {
+        messages.push(data.toString());
+      }
+    });
+
+    ws.on("close", () => {
+      clearTimeout(timer);
+      resolve({ messages, connected });
+    });
+
+    ws.on("error", () => {
+      clearTimeout(timer);
+      resolve({ messages, connected });
+    });
+  });
+}
+
+async function main() {
+  console.log("\n=== Phase 5: comms_make_call + Voice WebSocket dry test ===\n");
+
+  // 1. Connect MCP client
+  console.log("Connecting to MCP server...");
+  const transport = new SSEClientTransport(new URL(`${SERVER_URL}/sse`));
+  const client = new Client({ name: "test-client", version: "1.0.0" });
+  await client.connect(transport);
+  console.log("Connected.\n");
+
+  // 2. Verify tool is listed
+  console.log("Test: tool listing");
+  const { tools } = await client.listTools();
+  const toolNames = tools.map((t) => t.name);
+  assert(toolNames.includes("comms_make_call"), "comms_make_call is registered");
+
+  // 3. Make call (valid agent)
+  console.log("\nTest: make call (valid agent)");
+  const result = await client.callTool({
+    name: "comms_make_call",
+    arguments: {
+      agentId: "test-agent-001",
+      to: "+972526557547",
+      systemPrompt: "You are a test AI assistant for dry testing.",
+      greeting: "Hello, this is a test call.",
+    },
+  });
+
+  const text = (result.content as Array<{ type: string; text: string }>)[0]?.text;
+  const parsed = JSON.parse(text);
+
+  assert(parsed.success === true, "response has success: true");
+  assert(typeof parsed.messageId === "string", "response has messageId");
+  assert(typeof parsed.callSid === "string", "response has callSid");
+  assert(parsed.callSid.startsWith("mock-call-"), "callSid starts with mock-call- (demo mode)");
+  assert(typeof parsed.sessionId === "string", "response has sessionId");
+  assert(parsed.status === "queued", "status is 'queued'");
+  assert(typeof parsed.from === "string" && parsed.from.startsWith("+"), "from is a valid phone number");
+  assert(parsed.to === "+972526557547", "to is the recipient number");
+
+  // 4. Verify database record
+  console.log("\nTest: database record");
+  const db = new Database(DB_PATH, { readonly: true });
+  const row = db.prepare(
+    "SELECT * FROM messages WHERE id = ?"
+  ).get(parsed.messageId) as Record<string, unknown> | undefined;
+  db.close();
+
+  assert(row !== undefined, "message row exists in database");
+  if (row) {
+    assert(row.agent_id === "test-agent-001", "agent_id matches");
+    assert(row.channel === "voice", "channel is 'voice'");
+    assert(row.direction === "outbound", "direction is 'outbound'");
+    assert(typeof row.from_address === "string" && (row.from_address as string).startsWith("+"), "from_address is valid phone number");
+    assert(row.to_address === "+972526557547", "to_address matches");
+    assert(row.external_id === parsed.callSid, "external_id matches call SID");
+  }
+
+  // 5. WebSocket connectivity
+  console.log("\nTest: WebSocket endpoint");
+  const wsResult = await openWs("/webhooks/test-agent-001/voice-ws", 2000);
+  assert(wsResult.connected, "WebSocket connects to /webhooks/:agentId/voice-ws");
+
+  // 6. WebSocket setup + prompt cycle
+  console.log("\nTest: WebSocket setup + prompt");
+  const wsConv = await new Promise<{ messages: unknown[]; connected: boolean }>((resolve) => {
+    const messages: unknown[] = [];
+    let connected = false;
+
+    const ws = new WebSocket(`${WS_URL}/webhooks/test-agent-001/voice-ws`);
+
+    ws.on("open", () => {
+      connected = true;
+
+      // Send setup message
+      ws.send(JSON.stringify({
+        type: "setup",
+        callSid: "test-call-dry-001",
+        from: "+972526557547",
+        to: "+15551234567",
+      }));
+
+      // Send prompt message (small delay to let setup process)
+      setTimeout(() => {
+        ws.send(JSON.stringify({
+          type: "prompt",
+          voicePrompt: "Hello, can you hear me?",
+        }));
+      }, 200);
+
+      // Wait for response then close
+      setTimeout(() => {
+        ws.close();
+        resolve({ messages, connected });
+      }, 2000);
+    });
+
+    ws.on("message", (data) => {
+      try {
+        messages.push(JSON.parse(data.toString()));
+      } catch {
+        messages.push(data.toString());
+      }
+    });
+
+    ws.on("error", () => {
+      resolve({ messages, connected });
+    });
+  });
+
+  assert(wsConv.connected, "WebSocket conversation connects");
+  assert(wsConv.messages.length > 0, "received response messages from WebSocket");
+
+  if (wsConv.messages.length > 0) {
+    const firstMsg = wsConv.messages[0] as Record<string, unknown>;
+    assert(firstMsg.type === "text", "response type is 'text'");
+    assert(typeof firstMsg.token === "string", "response has token string");
+
+    // In demo mode (no Anthropic key), should get a fallback message
+    const lastMsg = wsConv.messages[wsConv.messages.length - 1] as Record<string, unknown>;
+    assert(lastMsg.last === true, "last message has last: true");
+  }
+
+  // 7. Error case: unknown agent
+  console.log("\nTest: make call (unknown agent)");
+  const errResult = await client.callTool({
+    name: "comms_make_call",
+    arguments: {
+      agentId: "does-not-exist",
+      to: "+972526557547",
+    },
+  });
+
+  const errText = (errResult.content as Array<{ type: string; text: string }>)[0]?.text;
+  const errParsed = JSON.parse(errText);
+  assert(errParsed.error !== undefined, "error response has error field");
+  assert(errResult.isError === true, "isError flag is true");
+
+  // 8. WebSocket rejects non-voice paths
+  console.log("\nTest: WebSocket rejects non-voice paths");
+  const badWs = await openWs("/some/random/path", 1000);
+  assert(!badWs.connected, "non-voice WebSocket path is rejected");
+
+  // 9. Disconnect
+  await client.close();
+
+  // Summary
+  console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
+  process.exit(failed > 0 ? 1 : 0);
+}
+
+main().catch((err) => {
+  console.error("Test crashed:", err);
+  process.exit(1);
+});

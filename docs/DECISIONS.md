@@ -1,4 +1,4 @@
-<!-- version: 2.3 | updated: 2026-02-14 -->
+<!-- version: 2.4 | updated: 2026-02-14 -->
 
 # Decisions Log
 
@@ -97,6 +97,12 @@
 **What:** The inbound SMS webhook at `POST /webhooks/:agentId/sms` validates that both the `agentId` from the URL path AND the `To` phone number from the Twilio body match the same agent record. The webhook returns 404 if neither matches.
 **Why:** Prevents routing errors where a webhook URL is misconfigured to point at the wrong agent. The URL provides the agent context, the phone number confirms it. Both must agree.
 **Alternatives considered:** Match by phone number only (simpler, but a single number could theoretically be reused). Match by agentId only (no phone verification).
+
+## DEC-016: Voice Message Uses Inline TwiML with Local Audio Storage
+**Date:** 2026-02-14
+**What:** The `comms_send_voice_message` tool generates audio via TTS, stores it locally in a `storage/` directory served by Express at `/storage/{key}`, and places a Twilio call with inline TwiML (`<Play>` pointing to the audio URL). `MakeCallParams` accepts optional `twiml` as an alternative to `webhookUrl`.
+**Why:** Inline TwiML is simpler than hosting a separate webhook endpoint for call instructions. Local storage avoids needing S3/R2 for dev. The audio URL must be publicly accessible (ngrok in dev, real domain in production) so Twilio can fetch it when the call connects.
+**Alternatives considered:** Webhook-based TwiML (more complex, needed for Phase 5 live calls but overkill here). Base64 audio in TwiML (not supported by Twilio). External storage (S3/R2 — adds provider dependency for Phase 4).
 
 ---
 

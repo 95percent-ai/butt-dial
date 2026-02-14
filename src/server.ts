@@ -5,6 +5,8 @@ import { logger } from "./lib/logger.js";
 import { getProvider } from "./providers/factory.js";
 import { registerSendMessageTool } from "./tools/send-message.js";
 import { registerGetMessagesTool } from "./tools/get-messages.js";
+import { registerSendVoiceMessageTool } from "./tools/send-voice-message.js";
+import { registerMakeCallTool } from "./tools/make-call.js";
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -64,6 +66,12 @@ export function createMcpServer(): McpServer {
 
   // Phase 3: Get messages tool
   registerGetMessagesTool(server);
+
+  // Phase 4: Send voice message tool
+  registerSendVoiceMessageTool(server);
+
+  // Phase 5: Make call tool (outbound AI voice call)
+  registerMakeCallTool(server);
 
   logger.info("mcp_server_created", { name: config.mcpServerName });
 

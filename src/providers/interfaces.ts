@@ -19,7 +19,8 @@ export interface SendSmsResult {
 export interface MakeCallParams {
   from: string;
   to: string;
-  webhookUrl: string;
+  webhookUrl?: string;
+  twiml?: string;
   statusCallbackUrl?: string;
 }
 
