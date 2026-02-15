@@ -13,6 +13,7 @@ import { requireAgent, authErrorResponse, type AuthInfo } from "../security/auth
 import { sanitize, SanitizationError, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 import { metrics } from "../observability/metrics.js";
+import { preSendCheck } from "../security/compliance.js";
 
 interface AgentRow {
   agent_id: string;
@@ -85,6 +86,16 @@ export function registerSendMessageTool(server: McpServer): void {
       } catch (err) {
         if (err instanceof RateLimitError) return rateLimitErrorResponse(err);
         throw err;
+      }
+
+      // Compliance check (content filter, DNC, TCPA, CAN-SPAM)
+      const compliance = preSendCheck(db, { channel, to, body, html });
+      if (!compliance.allowed) {
+        logger.warn("send_message_compliance_blocked", { agentId, to, channel, reason: compliance.reason });
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: `Compliance: ${compliance.reason}` }) }],
+          isError: true,
+        };
       }
 
       // Route based on channel

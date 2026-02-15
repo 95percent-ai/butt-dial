@@ -35,6 +35,10 @@ export function runMigrations(): void {
   const callLogsSchema = fs.readFileSync(callLogsSchemaPath, "utf-8");
   db.exec(callLogsSchema);
 
+  const complianceSchemaPath = path.join(projectRoot, "src", "db", "schema-compliance.sql");
+  const complianceSchema = fs.readFileSync(complianceSchemaPath, "utf-8");
+  db.exec(complianceSchema);
+
   logger.info("migrations_complete");
 }
 

@@ -16,6 +16,7 @@ import { storeCallConfig } from "../webhooks/voice-sessions.js";
 import { requireAgent, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
+import { checkTcpaTimeOfDay, checkDnc, checkContentFilter } from "../security/compliance.js";
 
 interface AgentRow {
   agent_id: string;
@@ -104,6 +105,38 @@ export function registerMakeCallTool(server: McpServer): void {
       } catch (err) {
         if (err instanceof RateLimitError) return rateLimitErrorResponse(err);
         throw err;
+      }
+
+      // Compliance: TCPA time-of-day check
+      const tcpaCheck = checkTcpaTimeOfDay();
+      if (!tcpaCheck.allowed) {
+        logger.warn("make_call_tcpa_blocked", { agentId, to, reason: tcpaCheck.reason });
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: `Compliance: ${tcpaCheck.reason}` }) }],
+          isError: true,
+        };
+      }
+
+      // Compliance: DNC check
+      const dncCheck = checkDnc(db, to, "phone");
+      if (!dncCheck.allowed) {
+        logger.warn("make_call_dnc_blocked", { agentId, to, reason: dncCheck.reason });
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: `Compliance: ${dncCheck.reason}` }) }],
+          isError: true,
+        };
+      }
+
+      // Compliance: Content filter on greeting/prompt
+      if (greeting) {
+        const contentCheck = checkContentFilter(greeting);
+        if (!contentCheck.allowed) {
+          logger.warn("make_call_content_blocked", { agentId, reason: contentCheck.reason });
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify({ error: `Compliance: ${contentCheck.reason}` }) }],
+            isError: true,
+          };
+        }
       }
 
       // Store call config in session store so the outbound webhook can read it
