@@ -14,6 +14,7 @@ import { registerRegisterProviderTool } from "./tools/register-provider.js";
 import { registerSetAgentLimitsTool } from "./tools/set-agent-limits.js";
 import { registerGetUsageDashboardTool } from "./tools/get-usage-dashboard.js";
 import { registerOnboardCustomerTool } from "./tools/onboard-customer.js";
+import { registerTransferCallTool } from "./tools/transfer-call.js";
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -88,6 +89,9 @@ export function createMcpServer(): McpServer {
 
   // Phase 8: Onboarding tool
   registerOnboardCustomerTool(server);
+
+  // Phase 13: Advanced voice tools
+  registerTransferCallTool(server);
 
   // Phase 10: Rate limiting & cost tracking tools
   registerSetAgentLimitsTool(server);

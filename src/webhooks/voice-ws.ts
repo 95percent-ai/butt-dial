@@ -223,6 +223,20 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
 
         storeConversation(callSid || "unknown", conv);
 
+        // Create call_logs entry
+        try {
+          const callDb = getProvider("database");
+          const logId = randomUUID();
+          callDb.run(
+            `INSERT INTO call_logs (id, agent_id, call_sid, direction, from_address, to_address, status)
+             VALUES (?, ?, ?, ?, ?, ?, 'in-progress')`,
+            [logId, agentId || "unknown", callSid || "unknown",
+             callConfig ? "outbound" : "inbound", from, to]
+          );
+        } catch {
+          // Best-effort logging — call_logs table might not exist yet
+        }
+
         logger.info("voice_ws_setup", { agentId, callSid, from, to, mode });
         break;
       }

@@ -10,6 +10,7 @@ import type {
   SendSmsResult,
   MakeCallParams,
   MakeCallResult,
+  TransferCallParams,
   BuyNumberParams,
   BuyNumberResult,
 } from "./interfaces.js";
@@ -53,6 +54,15 @@ export function createMockTelephonyProvider(): ITelephonyProvider {
       });
 
       return { callSid, status: "queued" };
+    },
+
+    async transferCall(params: TransferCallParams): Promise<{ status: string }> {
+      logger.info("mock_call_transferred", {
+        callSid: params.callSid,
+        to: params.to,
+        announcement: params.announcementText || null,
+      });
+      return { status: "transferred" };
     },
 
     async buyNumber(params: BuyNumberParams): Promise<BuyNumberResult> {

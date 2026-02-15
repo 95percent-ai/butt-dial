@@ -11,6 +11,7 @@ import type {
   SendSmsResult,
   MakeCallParams,
   MakeCallResult,
+  TransferCallParams,
   BuyNumberParams,
   BuyNumberResult,
 } from "./interfaces.js";
@@ -146,6 +147,32 @@ export function createTwilioTelephonyProvider(cfg: TwilioConfig): ITelephonyProv
         callSid: data.sid!,
         status: data.status ?? "queued",
       };
+    },
+
+    async transferCall(params: TransferCallParams): Promise<{ status: string }> {
+      // Update the live call with TwiML that dials the target number
+      const twiml = params.announcementText
+        ? `<Response><Say>${params.announcementText}</Say><Dial>${params.to}</Dial></Response>`
+        : `<Response><Dial>${params.to}</Dial></Response>`;
+
+      const body = new URLSearchParams({ Twiml: twiml });
+
+      const response = await fetch(`${baseUrl}/Calls/${params.callSid}.json`, {
+        method: "POST",
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: body.toString(),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Twilio call transfer failed (HTTP ${response.status}): ${errText}`);
+      }
+
+      logger.info("twilio_call_transferred", { callSid: params.callSid, to: params.to });
+      return { status: "transferred" };
     },
 
     async buyNumber(params: BuyNumberParams): Promise<BuyNumberResult> {

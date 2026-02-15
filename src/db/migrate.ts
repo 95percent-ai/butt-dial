@@ -31,6 +31,10 @@ export function runMigrations(): void {
   const voicemailSchema = fs.readFileSync(voicemailSchemaPath, "utf-8");
   db.exec(voicemailSchema);
 
+  const callLogsSchemaPath = path.join(projectRoot, "src", "db", "schema-call-logs.sql");
+  const callLogsSchema = fs.readFileSync(callLogsSchemaPath, "utf-8");
+  db.exec(callLogsSchema);
+
   logger.info("migrations_complete");
 }
 

@@ -40,9 +40,16 @@ export interface BuyNumberResult {
   sid: string;
 }
 
+export interface TransferCallParams {
+  callSid: string;
+  to: string;
+  announcementText?: string;
+}
+
 export interface ITelephonyProvider {
   sendSms(params: SendSmsParams): Promise<SendSmsResult>;
   makeCall(params: MakeCallParams): Promise<MakeCallResult>;
+  transferCall(params: TransferCallParams): Promise<{ status: string }>;
   buyNumber(params: BuyNumberParams): Promise<BuyNumberResult>;
   releaseNumber(phoneNumber: string): Promise<void>;
   configureWebhooks(phoneNumber: string, webhooks: { voiceUrl?: string; smsUrl?: string }): Promise<void>;

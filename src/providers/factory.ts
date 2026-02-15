@@ -23,6 +23,9 @@ import { createMockEmailProvider } from "./email-mock.js";
 import { createResendEmailProvider } from "./email-resend.js";
 import { createMockWhatsAppProvider } from "./whatsapp-mock.js";
 import { createTwilioWhatsAppProvider } from "./whatsapp-twilio.js";
+import { createMockSTTProvider } from "./stt-mock.js";
+import { createDeepgramSTTProvider } from "./stt-deepgram.js";
+import { createOpenAITTSProvider } from "./tts-openai.js";
 
 type ProviderMap = {
   telephony: ITelephonyProvider;
@@ -136,7 +139,21 @@ export function initProviders(): void {
     });
   }
 
-  // STT — stub for now
+  // STT
+  if (config.demoMode) {
+    providers.stt = createMockSTTProvider();
+    logger.info("provider_initialized", { slot: "stt", provider: "mock (demo mode)" });
+  } else if (config.deepgramApiKey) {
+    providers.stt = createDeepgramSTTProvider({ apiKey: config.deepgramApiKey });
+    logger.info("provider_initialized", { slot: "stt", provider: "deepgram" });
+  } else {
+    providers.stt = createMockSTTProvider();
+    logger.warn("provider_fallback_mock", {
+      slot: "stt",
+      reason: "No Deepgram API key found — using mock adapter",
+    });
+  }
+
   logger.info("providers_init_complete", {
     database: config.providerDatabase,
     telephony: config.demoMode ? "mock" : config.providerTelephony,

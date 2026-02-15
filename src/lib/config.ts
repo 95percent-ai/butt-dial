@@ -49,6 +49,13 @@ const configSchema = z.object({
   // Email default domain (for provisioned agents)
   emailDefaultDomain: z.string().default("agents.example.com"),
 
+  // Deepgram (STT)
+  deepgramApiKey: z.string().optional(),
+
+  // OpenAI (alternative TTS)
+  openaiApiKey: z.string().optional(),
+  openaiTtsVoice: z.string().default("alloy"),
+
   // Anthropic (LLM for voice conversations)
   anthropicApiKey: z.string().optional(),
 
@@ -127,6 +134,9 @@ function loadConfig() {
     resendApiKey: process.env.RESEND_API_KEY,
     resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET,
     emailDefaultDomain: process.env.EMAIL_DEFAULT_DOMAIN,
+    deepgramApiKey: process.env.DEEPGRAM_API_KEY,
+    openaiApiKey: process.env.OPENAI_API_KEY,
+    openaiTtsVoice: process.env.OPENAI_TTS_VOICE,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     voiceDefaultGreeting: process.env.VOICE_DEFAULT_GREETING,
     voiceDefaultSystemPrompt: process.env.VOICE_DEFAULT_SYSTEM_PROMPT,

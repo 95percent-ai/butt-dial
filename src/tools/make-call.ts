@@ -146,6 +146,18 @@ export function registerMakeCallTool(server: McpServer): void {
         [messageId, agentId, agent.phone_number, to, systemPrompt || null, result.callSid, result.status]
       );
 
+      // Log to call_logs table
+      try {
+        const callLogId = randomUUID();
+        db.run(
+          `INSERT INTO call_logs (id, agent_id, call_sid, direction, from_address, to_address, status)
+           VALUES (?, ?, ?, 'outbound', ?, ?, ?)`,
+          [callLogId, agentId, result.callSid, agent.phone_number, to, result.status]
+        );
+      } catch {
+        // Best-effort — call_logs table might not exist in older DB
+      }
+
       logUsage(db, { agentId, actionType: "voice_call", channel: "voice", targetAddress: to, cost: 0, externalId: result.callSid });
 
       logger.info("make_call_success", {
