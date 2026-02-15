@@ -1,4 +1,4 @@
-<!-- version: 2.8 | updated: 2026-02-14 -->
+<!-- version: 3.0 | updated: 2026-02-14 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -120,6 +120,21 @@ Add WhatsApp send/receive using Twilio WhatsApp API.
 - [x] Factory wiring for WhatsApp provider
 - [x] **Verify (dry):** 37/37 assertions pass — send WhatsApp, template params, inbound webhook, DB records, error cases, SMS + email regression
 - [ ] **Verify (live):** Real Twilio WhatsApp send/receive *(future — requires WhatsApp sandbox or verified sender)*
+
+## MCP Onboarding — Required Fields
+Define and validate the required fields for setting up a new MCP server instance.
+
+- [ ] Document required fields per channel:
+  - Twilio: Account SID, Auth Token, test phone number
+  - WhatsApp: Twilio creds (same as above) + WhatsApp sender number
+  - Email: Resend API key, verified sender email address
+  - Voice: Anthropic API key, ElevenLabs API key (or Edge TTS for free tier)
+- [ ] Add validation/startup check — server warns about missing fields on boot
+- [ ] Update setup UI (`/admin/setup`) to collect all required fields per channel
+- [ ] Seed script or onboarding flow that provisions a test agent with all fields populated
+- [ ] Document how to connect to this MCP server and associate an AI agent with its communication services (SSE endpoint, tool discovery, agent registration, channel assignment)
+
+---
 
 ## Phase 8 — MVP: Provisioning & Teardown
 Automate what we've been doing manually. Full agent lifecycle + customer onboarding via API.
