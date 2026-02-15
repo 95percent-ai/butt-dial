@@ -55,19 +55,34 @@ export function createMockTelephonyProvider(): ITelephonyProvider {
       return { callSid, status: "queued" };
     },
 
-    async buyNumber(_params: BuyNumberParams): Promise<BuyNumberResult> {
-      throw new Error("buyNumber is not implemented in mock adapter");
+    async buyNumber(params: BuyNumberParams): Promise<BuyNumberResult> {
+      const areaCode = params.areaCode || "200";
+      const phoneNumber = `+1555${areaCode}${String(++counter).padStart(4, "0")}`;
+      const sid = `PN${Date.now()}${counter}`;
+
+      logger.info("mock_number_bought", {
+        phoneNumber,
+        sid,
+        country: params.country,
+        capabilities: params.capabilities,
+      });
+
+      return { phoneNumber, sid };
     },
 
-    async releaseNumber(_phoneNumber: string): Promise<void> {
-      throw new Error("releaseNumber is not implemented in mock adapter");
+    async releaseNumber(phoneNumber: string): Promise<void> {
+      logger.info("mock_number_released", { phoneNumber });
     },
 
     async configureWebhooks(
-      _phoneNumber: string,
-      _webhooks: { voiceUrl?: string; smsUrl?: string }
+      phoneNumber: string,
+      webhooks: { voiceUrl?: string; smsUrl?: string }
     ): Promise<void> {
-      throw new Error("configureWebhooks is not implemented in mock adapter");
+      logger.info("mock_webhooks_configured", {
+        phoneNumber,
+        smsUrl: webhooks.smsUrl ?? "(none)",
+        voiceUrl: webhooks.voiceUrl ?? "(none)",
+      });
     },
 
     verifyWebhookSignature(
@@ -75,7 +90,7 @@ export function createMockTelephonyProvider(): ITelephonyProvider {
       _body: string,
       _url: string
     ): boolean {
-      throw new Error("verifyWebhookSignature is not implemented in mock adapter");
+      return true;
     },
   };
 }

@@ -1,4 +1,4 @@
-<!-- version: 1.7 | updated: 2026-02-14 -->
+<!-- version: 1.8 | updated: 2026-02-15 -->
 
 # Project Structure
 
@@ -53,10 +53,17 @@ agentos-comms-mcp/
 │   │   ├── send-message.ts       # comms_send_message (SMS + email + WhatsApp via provider routing)
 │   │   ├── get-messages.ts       # comms_get_messages (list messages for an agent)
 │   │   ├── send-voice-message.ts # comms_send_voice_message (TTS → call → play audio)
-│   │   └── make-call.ts          # comms_make_call (outbound AI voice call via ConversationRelay)
+│   │   ├── make-call.ts          # comms_make_call (outbound AI voice call via ConversationRelay)
+│   │   ├── provision-channels.ts # comms_provision_channels (buy number, assign WhatsApp, generate email)
+│   │   ├── deprovision-channels.ts # comms_deprovision_channels (release number, return pool, deactivate)
+│   │   ├── get-channel-status.ts # comms_get_channel_status (per-channel info, message counts, pool)
+│   │   └── register-provider.ts  # comms_register_provider (verify + save credentials to .env)
 │   ├── channels/                 # Channel implementations (empty — Phase 2+)
 │   ├── security/                 # Auth, rate limiting (empty — Phase 9+)
-│   ├── provisioning/             # Agent provisioning (empty — Phase 8)
+│   ├── provisioning/             # Agent provisioning helpers
+│   │   ├── phone-number.ts      # Buy, configure webhooks, release phone numbers
+│   │   ├── whatsapp-sender.ts   # WhatsApp pool assign/return/register
+│   │   └── email-identity.ts    # Email address generation + domain verification
 │   ├── media/                    # TTS, media storage (empty — Phase 4+)
 │   ├── billing/                  # Cost tracking (empty — Phase 10+)
 │   ├── routing/                  # Route duplication (empty — Phase 13+)
@@ -79,7 +86,8 @@ agentos-comms-mcp/
 │   ├── live-voice.test.ts        # Live test for voice message (real TTS + real Twilio)
 │   ├── voice-call.test.ts        # Dry test for comms_make_call + voice WebSocket (25 assertions)
 │   ├── email.test.ts             # Dry test for email send/receive (38 assertions)
-│   └── whatsapp.test.ts          # Dry test for WhatsApp send/receive/templates (37 assertions)
+│   ├── whatsapp.test.ts          # Dry test for WhatsApp send/receive/templates (37 assertions)
+│   └── provisioning.test.ts     # Dry test for provisioning/teardown (60 assertions)
 │
 └── docs/
     ├── SPEC.md                   # Project specification (source of truth)

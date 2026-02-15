@@ -1,4 +1,4 @@
-<!-- version: 3.0 | updated: 2026-02-14 -->
+<!-- version: 3.1 | updated: 2026-02-15 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -139,10 +139,10 @@ Define and validate the required fields for setting up a new MCP server instance
 ## Phase 8 — MVP: Provisioning & Teardown
 Automate what we've been doing manually. Full agent lifecycle + customer onboarding via API.
 
-- [ ] `comms_provision_channels` tool (buy number, configure webhooks, assign WhatsApp from pool, set up email)
-- [ ] `comms_deprovision_channels` tool (release number, return pool slot, clean up)
-- [ ] `comms_get_channel_status` tool
-- [ ] Agent pool management (configurable pool size, default 5)
+- [x] `comms_provision_channels` tool (buy number, configure webhooks, assign WhatsApp from pool, set up email)
+- [x] `comms_deprovision_channels` tool (release number, return pool slot, clean up)
+- [x] `comms_get_channel_status` tool
+- [x] Agent pool management (configurable pool size, default 5)
 - [ ] Configuration architecture: identity mode (dedicated/shared/hybrid), isolation mode (single account/per-agent subaccount/per-customer subaccount)
 - [ ] Automated customer onboarding:
   - Twilio subaccount creation via API
@@ -151,8 +151,9 @@ Automate what we've been doing manually. Full agent lifecycle + customer onboard
   - SendGrid subuser creation via API
   - Email DNS record generation (return records for customer to add)
   - A2P 10DLC campaign submission via API (track approval status)
-- [ ] `comms_register_provider` tool (register/verify third-party credentials)
-- [ ] **Verify:** Provision a new agent via MCP tool → all channels active. Deprovision → everything cleaned up. Customer onboarding creates subaccount + buys number + assigns WhatsApp.
+- [x] `comms_register_provider` tool (register/verify third-party credentials)
+- [x] **Verify (dry):** 60/60 assertions pass — provision agent with all channels, deprovision, pool capacity, register provider, SMS + email + WhatsApp regression
+- [ ] **Verify (live):** Real Twilio number purchase + release *(future — requires full Twilio account)*
 
 ## Phase 9 — MVP: Security & Auth
 Lock it down. Every tool call authenticated.

@@ -41,6 +41,9 @@ const configSchema = z.object({
   // Resend (email)
   resendApiKey: z.string().optional(),
 
+  // Email default domain (for provisioned agents)
+  emailDefaultDomain: z.string().default("agents.example.com"),
+
   // Anthropic (LLM for voice conversations)
   anthropicApiKey: z.string().optional(),
 
@@ -93,6 +96,7 @@ function loadConfig() {
     elevenlabsApiKey: process.env.ELEVENLABS_API_KEY,
     elevenlabsDefaultVoice: process.env.ELEVENLABS_DEFAULT_VOICE,
     resendApiKey: process.env.RESEND_API_KEY,
+    emailDefaultDomain: process.env.EMAIL_DEFAULT_DOMAIN,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     voiceDefaultGreeting: process.env.VOICE_DEFAULT_GREETING,
     voiceDefaultSystemPrompt: process.env.VOICE_DEFAULT_SYSTEM_PROMPT,

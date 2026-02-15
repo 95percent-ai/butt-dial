@@ -147,12 +147,101 @@ export function createTwilioTelephonyProvider(cfg: TwilioConfig): ITelephonyProv
       };
     },
 
-    async buyNumber(_params: BuyNumberParams): Promise<BuyNumberResult> {
-      throw new Error("buyNumber is not implemented yet");
+    async buyNumber(params: BuyNumberParams): Promise<BuyNumberResult> {
+      // Step 1: Search for available numbers
+      const capFilters: string[] = [];
+      if (params.capabilities.voice) capFilters.push("VoiceEnabled=true");
+      if (params.capabilities.sms) capFilters.push("SmsEnabled=true");
+      if (params.areaCode) capFilters.push(`AreaCode=${params.areaCode}`);
+
+      const searchUrl = `${baseUrl}/AvailablePhoneNumbers/${params.country}/Local.json?${capFilters.join("&")}`;
+      const searchResp = await fetch(searchUrl, {
+        headers: { Authorization: authHeader },
+      });
+
+      if (!searchResp.ok) {
+        const errText = await searchResp.text();
+        throw new Error(`Twilio number search failed (HTTP ${searchResp.status}): ${errText}`);
+      }
+
+      const searchData = (await searchResp.json()) as {
+        available_phone_numbers: Array<{ phone_number: string; friendly_name: string }>;
+      };
+
+      if (searchData.available_phone_numbers.length === 0) {
+        throw new Error(`No available phone numbers found for country=${params.country}`);
+      }
+
+      const chosen = searchData.available_phone_numbers[0];
+
+      // Step 2: Purchase the number
+      const purchaseBody = new URLSearchParams({
+        PhoneNumber: chosen.phone_number,
+      });
+
+      const purchaseResp = await fetch(`${baseUrl}/IncomingPhoneNumbers.json`, {
+        method: "POST",
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: purchaseBody.toString(),
+      });
+
+      if (!purchaseResp.ok) {
+        const errText = await purchaseResp.text();
+        throw new Error(`Twilio number purchase failed (HTTP ${purchaseResp.status}): ${errText}`);
+      }
+
+      const purchaseData = (await purchaseResp.json()) as {
+        sid: string;
+        phone_number: string;
+      };
+
+      logger.info("twilio_number_bought", {
+        phoneNumber: purchaseData.phone_number,
+        sid: purchaseData.sid,
+        country: params.country,
+      });
+
+      return {
+        phoneNumber: purchaseData.phone_number,
+        sid: purchaseData.sid,
+      };
     },
 
-    async releaseNumber(_phoneNumber: string): Promise<void> {
-      throw new Error("releaseNumber is not implemented yet");
+    async releaseNumber(phoneNumber: string): Promise<void> {
+      // Step 1: Look up the phone number SID
+      const lookupUrl = `${baseUrl}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(phoneNumber)}`;
+      const lookupResp = await fetch(lookupUrl, {
+        headers: { Authorization: authHeader },
+      });
+
+      if (!lookupResp.ok) {
+        throw new Error(`Twilio number lookup failed (HTTP ${lookupResp.status}): ${await lookupResp.text()}`);
+      }
+
+      const lookupData = (await lookupResp.json()) as {
+        incoming_phone_numbers: Array<{ sid: string }>;
+      };
+
+      if (lookupData.incoming_phone_numbers.length === 0) {
+        throw new Error(`Phone number ${phoneNumber} not found in Twilio account`);
+      }
+
+      const phoneSid = lookupData.incoming_phone_numbers[0].sid;
+
+      // Step 2: Delete (release) the number
+      const deleteResp = await fetch(`${baseUrl}/IncomingPhoneNumbers/${phoneSid}.json`, {
+        method: "DELETE",
+        headers: { Authorization: authHeader },
+      });
+
+      if (!deleteResp.ok) {
+        throw new Error(`Twilio number release failed (HTTP ${deleteResp.status}): ${await deleteResp.text()}`);
+      }
+
+      logger.info("twilio_number_released", { phoneNumber, phoneSid });
     },
 
     async configureWebhooks(

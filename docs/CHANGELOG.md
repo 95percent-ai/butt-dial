@@ -1,4 +1,4 @@
-<!-- version: 1.8 | updated: 2026-02-14 -->
+<!-- version: 1.9 | updated: 2026-02-15 -->
 
 # Changelog
 
@@ -278,3 +278,42 @@
 - Build passes clean
 - Dry test: 37/37 assertions pass (demo mode with mock WhatsApp adapter)
 - SMS + email regression: confirmed working alongside new WhatsApp channel
+
+---
+
+## Session 9 — 2026-02-15
+
+### Phase 8 — Provisioning & Teardown
+
+#### New Files
+- `src/provisioning/phone-number.ts` — phone number lifecycle helpers (buy, configure webhooks, release)
+- `src/provisioning/whatsapp-sender.ts` — WhatsApp pool management (assign from pool, return to pool, register sender)
+- `src/provisioning/email-identity.ts` — email address generation + domain verification helper
+- `src/tools/provision-channels.ts` — `comms_provision_channels` MCP tool (buy number, assign WhatsApp, generate email, insert agent, update pool — with rollback on failure)
+- `src/tools/deprovision-channels.ts` — `comms_deprovision_channels` MCP tool (release number, return WhatsApp, mark deprovisioned, decrement pool)
+- `src/tools/get-channel-status.ts` — `comms_get_channel_status` MCP tool (per-channel info, message counts, pool status)
+- `src/tools/register-provider.ts` — `comms_register_provider` MCP tool (verify credentials, write to .env, support Twilio/Resend/ElevenLabs/Anthropic)
+- `tests/provisioning.test.ts` — dry test (60 assertions: tool discovery, provision, duplicate check, status, send through agent, deprovision, double-deprovision, pool capacity, register provider, regression)
+
+#### Modified Files
+- `src/providers/telephony-mock.ts` — implemented `buyNumber()` (generates fake number), `releaseNumber()` (no-op), `configureWebhooks()` (no-op), `verifyWebhookSignature()` (returns true)
+- `src/providers/telephony-twilio.ts` — implemented real `buyNumber()` (search + purchase via Twilio REST API) and `releaseNumber()` (lookup SID + DELETE)
+- `src/server.ts` — registered 4 new tools
+- `src/lib/config.ts` — added `emailDefaultDomain` field (env: `EMAIL_DEFAULT_DOMAIN`, default: `agents.example.com`)
+
+#### How It Works
+- **Provision:** `comms_provision_channels(agentId, displayName, capabilities)` → buy phone number → configure webhooks → insert agent row → assign WhatsApp from pool → generate email → update pool count. Rolls back on failure.
+- **Deprovision:** `comms_deprovision_channels(agentId)` → release phone number → return WhatsApp → mark deprovisioned → decrement pool.
+- **Status:** `comms_get_channel_status(agentId)` → returns per-channel details, message counts, pool info.
+- **Register:** `comms_register_provider(provider, credentials)` → optional connectivity test → write to .env → return capabilities + restart note.
+
+#### Bug Fix
+- FK constraint: `whatsapp_pool.assigned_to_agent` references `agent_channels.agent_id`. Reordered provision flow to insert agent row before WhatsApp pool assignment (DEC-024).
+
+#### Verification
+- Build passes clean
+- Dry test: 60/60 assertions pass (demo mode)
+- SMS + email + WhatsApp regression: all pass
+
+#### Decisions
+- DEC-019 to DEC-024: Single-account provisioning, A2P deferred, WhatsApp soft fail, rollback on failure, no hot-reload, agent-first insert order

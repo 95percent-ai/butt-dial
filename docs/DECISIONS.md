@@ -1,4 +1,4 @@
-<!-- version: 2.5 | updated: 2026-02-14 -->
+<!-- version: 2.6 | updated: 2026-02-15 -->
 
 # Decisions Log
 
@@ -116,6 +116,39 @@
 **Date:** 2026-02-14
 **What:** The inbound email webhook validates both `agentId` from the URL and `to` (email address) from the payload match the same agent record — same double-validation pattern as the SMS webhook (DEC-015).
 **Why:** Consistency. Prevents routing errors where a webhook URL points to the wrong agent.
+
+---
+
+## DEC-019: Provisioning — Single-Account Only (No Subaccounts Yet)
+**Date:** 2026-02-15
+**What:** Phase 8 provisioning operates in single Twilio account mode only. No subaccount creation.
+**Why:** Simplest path. Subaccount support can be added later without changing the tool interface.
+**Alternatives:** Per-agent subaccounts (more isolation, more complexity), per-customer subaccounts (deferred).
+
+## DEC-020: A2P 10DLC Deferred to Phase 17
+**Date:** 2026-02-15
+**What:** A2P 10DLC registration is not part of provisioning. Deferred to Phase 17 (Compliance).
+**Why:** 1-2 week async approval process. It's a compliance concern, not a provisioning concern.
+
+## DEC-021: WhatsApp Pool Empty = Soft Fail
+**Date:** 2026-02-15
+**What:** If the WhatsApp pool is empty during provisioning, the agent is still created — WhatsApp status is set to "unavailable" instead of failing the entire provision.
+**Why:** Some agents don't need WhatsApp. Blocking provision on an empty pool would be too restrictive.
+
+## DEC-022: Provisioning Rollback on Failure
+**Date:** 2026-02-15
+**What:** If any step fails during provisioning, all allocated resources are released (phone number, WhatsApp pool slot, agent row).
+**Why:** Partial provisioning is not allowed. All-or-nothing prevents orphaned resources.
+
+## DEC-023: Provider Registration — No Hot-Reload
+**Date:** 2026-02-15
+**What:** `comms_register_provider` saves credentials to `.env` but requires server restart. No hot-reload.
+**Why:** Hot-reload adds complexity. Restart is simple and reliable. Hot-reload is a future feature.
+
+## DEC-024: Agent Row Created Before WhatsApp Pool Assignment
+**Date:** 2026-02-15
+**What:** During provisioning, the `agent_channels` row is inserted before the WhatsApp pool entry is assigned. The row is then updated with WhatsApp info.
+**Why:** SQLite foreign key constraint on `whatsapp_pool.assigned_to_agent` references `agent_channels.agent_id`. The agent must exist first.
 
 ---
 
