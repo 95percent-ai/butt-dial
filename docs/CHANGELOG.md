@@ -1,6 +1,28 @@
-<!-- version: 2.3 | updated: 2026-02-15 -->
+<!-- version: 2.4 | updated: 2026-02-15 -->
 
 # Changelog
+
+## Session 13 — 2026-02-15
+
+### MCP Onboarding — Required Fields (DEC-043)
+
+#### New Files (2)
+- `docs/ONBOARDING.md` — user-facing guide: what this server does, prerequisites, setup, provider configuration, connecting an AI agent (SSE + tools), channel requirements, voice architecture
+- `tests/setup-ui.test.ts` — 24 assertions: ProviderStatus shape (5 sections), mask function, saveCredentials, admin API status/save/test endpoints, setup page HTML cards
+
+#### Modified Files (6)
+- `src/admin/env-writer.ts` — expanded `ProviderStatus` with `resend`, `server`, and `voice` sections; `getProviderStatus()` returns masked values for all providers
+- `src/admin/credential-testers.ts` — added `testResendCredentials()` (GET /domains with Bearer auth, same pattern as ElevenLabs)
+- `src/admin/router.ts` — expanded allowed keys (Resend, server, voice, Anthropic), added `POST /admin/api/test/resend` route
+- `src/admin/setup-page.ts` — removed 5-step wizard indicator, added 3 new cards (Resend with Test button, Server Settings with Save button, Voice Defaults with Save button), each with status badges, added `directSave()` helper for cards without external API test
+- `src/lib/config.ts` — replaced inline security warning with `logStartupWarnings()` function (6 checks: Twilio, Resend, localhost webhook, master token, ElevenLabs, Anthropic)
+- `src/db/seed.ts` — test agent now includes `email_address`, `system_prompt`, `greeting`; inserts `spending_limits` row; prints summary to console
+
+#### Verification
+- Build passes clean
+- 24/24 test assertions pass (9 unit + 15 integration)
+
+---
 
 ## Session 12 — 2026-02-15
 

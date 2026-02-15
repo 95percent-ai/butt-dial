@@ -1,4 +1,4 @@
-<!-- version: 3.0 | updated: 2026-02-15 -->
+<!-- version: 3.1 | updated: 2026-02-15 -->
 
 # Decisions Log
 
@@ -253,3 +253,9 @@ All 7 decisions follow a pattern: **make it configurable, with sensible defaults
 **Date:** 2026-02-15
 **What:** `/health/ready` does a real `SELECT 1` against the DB, but only checks config presence (not live API pings) for providers.
 **Why:** Real API pings to Twilio/Resend would be slow and wasteful on every readiness check. Config presence is sufficient to know if providers are configured.
+
+## DEC-043: Setup UI — Single Page Layout, Startup Warn-Not-Crash
+**Date:** 2026-02-15
+**What:** Setup UI is a single page with 5 provider cards (Twilio, ElevenLabs, Resend, Server Settings, Voice Defaults). No step wizard. Startup validation logs warnings for missing credentials but never crashes.
+**Why:** A wizard implies a required sequence. In reality, providers are independently optional — you might configure email without voice, or run entirely in demo mode. Warnings instead of crashes let the server run in partially-configured states (dev, demo, gradual setup).
+**Alternatives considered:** Multi-step wizard (rejected — forces artificial ordering), crash on missing creds (rejected — blocks development and demo mode).

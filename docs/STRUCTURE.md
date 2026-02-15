@@ -1,4 +1,4 @@
-<!-- version: 2.3 | updated: 2026-02-15 -->
+<!-- version: 2.4 | updated: 2026-02-15 -->
 
 # Project Structure
 
@@ -89,8 +89,8 @@ agentos-comms-mcp/
 │   │   └── whatsapp-alerter.ts  # Sends formatted alerts to admin WhatsApp number
 │   └── admin/                    # Admin UI — setup wizard, credential management
 │       ├── env-writer.ts         # Read/write .env file (atomic, preserves comments)
-│       ├── credential-testers.ts # Test Twilio + ElevenLabs API credentials
-│       ├── setup-page.ts         # HTML setup page (inline CSS/JS, card-based UI)
+│       ├── credential-testers.ts # Test Twilio + ElevenLabs + Resend API credentials
+│       ├── setup-page.ts         # HTML setup page (5 cards: Twilio, ElevenLabs, Resend, Server, Voice)
 │       └── router.ts             # Express routes: /admin/setup, /admin/api/*
 │
 ├── storage/                      # Audio files served at /storage (auto-created)
@@ -109,7 +109,8 @@ agentos-comms-mcp/
 │   ├── provisioning.test.ts     # Dry test for provisioning/teardown (60 assertions)
 │   ├── security.test.ts         # Dry test for security & auth (49 assertions)
 │   ├── rate-limiting.test.ts   # Dry test for rate limiting & cost tracking (27 assertions)
-│   └── observability.test.ts  # Dry test for observability & alerts (26 assertions)
+│   ├── observability.test.ts  # Dry test for observability & alerts (26 assertions)
+│   └── setup-ui.test.ts      # Dry test for expanded setup UI & admin API (24 assertions)
 │
 └── docs/
     ├── SPEC.md                   # Project specification (source of truth)
@@ -118,6 +119,7 @@ agentos-comms-mcp/
     ├── CHANGELOG.md              # Session-by-session changes
     ├── STRUCTURE.md              # This file
     ├── MENU.md                   # Developer menu actions
+    ├── ONBOARDING.md             # User-facing setup & agent connection guide
     └── references/               # External reference documents
         ├── PROJECT-SCOPE.md
         ├── ARCHITECTURE-OVERVIEW.md

@@ -129,15 +129,37 @@ function loadConfig() {
 
   const data = result.data;
 
-  // Warn if auth is not configured (but don't crash — graceful degradation for dev)
-  if (!data.demoMode && !data.masterSecurityToken) {
-    console.warn(
-      "[SECURITY WARNING] MASTER_SECURITY_TOKEN is not set. All MCP tool calls will be unauthenticated. " +
-      "Set MASTER_SECURITY_TOKEN in .env for production use."
-    );
-  }
+  logStartupWarnings(data);
 
   return data;
+}
+
+function logStartupWarnings(cfg: z.infer<typeof configSchema>): void {
+  if (cfg.demoMode) return;
+
+  if (!cfg.twilioAccountSid || !cfg.twilioAuthToken) {
+    console.warn("[WARN] No Twilio credentials — SMS, voice, and WhatsApp will use mock adapters");
+  }
+
+  if (!cfg.resendApiKey) {
+    console.warn("[WARN] No Resend API key — email will use mock adapter");
+  }
+
+  if (cfg.webhookBaseUrl.includes("localhost")) {
+    console.warn("[WARN] Webhook URL is localhost — inbound webhooks won't work externally");
+  }
+
+  if (!cfg.masterSecurityToken) {
+    console.warn("[WARN] No master security token — tool calls will be unauthenticated");
+  }
+
+  if (!cfg.elevenlabsApiKey) {
+    console.info("[INFO] No ElevenLabs key — using Edge TTS (free)");
+  }
+
+  if (!cfg.anthropicApiKey) {
+    console.info("[INFO] No Anthropic key — answering machine disabled");
+  }
 }
 
 export const config = loadConfig();

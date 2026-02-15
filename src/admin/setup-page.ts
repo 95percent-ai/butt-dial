@@ -31,48 +31,6 @@ export function renderSetupPage(): string {
       margin-bottom: 2rem;
     }
 
-    /* Step indicator */
-    .steps {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 2rem;
-    }
-
-    .step {
-      display: flex;
-      align-items: center;
-      gap: 0.375rem;
-      font-size: 0.75rem;
-      color: #484f58;
-      padding: 0.375rem 0.75rem;
-      border-radius: 999px;
-      background: #161b22;
-      border: 1px solid #21262d;
-    }
-
-    .step.active {
-      color: #58a6ff;
-      border-color: #1f6feb;
-      background: #0d1117;
-    }
-
-    .step .num {
-      width: 1.25rem;
-      height: 1.25rem;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 600;
-      font-size: 0.7rem;
-      background: #21262d;
-    }
-
-    .step.active .num {
-      background: #1f6feb;
-      color: #fff;
-    }
-
     /* Provider card */
     .card {
       background: #161b22;
@@ -94,6 +52,12 @@ export function renderSetupPage(): string {
       font-weight: 600;
     }
 
+    .card-desc {
+      font-size: 0.8rem;
+      color: #8b949e;
+      margin-bottom: 1rem;
+    }
+
     .badge {
       font-size: 0.7rem;
       padding: 0.2rem 0.5rem;
@@ -105,6 +69,7 @@ export function renderSetupPage(): string {
 
     .badge.configured { background: #0d2818; color: #3fb950; border: 1px solid #238636; }
     .badge.missing { background: #2d1b1b; color: #f85149; border: 1px solid #da3633; }
+    .badge.optional { background: #1c1d21; color: #8b949e; border: 1px solid #30363d; }
     .badge.loading { background: #1c1d21; color: #8b949e; border: 1px solid #30363d; }
 
     /* Form fields */
@@ -187,6 +152,15 @@ export function renderSetupPage(): string {
     .btn-test:hover { background: #30363d; }
     .btn-test:disabled { opacity: 0.5; cursor: not-allowed; }
 
+    .btn-save {
+      background: #238636;
+      border: 1px solid #2ea043;
+      color: #fff;
+    }
+
+    .btn-save:hover { background: #2ea043; }
+    .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+
     /* Test result */
     .test-result {
       margin-top: 0.5rem;
@@ -197,7 +171,6 @@ export function renderSetupPage(): string {
     .test-result.success { color: #3fb950; }
     .test-result.error { color: #f85149; }
     .test-result.loading { color: #8b949e; }
-
     .test-result.saved { color: #3fb950; }
 
     /* Deploy button */
@@ -229,35 +202,13 @@ export function renderSetupPage(): string {
     <h1>AgentOS Comms Setup</h1>
     <p class="subtitle">Configure your communication providers</p>
 
-    <div class="steps">
-      <div class="step active">
-        <span class="num">1</span>
-        Credentials
-      </div>
-      <div class="step">
-        <span class="num">2</span>
-        Phone Number
-      </div>
-      <div class="step">
-        <span class="num">3</span>
-        Webhooks
-      </div>
-      <div class="step">
-        <span class="num">4</span>
-        Voice
-      </div>
-      <div class="step">
-        <span class="num">5</span>
-        Test
-      </div>
-    </div>
-
     <!-- Twilio Card -->
     <div class="card" id="twilio-card">
       <div class="card-header">
         <span class="card-title">Twilio</span>
         <span class="badge loading" id="twilio-badge">loading...</span>
       </div>
+      <p class="card-desc">SMS, voice calls, and WhatsApp. Required for telephony channels.</p>
 
       <div class="field">
         <label for="twilio-sid">Account SID</label>
@@ -287,6 +238,7 @@ export function renderSetupPage(): string {
         <span class="card-title">ElevenLabs</span>
         <span class="badge loading" id="elevenlabs-badge">loading...</span>
       </div>
+      <p class="card-desc">Premium text-to-speech. Optional — falls back to free Edge TTS.</p>
 
       <div class="field">
         <label for="elevenlabs-key">API Key</label>
@@ -302,13 +254,99 @@ export function renderSetupPage(): string {
       <div class="test-result" id="elevenlabs-test-result"></div>
     </div>
 
+    <!-- Resend Card -->
+    <div class="card" id="resend-card">
+      <div class="card-header">
+        <span class="card-title">Resend</span>
+        <span class="badge loading" id="resend-badge">loading...</span>
+      </div>
+      <p class="card-desc">Email sending and receiving. Required for the email channel.</p>
+
+      <div class="field">
+        <label for="resend-key">API Key</label>
+        <div class="input-wrap">
+          <input type="password" id="resend-key" placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+          <button type="button" class="toggle-vis" data-target="resend-key">show</button>
+        </div>
+      </div>
+
+      <div class="card-actions">
+        <button type="button" class="btn-test" id="resend-test-btn">Test Connection</button>
+      </div>
+      <div class="test-result" id="resend-test-result"></div>
+    </div>
+
+    <!-- Server Settings Card -->
+    <div class="card" id="server-card">
+      <div class="card-header">
+        <span class="card-title">Server Settings</span>
+        <span class="badge loading" id="server-badge">loading...</span>
+      </div>
+      <p class="card-desc">Webhook URL for inbound messages and security token for tool calls.</p>
+
+      <div class="field">
+        <label for="server-webhook-url">Webhook Base URL</label>
+        <div class="input-wrap">
+          <input type="text" id="server-webhook-url" placeholder="https://your-domain.com" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="server-master-token">Master Security Token</label>
+        <div class="input-wrap">
+          <input type="password" id="server-master-token" placeholder="a strong random token" autocomplete="off" />
+          <button type="button" class="toggle-vis" data-target="server-master-token">show</button>
+        </div>
+      </div>
+
+      <div class="card-actions">
+        <button type="button" class="btn-save" id="server-save-btn">Save</button>
+      </div>
+      <div class="test-result" id="server-test-result"></div>
+    </div>
+
+    <!-- Voice Defaults Card -->
+    <div class="card" id="voice-card">
+      <div class="card-header">
+        <span class="card-title">Voice Defaults</span>
+        <span class="badge loading" id="voice-badge">loading...</span>
+      </div>
+      <p class="card-desc">Default greeting, voice, and language for new voice calls. Optional — sensible defaults are built in.</p>
+
+      <div class="field">
+        <label for="voice-greeting">Default Greeting</label>
+        <div class="input-wrap">
+          <input type="text" id="voice-greeting" placeholder="Hello! How can I help you?" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="voice-voice">Voice ID</label>
+        <div class="input-wrap">
+          <input type="text" id="voice-voice" placeholder="ElevenLabs voice ID" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="voice-language">Language</label>
+        <div class="input-wrap">
+          <input type="text" id="voice-language" placeholder="en-US" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="card-actions">
+        <button type="button" class="btn-save" id="voice-save-btn">Save</button>
+      </div>
+      <div class="test-result" id="voice-test-result"></div>
+    </div>
+
     <button type="button" class="btn-deploy" id="deploy-btn">Deploy</button>
     <div class="deploy-result" id="deploy-result"></div>
 
   </div>
 
   <script>
-    // ─── Show/Hide toggle ──────────────────────────────────────
+    // Show/Hide toggle
     document.querySelectorAll(".toggle-vis").forEach(btn => {
       btn.addEventListener("click", () => {
         const input = document.getElementById(btn.dataset.target);
@@ -322,14 +360,17 @@ export function renderSetupPage(): string {
       });
     });
 
-    // ─── Load status on page load ──────────────────────────────
+    // Load status on page load
     async function loadStatus() {
       try {
         const res = await fetch("/admin/api/status");
         const data = await res.json();
 
         setBadge("twilio-badge", data.twilio.configured);
-        setBadge("elevenlabs-badge", data.elevenlabs.configured);
+        setBadge("elevenlabs-badge", data.elevenlabs.configured, true);
+        setBadge("resend-badge", data.resend.configured);
+        setBadge("server-badge", data.server.configured);
+        setBadge("voice-badge", data.voice.configured, true);
 
         // Show masked values as placeholders if configured
         if (data.twilio.accountSid) {
@@ -341,21 +382,50 @@ export function renderSetupPage(): string {
         if (data.elevenlabs.apiKey) {
           document.getElementById("elevenlabs-key").placeholder = data.elevenlabs.apiKey;
         }
+        if (data.resend.apiKey) {
+          document.getElementById("resend-key").placeholder = data.resend.apiKey;
+        }
+        if (data.server.webhookBaseUrl) {
+          document.getElementById("server-webhook-url").placeholder = data.server.webhookBaseUrl;
+        }
+        if (data.server.masterSecurityToken) {
+          document.getElementById("server-master-token").placeholder = data.server.masterSecurityToken;
+        }
+        if (data.voice.greeting) {
+          document.getElementById("voice-greeting").placeholder = data.voice.greeting;
+        }
+        if (data.voice.voice) {
+          document.getElementById("voice-voice").placeholder = data.voice.voice;
+        }
+        if (data.voice.language) {
+          document.getElementById("voice-language").placeholder = data.voice.language;
+        }
       } catch {
         setBadge("twilio-badge", false);
-        setBadge("elevenlabs-badge", false);
+        setBadge("elevenlabs-badge", false, true);
+        setBadge("resend-badge", false);
+        setBadge("server-badge", false);
+        setBadge("voice-badge", false, true);
       }
     }
 
-    function setBadge(id, configured) {
+    function setBadge(id, configured, optional) {
       const badge = document.getElementById(id);
-      badge.className = "badge " + (configured ? "configured" : "missing");
-      badge.textContent = configured ? "configured" : "missing";
+      if (configured) {
+        badge.className = "badge configured";
+        badge.textContent = "configured";
+      } else if (optional) {
+        badge.className = "badge optional";
+        badge.textContent = "optional";
+      } else {
+        badge.className = "badge missing";
+        badge.textContent = "missing";
+      }
     }
 
     loadStatus();
 
-    // ─── Auto-save helper ───────────────────────────────────
+    // Auto-save helper (for test-then-save flow)
     async function autoSave(credentials, resultId) {
       showResult(resultId, "loading", "Saving...");
       try {
@@ -376,7 +446,28 @@ export function renderSetupPage(): string {
       }
     }
 
-    // ─── Test Twilio ──────────────────────────────────────────
+    // Direct save helper (for cards without external API test)
+    async function directSave(credentials, resultId) {
+      showResult(resultId, "loading", "Saving...");
+      try {
+        const res = await fetch("/admin/api/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ credentials }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          showResult(resultId, "saved", "Saved");
+          loadStatus();
+        } else {
+          showResult(resultId, "error", "Save failed: " + (data.message || "unknown"));
+        }
+      } catch {
+        showResult(resultId, "error", "Save failed");
+      }
+    }
+
+    // Test Twilio
     document.getElementById("twilio-test-btn").addEventListener("click", async () => {
       const sid = document.getElementById("twilio-sid").value.trim();
       const token = document.getElementById("twilio-token").value.trim();
@@ -411,7 +502,7 @@ export function renderSetupPage(): string {
       }
     });
 
-    // ─── Test ElevenLabs ──────────────────────────────────────
+    // Test ElevenLabs
     document.getElementById("elevenlabs-test-btn").addEventListener("click", async () => {
       const key = document.getElementById("elevenlabs-key").value.trim();
 
@@ -445,7 +536,83 @@ export function renderSetupPage(): string {
       }
     });
 
-    // ─── Deploy ───────────────────────────────────────────────
+    // Test Resend
+    document.getElementById("resend-test-btn").addEventListener("click", async () => {
+      const key = document.getElementById("resend-key").value.trim();
+
+      if (!key) {
+        showResult("resend-test-result", "error", "Enter an API key");
+        return;
+      }
+
+      const btn = document.getElementById("resend-test-btn");
+      btn.disabled = true;
+      showResult("resend-test-result", "loading", "Testing...");
+
+      try {
+        const res = await fetch("/admin/api/test/resend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey: key }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          showResult("resend-test-result", "success", data.message);
+          await autoSave({ RESEND_API_KEY: key }, "resend-test-result");
+        } else {
+          showResult("resend-test-result", "error", data.message);
+        }
+      } catch {
+        showResult("resend-test-result", "error", "Request failed");
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // Save Server Settings
+    document.getElementById("server-save-btn").addEventListener("click", async () => {
+      const url = document.getElementById("server-webhook-url").value.trim();
+      const token = document.getElementById("server-master-token").value.trim();
+
+      if (!url && !token) {
+        showResult("server-test-result", "error", "Enter at least one field");
+        return;
+      }
+
+      const credentials = {};
+      if (url) credentials.WEBHOOK_BASE_URL = url;
+      if (token) credentials.MASTER_SECURITY_TOKEN = token;
+
+      const btn = document.getElementById("server-save-btn");
+      btn.disabled = true;
+      await directSave(credentials, "server-test-result");
+      btn.disabled = false;
+    });
+
+    // Save Voice Defaults
+    document.getElementById("voice-save-btn").addEventListener("click", async () => {
+      const greeting = document.getElementById("voice-greeting").value.trim();
+      const voice = document.getElementById("voice-voice").value.trim();
+      const lang = document.getElementById("voice-language").value.trim();
+
+      if (!greeting && !voice && !lang) {
+        showResult("voice-test-result", "error", "Enter at least one field");
+        return;
+      }
+
+      const credentials = {};
+      if (greeting) credentials.VOICE_DEFAULT_GREETING = greeting;
+      if (voice) credentials.VOICE_DEFAULT_VOICE = voice;
+      if (lang) credentials.VOICE_DEFAULT_LANGUAGE = lang;
+
+      const btn = document.getElementById("voice-save-btn");
+      btn.disabled = true;
+      await directSave(credentials, "voice-test-result");
+      btn.disabled = false;
+    });
+
+    // Deploy
     document.getElementById("deploy-btn").addEventListener("click", async () => {
       const btn = document.getElementById("deploy-btn");
       const result = document.getElementById("deploy-result");
@@ -484,7 +651,7 @@ export function renderSetupPage(): string {
       }, 1000);
     });
 
-    // ─── Helpers ──────────────────────────────────────────────
+    // Helpers
     function showResult(id, type, message) {
       const el = document.getElementById(id);
       el.className = "test-result " + type;

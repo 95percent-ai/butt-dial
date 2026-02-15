@@ -14,6 +14,21 @@ interface ProviderStatus {
     configured: boolean;
     apiKey: string | null; // masked
   };
+  resend: {
+    configured: boolean;
+    apiKey: string | null; // masked
+  };
+  server: {
+    configured: boolean;
+    webhookBaseUrl: string | null;
+    masterSecurityToken: string | null; // masked
+  };
+  voice: {
+    configured: boolean;
+    greeting: string | null;
+    voice: string | null;
+    language: string | null;
+  };
 }
 
 /** Mask a value — show only last 4 characters */
@@ -54,6 +69,12 @@ export function getProviderStatus(): ProviderStatus {
   const twilioSid = env["TWILIO_ACCOUNT_SID"];
   const twilioToken = env["TWILIO_AUTH_TOKEN"];
   const elevenKey = env["ELEVENLABS_API_KEY"];
+  const resendKey = env["RESEND_API_KEY"];
+  const webhookUrl = env["WEBHOOK_BASE_URL"];
+  const masterToken = env["MASTER_SECURITY_TOKEN"];
+  const voiceGreeting = env["VOICE_DEFAULT_GREETING"];
+  const voiceVoice = env["VOICE_DEFAULT_VOICE"];
+  const voiceLang = env["VOICE_DEFAULT_LANGUAGE"];
 
   return {
     twilio: {
@@ -64,6 +85,21 @@ export function getProviderStatus(): ProviderStatus {
     elevenlabs: {
       configured: !!elevenKey,
       apiKey: elevenKey ? mask(elevenKey) : null,
+    },
+    resend: {
+      configured: !!resendKey,
+      apiKey: resendKey ? mask(resendKey) : null,
+    },
+    server: {
+      configured: !!(webhookUrl && masterToken),
+      webhookBaseUrl: webhookUrl || null,
+      masterSecurityToken: masterToken ? mask(masterToken) : null,
+    },
+    voice: {
+      configured: !!(voiceGreeting || voiceVoice || voiceLang),
+      greeting: voiceGreeting || null,
+      voice: voiceVoice || null,
+      language: voiceLang || null,
     },
   };
 }

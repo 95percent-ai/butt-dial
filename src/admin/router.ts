@@ -2,7 +2,7 @@ import { Router } from "express";
 import type { Request, Response } from "express";
 import { spawn } from "node:child_process";
 import { getProviderStatus, saveCredentials } from "./env-writer.js";
-import { testTwilioCredentials, testElevenLabsCredentials } from "./credential-testers.js";
+import { testTwilioCredentials, testElevenLabsCredentials, testResendCredentials } from "./credential-testers.js";
 import { renderSetupPage } from "./setup-page.js";
 
 export const adminRouter = Router();
@@ -44,6 +44,19 @@ adminRouter.post("/admin/api/test/elevenlabs", async (req: Request, res: Respons
   res.json(result);
 });
 
+/** Test Resend credentials */
+adminRouter.post("/admin/api/test/resend", async (req: Request, res: Response) => {
+  const { apiKey } = req.body ?? {};
+
+  if (!apiKey) {
+    res.status(400).json({ success: false, message: "apiKey is required" });
+    return;
+  }
+
+  const result = await testResendCredentials(String(apiKey));
+  res.json(result);
+});
+
 /** Save credentials to .env */
 adminRouter.post("/admin/api/save", (req: Request, res: Response) => {
   const { credentials } = req.body ?? {};
@@ -58,6 +71,14 @@ adminRouter.post("/admin/api/save", (req: Request, res: Response) => {
     "TWILIO_ACCOUNT_SID",
     "TWILIO_AUTH_TOKEN",
     "ELEVENLABS_API_KEY",
+    "RESEND_API_KEY",
+    "EMAIL_DEFAULT_DOMAIN",
+    "WEBHOOK_BASE_URL",
+    "MASTER_SECURITY_TOKEN",
+    "ANTHROPIC_API_KEY",
+    "VOICE_DEFAULT_GREETING",
+    "VOICE_DEFAULT_VOICE",
+    "VOICE_DEFAULT_LANGUAGE",
   ]);
 
   const filtered: Record<string, string> = {};

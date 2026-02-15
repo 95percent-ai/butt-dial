@@ -39,6 +39,41 @@ export async function testTwilioCredentials(
   }
 }
 
+/** Test Resend credentials by calling GET /domains */
+export async function testResendCredentials(
+  apiKey: string
+): Promise<TestResult> {
+  const url = "https://api.resend.com/domains";
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        return { success: false, message: "Invalid API key" };
+      }
+      const body = await response.text();
+      return { success: false, message: `Resend API error ${response.status}: ${body.slice(0, 200)}` };
+    }
+
+    const data = (await response.json()) as { data?: unknown[] };
+    const count = data.data?.length ?? 0;
+    return {
+      success: true,
+      message: `Connected — ${count} domain${count === 1 ? "" : "s"} configured`,
+    };
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      return { success: false, message: "Connection timed out (10s)" };
+    }
+    return { success: false, message: `Connection failed: ${String(err)}` };
+  }
+}
+
 /** Test ElevenLabs credentials by calling GET /v1/voices */
 export async function testElevenLabsCredentials(
   apiKey: string

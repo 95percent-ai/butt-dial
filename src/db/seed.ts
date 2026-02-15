@@ -21,13 +21,39 @@ export function seedTestAgent(db: ReturnType<typeof createSqliteProvider>): void
     return;
   }
 
+  // Insert agent with all fields populated
   db.run(
-    `INSERT INTO agent_channels (id, agent_id, display_name, phone_number, whatsapp_sender_sid, status)
-     VALUES (?, ?, ?, ?, ?, 'active')`,
-    [randomUUID(), agentId, "Test Agent", "+1234567890", "+1234567890"]
+    `INSERT INTO agent_channels (id, agent_id, display_name, phone_number, whatsapp_sender_sid, email_address, system_prompt, greeting, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+    [
+      randomUUID(),
+      agentId,
+      "Test Agent",
+      "+1234567890",
+      "+1234567890",
+      "test-agent-001@agents.example.com",
+      "You are a helpful test agent. Keep responses concise and friendly.",
+      "Hello! I'm the test agent. How can I help you today?",
+    ]
   );
 
-  console.log(`Seeded agent "${agentId}" with phone +1234567890, whatsapp +1234567890`);
+  // Insert default spending limits
+  db.run(
+    `INSERT INTO spending_limits (id, agent_id, max_actions_per_minute, max_actions_per_hour, max_actions_per_day, max_spend_per_day, max_spend_per_month)
+     VALUES (?, ?, 10, 100, 500, 10.0, 100.0)`,
+    [randomUUID(), agentId]
+  );
+
+  console.log("");
+  console.log("Seeded test agent:");
+  console.log(`  Agent ID:      ${agentId}`);
+  console.log(`  Display Name:  Test Agent`);
+  console.log(`  Phone:         +1234567890`);
+  console.log(`  WhatsApp:      +1234567890`);
+  console.log(`  Email:         test-agent-001@agents.example.com`);
+  console.log(`  Greeting:      Hello! I'm the test agent. How can I help you today?`);
+  console.log(`  Limits:        10/min, 100/hr, 500/day, $10/day, $100/month`);
+  console.log("");
 }
 
 // Run directly as a script
