@@ -26,6 +26,9 @@ import { createTwilioWhatsAppProvider } from "./whatsapp-twilio.js";
 import { createMockSTTProvider } from "./stt-mock.js";
 import { createDeepgramSTTProvider } from "./stt-deepgram.js";
 import { createOpenAITTSProvider } from "./tts-openai.js";
+import { createVonageTelephonyProvider } from "./telephony-vonage.js";
+import { createS3StorageProvider } from "./storage-s3.js";
+import { createR2StorageProvider } from "./storage-r2.js";
 
 type ProviderMap = {
   telephony: ITelephonyProvider;
@@ -64,6 +67,12 @@ export function initProviders(): void {
   if (config.demoMode) {
     providers.telephony = createMockTelephonyProvider();
     logger.info("provider_initialized", { slot: "telephony", provider: "mock (demo mode)" });
+  } else if (config.providerTelephony === "vonage" && config.vonageApiKey && config.vonageApiSecret) {
+    providers.telephony = createVonageTelephonyProvider({
+      apiKey: config.vonageApiKey,
+      apiSecret: config.vonageApiSecret,
+    });
+    logger.info("provider_initialized", { slot: "telephony", provider: "vonage" });
   } else if (config.twilioAccountSid && config.twilioAuthToken) {
     providers.telephony = createTwilioTelephonyProvider({
       accountSid: config.twilioAccountSid,
@@ -74,7 +83,7 @@ export function initProviders(): void {
     providers.telephony = createMockTelephonyProvider();
     logger.warn("provider_fallback_mock", {
       slot: "telephony",
-      reason: "No Twilio credentials found — using mock adapter",
+      reason: "No telephony credentials found — using mock adapter",
     });
   }
 
@@ -93,9 +102,29 @@ export function initProviders(): void {
     logger.info("provider_initialized", { slot: "tts", provider: "edge-tts (free, no API key)" });
   }
 
-  // Storage — always local for now
-  providers.storage = createLocalStorageProvider();
-  logger.info("provider_initialized", { slot: "storage", provider: "local" });
+  // Storage
+  if (config.providerStorage === "s3" && config.awsAccessKeyId && config.awsSecretAccessKey && config.s3Bucket) {
+    providers.storage = createS3StorageProvider({
+      bucket: config.s3Bucket,
+      region: config.s3Region,
+      accessKeyId: config.awsAccessKeyId,
+      secretAccessKey: config.awsSecretAccessKey,
+      publicUrl: config.s3PublicUrl,
+    });
+    logger.info("provider_initialized", { slot: "storage", provider: "s3" });
+  } else if (config.providerStorage === "r2" && config.r2AccountId && config.r2AccessKeyId && config.r2SecretAccessKey && config.r2Bucket) {
+    providers.storage = createR2StorageProvider({
+      accountId: config.r2AccountId,
+      bucket: config.r2Bucket,
+      accessKeyId: config.r2AccessKeyId,
+      secretAccessKey: config.r2SecretAccessKey,
+      publicUrl: config.r2PublicUrl,
+    });
+    logger.info("provider_initialized", { slot: "storage", provider: "r2" });
+  } else {
+    providers.storage = createLocalStorageProvider();
+    logger.info("provider_initialized", { slot: "storage", provider: "local" });
+  }
 
   // Voice orchestration
   if (config.demoMode) {

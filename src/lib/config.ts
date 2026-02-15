@@ -49,12 +49,38 @@ const configSchema = z.object({
   // Email default domain (for provisioned agents)
   emailDefaultDomain: z.string().default("agents.example.com"),
 
+  // Vonage (alternative telephony)
+  vonageApiKey: z.string().optional(),
+  vonageApiSecret: z.string().optional(),
+
   // Deepgram (STT)
   deepgramApiKey: z.string().optional(),
 
   // OpenAI (alternative TTS)
   openaiApiKey: z.string().optional(),
   openaiTtsVoice: z.string().default("alloy"),
+
+  // S3 storage
+  awsAccessKeyId: z.string().optional(),
+  awsSecretAccessKey: z.string().optional(),
+  s3Bucket: z.string().optional(),
+  s3Region: z.string().default("us-east-1"),
+  s3PublicUrl: z.string().optional(),
+
+  // Cloudflare R2 storage
+  r2AccountId: z.string().optional(),
+  r2AccessKeyId: z.string().optional(),
+  r2SecretAccessKey: z.string().optional(),
+  r2Bucket: z.string().optional(),
+  r2PublicUrl: z.string().optional(),
+
+  // Turso database
+  tursoDatabaseUrl: z.string().optional(),
+  tursoAuthToken: z.string().optional(),
+
+  // Convex database
+  convexDeploymentUrl: z.string().optional(),
+  convexAdminKey: z.string().optional(),
 
   // Anthropic (LLM for voice conversations)
   anthropicApiKey: z.string().optional(),
@@ -134,9 +160,25 @@ function loadConfig() {
     resendApiKey: process.env.RESEND_API_KEY,
     resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET,
     emailDefaultDomain: process.env.EMAIL_DEFAULT_DOMAIN,
+    vonageApiKey: process.env.VONAGE_API_KEY,
+    vonageApiSecret: process.env.VONAGE_API_SECRET,
     deepgramApiKey: process.env.DEEPGRAM_API_KEY,
     openaiApiKey: process.env.OPENAI_API_KEY,
     openaiTtsVoice: process.env.OPENAI_TTS_VOICE,
+    awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    s3Bucket: process.env.S3_BUCKET,
+    s3Region: process.env.S3_REGION,
+    s3PublicUrl: process.env.S3_PUBLIC_URL,
+    r2AccountId: process.env.R2_ACCOUNT_ID,
+    r2AccessKeyId: process.env.R2_ACCESS_KEY_ID,
+    r2SecretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    r2Bucket: process.env.R2_BUCKET,
+    r2PublicUrl: process.env.R2_PUBLIC_URL,
+    tursoDatabaseUrl: process.env.TURSO_DATABASE_URL,
+    tursoAuthToken: process.env.TURSO_AUTH_TOKEN,
+    convexDeploymentUrl: process.env.CONVEX_DEPLOYMENT_URL,
+    convexAdminKey: process.env.CONVEX_ADMIN_KEY,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     voiceDefaultGreeting: process.env.VOICE_DEFAULT_GREETING,
     voiceDefaultSystemPrompt: process.env.VOICE_DEFAULT_SYSTEM_PROMPT,
