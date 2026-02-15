@@ -14,6 +14,8 @@ import { handleVoiceWebSocket } from "./webhooks/voice-ws.js";
 import { authMiddleware } from "./security/auth-middleware.js";
 import { metrics } from "./observability/metrics.js";
 import { initAlertManager } from "./observability/alert-manager.js";
+import { registerAgentSession, unregisterAgentSession } from "./lib/agent-registry.js";
+import { dispatchPendingVoicemails } from "./lib/voicemail-dispatcher.js";
 
 async function main() {
   // 1. Initialize providers (DB first)
@@ -33,18 +35,36 @@ async function main() {
   const transports = new Map<string, SSEServerTransport>();
 
   app.get("/sse", async (req, res) => {
-    logger.info("mcp_sse_connection");
+    const agentId = req.query.agentId as string | undefined;
+    logger.info("mcp_sse_connection", { agentId });
 
     const transport = new SSEServerTransport("/messages", res);
     transports.set(transport.sessionId, transport);
 
     res.on("close", () => {
       transports.delete(transport.sessionId);
-      logger.info("mcp_sse_disconnected", { sessionId: transport.sessionId });
+      if (agentId) {
+        unregisterAgentSession(agentId);
+      }
+      logger.info("mcp_sse_disconnected", { sessionId: transport.sessionId, agentId });
     });
 
     const mcpServer = createMcpServer();
     await mcpServer.connect(transport);
+
+    // Register agent session so voice calls can route to this agent's LLM
+    if (agentId) {
+      registerAgentSession(agentId, {
+        server: mcpServer.server,
+        sessionId: transport.sessionId,
+        connectedAt: new Date(),
+      });
+
+      // Deliver any voicemails collected while agent was offline
+      dispatchPendingVoicemails(agentId, mcpServer.server).catch((err) => {
+        logger.error("voicemail_dispatch_failed", { agentId, error: String(err) });
+      });
+    }
   });
 
   app.post("/messages", authMiddleware, async (req, res) => {

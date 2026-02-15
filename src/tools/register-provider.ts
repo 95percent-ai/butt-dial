@@ -37,12 +37,6 @@ const PROVIDER_CONFIGS: Record<string, {
     },
     capabilities: ["tts", "voice-cloning"],
   },
-  anthropic: {
-    envMapping: {
-      apiKey: "ANTHROPIC_API_KEY",
-    },
-    capabilities: ["llm", "voice-ai-conversations"],
-  },
 };
 
 async function verifyProvider(
@@ -85,14 +79,6 @@ async function verifyProvider(
       return { ok: true, message: "ElevenLabs credentials verified" };
     }
 
-    if (provider === "anthropic") {
-      // No simple ping endpoint; just validate key format
-      const apiKey = credentials.apiKey;
-      if (!apiKey) return { ok: false, message: "Missing apiKey" };
-      if (!apiKey.startsWith("sk-ant-")) return { ok: false, message: "Invalid Anthropic API key format" };
-      return { ok: true, message: "Anthropic key format validated (no live ping)" };
-    }
-
     return { ok: false, message: `Unknown provider: ${provider}` };
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -103,9 +89,9 @@ async function verifyProvider(
 export function registerRegisterProviderTool(server: McpServer): void {
   server.tool(
     "comms_register_provider",
-    "Register and verify third-party provider credentials (Twilio, Resend, ElevenLabs, Anthropic). Saves to .env file.",
+    "Register and verify third-party provider credentials (Twilio, Resend, ElevenLabs). Saves to .env file.",
     {
-      provider: z.enum(["twilio", "resend", "elevenlabs", "anthropic"]).describe("Provider name"),
+      provider: z.enum(["twilio", "resend", "elevenlabs"]).describe("Provider name"),
       credentials: z.record(z.string()).describe("Credential key-value pairs (e.g. { accountSid: '...', authToken: '...' })"),
       autoVerify: z.boolean().default(true).describe("Test connectivity before saving (default: true)"),
     },

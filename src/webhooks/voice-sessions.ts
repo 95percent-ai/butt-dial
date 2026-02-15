@@ -24,6 +24,11 @@ export interface VoiceConversation {
   systemPrompt: string;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   abortController: AbortController | null;
+  mode: "agent" | "answering-machine";
+  voicemailCollected?: {
+    callerMessage: string;
+    callerPreferences?: string;
+  };
 }
 
 /** Pre-call config stored by comms_make_call, read by outbound webhook */

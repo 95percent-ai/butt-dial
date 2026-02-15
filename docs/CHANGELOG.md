@@ -1,6 +1,35 @@
-<!-- version: 2.2 | updated: 2026-02-15 -->
+<!-- version: 2.3 | updated: 2026-02-15 -->
 
 # Changelog
+
+## Session 12 — 2026-02-15
+
+### Voice Refactor — Agent Responds, Not the Server (DEC-042)
+
+#### New Files (3)
+- `src/lib/agent-registry.ts` — maps agentId → MCP server session (register/unregister/get)
+- `src/lib/voicemail-dispatcher.ts` — dispatches pending voicemails as logging notifications when agent reconnects
+- `src/db/schema-voicemail.sql` — `voicemail_messages` table (id, agent_id, call_sid, caller_from/to, transcript, message, preferences, status)
+
+#### Modified Files (6)
+- `src/webhooks/voice-ws.ts` — replaced direct Anthropic LLM call with 3-path flow: (A) MCP sampling to connected agent, (B) Anthropic answering machine fallback, (C) hard-coded "unavailable" message. Stores voicemail on WebSocket close in answering-machine mode.
+- `src/webhooks/voice-sessions.ts` — added `mode: "agent" | "answering-machine"` and optional `voicemailCollected` to VoiceConversation
+- `src/index.ts` — SSE endpoint accepts `agentId` query param, registers/unregisters agent sessions, dispatches pending voicemails on connect
+- `src/tools/register-provider.ts` — removed `anthropic` from provider list (z.enum, PROVIDER_CONFIGS, verification). Anthropic key kept in config as optional for answering machine only.
+- `src/db/migrate.ts` — added voicemail schema migration
+- `tests/voice-call.test.ts` — updated expectations (fallback = "unavailable" message, not demo text), added voicemail DB storage test
+
+#### How It Works Now
+- **Agent connected:** Voice call transcripts route via MCP sampling (`server.createMessage()`) to the connected AI agent's LLM. The agent has context and provides responses.
+- **No agent:** Anthropic answering machine greets caller, collects message + preferences, stores voicemail in DB. When agent reconnects via SSE, pending voicemails are dispatched as logging notifications.
+- **No agent + no Anthropic key:** Hard-coded "No one is available" message.
+- Mode is set at call setup time and persists for the call. If sampling times out (8s), call switches to answering-machine mode.
+
+#### Verification
+- TypeScript compiles clean (`npx tsc --noEmit`)
+- Tests updated for new behavior
+
+---
 
 ## Session 11 — 2026-02-15
 

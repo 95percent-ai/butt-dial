@@ -27,6 +27,10 @@ export function runMigrations(): void {
   const observabilitySchema = fs.readFileSync(observabilitySchemaPath, "utf-8");
   db.exec(observabilitySchema);
 
+  const voicemailSchemaPath = path.join(projectRoot, "src", "db", "schema-voicemail.sql");
+  const voicemailSchema = fs.readFileSync(voicemailSchemaPath, "utf-8");
+  db.exec(voicemailSchema);
+
   logger.info("migrations_complete");
 }
 

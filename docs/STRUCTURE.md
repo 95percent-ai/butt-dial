@@ -1,4 +1,4 @@
-<!-- version: 2.2 | updated: 2026-02-15 -->
+<!-- version: 2.3 | updated: 2026-02-15 -->
 
 # Project Structure
 
@@ -16,7 +16,9 @@ agentos-comms-mcp/
 │   ├── lib/                      # Shared utilities
 │   │   ├── config.ts             # .env loader with zod validation
 │   │   ├── types.ts              # Shared TypeScript types
-│   │   └── logger.ts             # Structured JSON logger (no PII)
+│   │   ├── logger.ts             # Structured JSON logger (no PII)
+│   │   ├── agent-registry.ts     # Maps agentId → MCP server session (for voice routing)
+│   │   └── voicemail-dispatcher.ts # Dispatches pending voicemails when agent reconnects via SSE
 │   │
 │   ├── providers/                # Pluggable provider adapters
 │   │   ├── interfaces.ts         # All 8 provider interfaces
@@ -40,6 +42,7 @@ agentos-comms-mcp/
 │   │   ├── schema-security.sql   # Security tables (agent_tokens, provider_credentials, spending_limits)
 │   │   ├── schema-rate-limiting.sql # Rate limiting table (usage_logs with indexes)
 │   │   ├── schema-observability.sql # Audit log table with hash chain
+│   │   ├── schema-voicemail.sql  # Voicemail messages table (answering machine storage)
 │   │   ├── migrate.ts            # Migration runner (runs all schema files)
 │   │   └── seed.ts               # Test agent seeder (npm run seed)
 │   │
@@ -49,8 +52,8 @@ agentos-comms-mcp/
 │   │   ├── inbound-email.ts      # POST /webhooks/:agentId/email — Resend inbound email handler
 │   │   ├── inbound-whatsapp.ts   # POST /webhooks/:agentId/whatsapp — Twilio inbound WhatsApp handler
 │   │   ├── inbound-voice.ts      # POST /webhooks/:agentId/voice + outbound-voice — ConversationRelay TwiML
-│   │   ├── voice-ws.ts           # WebSocket handler for live voice (prompt → LLM → stream tokens)
-│   │   └── voice-sessions.ts     # Shared in-memory store for voice call configs + conversations
+│   │   ├── voice-ws.ts           # WebSocket handler for live voice (agent sampling → answering machine → fallback)
+│   │   └── voice-sessions.ts     # Shared in-memory store for voice call configs + conversations (mode: agent/answering-machine)
 │   │
 │   ├── tools/                    # MCP tools
 │   │   ├── send-message.ts       # comms_send_message (SMS + email + WhatsApp via provider routing)

@@ -1,12 +1,14 @@
 /**
- * Dry test for Phase 5 — Live Voice AI Conversation.
+ * Dry test for Voice AI Conversation (refactored).
  *
- * Tests with DEMO_MODE=true (no real APIs):
+ * Tests with DEMO_MODE=true (no real APIs, no agent connected):
  * 1. comms_make_call tool — initiates outbound AI voice call
  * 2. Message stored in DB (channel: voice, direction: outbound)
  * 3. WebSocket endpoint accessible and responds to messages
- * 4. Mock prompt/response cycle (no real LLM in demo mode)
- * 5. Error cases: unknown agent, missing params
+ * 4. No agent connected → hard-coded fallback (Path C)
+ * 5. Answering machine mode activates when no agent session
+ * 6. Voicemail stored in DB after answering-machine call ends
+ * 7. Error cases: unknown agent, missing params
  *
  * Prerequisites:
  *   - Server running with DEMO_MODE=true
@@ -78,7 +80,7 @@ function openWs(path: string, timeoutMs = 3000): Promise<{ messages: unknown[]; 
 }
 
 async function main() {
-  console.log("\n=== Phase 5: comms_make_call + Voice WebSocket dry test ===\n");
+  console.log("\n=== Voice Call + Answering Machine dry test ===\n");
 
   // 1. Connect MCP client
   console.log("Connecting to MCP server...");
@@ -123,7 +125,6 @@ async function main() {
   const row = db.prepare(
     "SELECT * FROM messages WHERE id = ?"
   ).get(parsed.messageId) as Record<string, unknown> | undefined;
-  db.close();
 
   assert(row !== undefined, "message row exists in database");
   if (row) {
@@ -140,8 +141,8 @@ async function main() {
   const wsResult = await openWs("/webhooks/test-agent-001/voice-ws", 2000);
   assert(wsResult.connected, "WebSocket connects to /webhooks/:agentId/voice-ws");
 
-  // 6. WebSocket setup + prompt cycle
-  console.log("\nTest: WebSocket setup + prompt");
+  // 6. WebSocket setup + prompt — no agent connected → hard-coded fallback (Path C)
+  console.log("\nTest: WebSocket prompt → no agent → hard-coded fallback");
   const wsConv = await new Promise<{ messages: unknown[]; connected: boolean }>((resolve) => {
     const messages: unknown[] = [];
     let connected = false;
@@ -194,13 +195,74 @@ async function main() {
     const firstMsg = wsConv.messages[0] as Record<string, unknown>;
     assert(firstMsg.type === "text", "response type is 'text'");
     assert(typeof firstMsg.token === "string", "response has token string");
+    assert(firstMsg.last === true, "response has last: true (complete message, not streamed)");
 
-    // In demo mode (no Anthropic key), should get a fallback message
-    const lastMsg = wsConv.messages[wsConv.messages.length - 1] as Record<string, unknown>;
-    assert(lastMsg.last === true, "last message has last: true");
+    // No agent connected + no Anthropic key in demo mode → hard-coded unavailable message
+    const token = firstMsg.token as string;
+    assert(
+      token.includes("No one is available") || token.includes("unavailable") || token.includes("try again"),
+      "fallback message indicates unavailability"
+    );
   }
 
-  // 7. Error case: unknown agent
+  // 7. Answering machine mode — voicemail stored in DB
+  console.log("\nTest: answering machine → voicemail stored in DB");
+  const testCallSid = "test-voicemail-" + Date.now();
+  await new Promise<void>((resolve) => {
+    const ws = new WebSocket(`${WS_URL}/webhooks/test-agent-001/voice-ws`);
+
+    ws.on("open", () => {
+      // Setup
+      ws.send(JSON.stringify({
+        type: "setup",
+        callSid: testCallSid,
+        from: "+15559876543",
+        to: "+15551234567",
+      }));
+
+      // Simulate caller leaving a message
+      setTimeout(() => {
+        ws.send(JSON.stringify({
+          type: "prompt",
+          voicePrompt: "Hi, this is John. Please call me back about the project.",
+        }));
+      }, 200);
+
+      // Close after response (triggers voicemail storage)
+      setTimeout(() => {
+        ws.close();
+      }, 2000);
+    });
+
+    ws.on("close", () => {
+      // Small delay for DB write
+      setTimeout(() => resolve(), 300);
+    });
+
+    ws.on("error", () => resolve());
+  });
+
+  // Check voicemail was stored
+  const voicemailRow = db.prepare(
+    "SELECT * FROM voicemail_messages WHERE call_sid = ?"
+  ).get(testCallSid) as Record<string, unknown> | undefined;
+
+  assert(voicemailRow !== undefined, "voicemail row exists in database");
+  if (voicemailRow) {
+    assert(voicemailRow.agent_id === "test-agent-001", "voicemail agent_id matches");
+    assert(voicemailRow.caller_from === "+15559876543", "voicemail caller_from matches");
+    assert(voicemailRow.status === "pending", "voicemail status is 'pending'");
+    assert(
+      typeof voicemailRow.caller_message === "string" &&
+      (voicemailRow.caller_message as string).includes("call me back"),
+      "voicemail caller_message captured"
+    );
+    assert(typeof voicemailRow.transcript === "string", "voicemail has transcript");
+  }
+
+  db.close();
+
+  // 8. Error case: unknown agent
   console.log("\nTest: make call (unknown agent)");
   const errResult = await client.callTool({
     name: "comms_make_call",
@@ -215,12 +277,12 @@ async function main() {
   assert(errParsed.error !== undefined, "error response has error field");
   assert(errResult.isError === true, "isError flag is true");
 
-  // 8. WebSocket rejects non-voice paths
+  // 9. WebSocket rejects non-voice paths
   console.log("\nTest: WebSocket rejects non-voice paths");
   const badWs = await openWs("/some/random/path", 1000);
   assert(!badWs.connected, "non-voice WebSocket path is rejected");
 
-  // 9. Disconnect
+  // 10. Disconnect
   await client.close();
 
   // Summary
