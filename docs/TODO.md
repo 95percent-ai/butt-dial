@@ -1,4 +1,4 @@
-<!-- version: 3.4 | updated: 2026-02-15 -->
+<!-- version: 3.5 | updated: 2026-02-15 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -95,6 +95,9 @@ The big one. Human calls agent's number, talks to an LLM in real-time.
 - [x] Interruption handling
 - [x] `comms_make_call` tool (outbound AI voice call)
 - [x] **Verify (dry):** 25/25 assertions pass — make call, DB record, WebSocket setup/prompt/response, error cases
+- [ ] **Refactor: voice-ws.ts — remove direct Anthropic LLM call.** Voice transcripts route back to the connected MCP client (the third-party AI agent), not to Claude. The agent provides responses because it has the context.
+- [ ] **Fallback answering machine:** When the AI agent is not connected or not responding, use a built-in LLM (Claude) as a smart voicemail. It apologizes, collects the caller's message and preferences, then stores everything with full context (who called, when, what channel, what was said). When the agent reconnects, dispatch all collected messages so it can decide what to do. Example context: *"Inon tried to call you at 14:00 via phone. You didn't answer, so we initiated contact, apologized, and he left this message for you. He prefers you answer tomorrow morning after 8:00."*
+- [ ] Remove `anthropic` as a registered provider in `comms_register_provider`. Anthropic key is only needed for the fallback answering machine (optional, not a "provider").
 - [ ] **Verify (live):** Call the agent's number → have a live conversation with the AI *(blocked: Twilio trial account restrictions — inbound/outbound calls require verified numbers. Resume after upgrading to full Twilio account)*
 
 ## Phase 6 — Expand: Email Channel
@@ -128,7 +131,7 @@ Define and validate the required fields for setting up a new MCP server instance
   - Twilio: Account SID, Auth Token, test phone number
   - WhatsApp: Twilio creds (same as above) + WhatsApp sender number
   - Email: Resend API key, verified sender email address
-  - Voice: Anthropic API key, ElevenLabs API key (or Edge TTS for free tier)
+  - Voice: ElevenLabs API key (or Edge TTS for free tier). No LLM key needed — the connected AI agent provides responses
 - [ ] Add validation/startup check — server warns about missing fields on boot
 - [ ] Update setup UI (`/admin/setup`) to collect all required fields per channel
 - [ ] Seed script or onboarding flow that provisions a test agent with all fields populated

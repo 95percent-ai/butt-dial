@@ -1,4 +1,4 @@
-<!-- version: 2.1 | updated: 2026-02-15 -->
+<!-- version: 2.2 | updated: 2026-02-15 -->
 
 # Project Structure
 
@@ -117,6 +117,7 @@ agentos-comms-mcp/
     ├── MENU.md                   # Developer menu actions
     └── references/               # External reference documents
         ├── PROJECT-SCOPE.md
+        ├── ARCHITECTURE-OVERVIEW.md
         ├── ai-voice-agent-architecture.md
         ├── twilio-mcp-serverless-deploy.md
         └── dynamic-comms-architecture.md

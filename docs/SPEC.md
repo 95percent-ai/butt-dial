@@ -1,4 +1,4 @@
-<!-- version: 1.4 | updated: 2026-02-13 -->
+<!-- version: 1.6 | updated: 2026-02-15 -->
 
 # AgentOS Communication MCP Server — Spec
 
@@ -80,7 +80,7 @@ WhatsApp provider is selected via `PROVIDER_WHATSAPP` config (`greenapi` for dev
 
 ### Voice Architecture
 
-Both **live AI voice** (ConversationRelay/Media Streams) and **pre-recorded TTS messages** are supported from the start. Both serve different use cases (conversations vs notifications).
+Both **live AI voice** (ConversationRelay/Media Streams) and **pre-recorded TTS messages** are supported from the start. Both serve different use cases (conversations vs notifications). TTS voice messages can be delivered via phone call or WhatsApp voice note. Email and WhatsApp both support file attachments (images, documents, audio).
 
 ### Conversation Threading
 
@@ -163,11 +163,26 @@ Primary action completes first; secondary is best-effort.
 
 ## Voice AI Architecture
 
-Live 2-way voice calls flow:
+The MCP server is infrastructure — it relays text, never generates it. The connected AI agent provides all responses.
+
+### Live voice call flow
+
 1. Inbound call → telephony provider hits webhook
 2. Response connects to voice orchestration (e.g., ConversationRelay)
 3. WebSocket handler receives/sends **text only** (orchestration handles STT/TTS)
-4. Human/agent speech → transcribed → sent to LLM → response streamed back → spoken
+4. Human speaks → transcribed to text → **routed back to the connected AI agent via MCP** → agent responds → response sent to Twilio → spoken to caller
+
+The server doesn't know or care which LLM the agent uses. It only passes text back and forth.
+
+### Fallback: smart answering machine
+
+When the AI agent is **not connected or not responding**, the server uses a built-in LLM as an automated answering machine:
+
+1. Apologizes to the caller on behalf of the agent
+2. Collects the caller's message and preferences (e.g. "call me back after 8am")
+3. Stores everything with full context — who called, when, what channel, what was said
+
+When the agent reconnects, the server dispatches all collected messages so the agent can decide what to do. The answering machine is a fallback, not the primary responder.
 
 The WebSocket handler is provider-agnostic — it only deals with text in/out.
 

@@ -1,4 +1,4 @@
-<!-- version: 2.9 | updated: 2026-02-15 -->
+<!-- version: 3.0 | updated: 2026-02-15 -->
 
 # Decisions Log
 
@@ -241,6 +241,13 @@ All 7 decisions follow a pattern: **make it configurable, with sensible defaults
 **What:** `sendAlert()` routes by severity synchronously (CRITICAL/HIGH → WhatsApp + log + audit; MEDIUM → log + audit; LOW → log only). No queue or worker.
 **Why:** Simple for MVP. WhatsApp send failure logs and returns false — alerting never throws or breaks main flow.
 **Alternatives:** Message queue (rejected — overkill for MVP). Background worker (rejected — same).
+
+## DEC-042: Voice Calls — Agent Responds, Not the MCP Server
+**Date:** 2026-02-15
+**What:** The MCP server does NOT call any LLM during live voice calls. Voice transcripts are routed back to the connected third-party AI agent (via MCP client), which provides responses. The server is infrastructure only — it relays text, never generates it. Anthropic is removed as a "provider."
+**Why:** The MCP server doesn't know which LLM the agent uses, and the agent has the required context (personality, history, business logic) to answer. The server calling Claude directly was wrong — it bypassed the agent's brain.
+**Fallback:** When the agent is not connected or not responding, the server uses a built-in LLM (Claude) as a smart voicemail/answering machine. It apologizes, collects the caller's message and preferences (e.g. "call me back after 8am"), and stores everything with full context. When the agent reconnects, all messages are dispatched so it can decide what to do.
+**Alternatives considered:** Keep Anthropic as the voice responder (rejected — violates the infrastructure-only principle, assumes Claude is the LLM).
 
 ## DEC-041: Health/Ready — DB Ping, Config Presence Only
 **Date:** 2026-02-15
