@@ -5,8 +5,10 @@ import { getProviderStatus, saveCredentials } from "./env-writer.js";
 import { testTwilioCredentials, testElevenLabsCredentials, testResendCredentials } from "./credential-testers.js";
 import { renderSetupPage } from "./setup-page.js";
 import { renderSwaggerPage } from "./swagger-page.js";
+import { renderDashboardPage } from "./dashboard-page.js";
 import { generateOpenApiSpec } from "./openapi-spec.js";
 import { runDemoScenarios } from "./scenario-runner.js";
+import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 
@@ -61,6 +63,66 @@ adminRouter.get("/admin/api-docs", (_req: Request, res: Response) => {
 /** Serve raw OpenAPI spec as JSON */
 adminRouter.get("/admin/api-docs/spec.json", (_req: Request, res: Response) => {
   res.json(generateOpenApiSpec());
+});
+
+/** Serve admin dashboard (GET — no auth required) */
+adminRouter.get("/admin/dashboard", (_req: Request, res: Response) => {
+  res.type("html").send(renderDashboardPage());
+});
+
+/** Dashboard data API */
+adminRouter.get("/admin/api/dashboard", (_req: Request, res: Response) => {
+  try {
+    const db = getProvider("database");
+
+    // Active agents
+    const agents = db.query<Record<string, unknown>>(
+      "SELECT agent_id, display_name, phone_number, email_address, status FROM agent_channels ORDER BY provisioned_at DESC LIMIT 50"
+    );
+
+    // Usage summary
+    const totalMessages = db.query<{ cnt: number }>(
+      "SELECT COUNT(*) as cnt FROM messages"
+    );
+
+    let _todayActions = 0;
+    try {
+      const ta = db.query<{ cnt: number }>("SELECT COUNT(*) as cnt FROM usage_logs WHERE created_at >= datetime('now', '-1 day')");
+      _todayActions = ta[0]?.cnt || 0;
+    } catch {}
+
+    let _totalCost = 0;
+    try {
+      const tc2 = db.query<{ total: number }>("SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs");
+      _totalCost = tc2[0]?.total || 0;
+    } catch {}
+
+    // Recent audit log entries as "alerts"
+    let alerts: Array<Record<string, unknown>> = [];
+    try {
+      alerts = db.query<Record<string, unknown>>(
+        "SELECT event_type as severity, action as message, created_at as timestamp FROM audit_log ORDER BY created_at DESC LIMIT 10"
+      );
+    } catch {
+      // audit_log might not have data
+    }
+
+    res.json({
+      agents,
+      usage: {
+        totalMessages: totalMessages[0]?.cnt || 0,
+        todayActions: _todayActions,
+        totalCost: _totalCost,
+      },
+      alerts: alerts.map((a) => ({
+        severity: String(a.severity || "INFO").toUpperCase(),
+        message: a.message || "System event",
+        timestamp: a.timestamp || "",
+      })),
+    });
+  } catch (err) {
+    res.json({ agents: [], usage: { totalMessages: 0, todayActions: 0, totalCost: 0 }, alerts: [] });
+  }
 });
 
 /** Run demo scenarios */
