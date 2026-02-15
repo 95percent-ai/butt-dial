@@ -1,4 +1,4 @@
-<!-- version: 2.5 | updated: 2026-02-15 -->
+<!-- version: 3.0 | updated: 2026-02-16 -->
 
 # Project Structure
 
@@ -18,7 +18,9 @@ agentos-comms-mcp/
 │   │   ├── types.ts              # Shared TypeScript types
 │   │   ├── logger.ts             # Structured JSON logger (no PII)
 │   │   ├── agent-registry.ts     # Maps agentId → MCP server session (for voice routing)
-│   │   └── voicemail-dispatcher.ts # Dispatches pending voicemails when agent reconnects via SSE
+│   │   ├── voicemail-dispatcher.ts # Dispatches pending voicemails when agent reconnects via SSE
+│   │   ├── billing.ts            # Billing module: markup, tiers, spending alerts
+│   │   └── audio-converter.ts    # PCM ↔ mu-law 8kHz converter + WAV headers
 │   │
 │   ├── providers/                # Pluggable provider adapters
 │   │   ├── interfaces.ts         # All 8 provider interfaces
@@ -34,7 +36,15 @@ agentos-comms-mcp/
 │   │   ├── whatsapp-twilio.ts    # Twilio WhatsApp adapter (send via Messages API with whatsapp: prefix)
 │   │   ├── whatsapp-mock.ts      # Mock WhatsApp adapter (demo/dev mode)
 │   │   ├── voice-conversation-relay.ts # ConversationRelay TwiML generator (live voice)
-│   │   └── voice-mock.ts         # Mock voice orchestrator (demo mode — simple Say TwiML)
+│   │   ├── voice-mock.ts         # Mock voice orchestrator (demo mode — simple Say TwiML)
+│   │   ├── telephony-vonage.ts   # Vonage telephony adapter (SMS, calls, transfers, numbers)
+│   │   ├── stt-mock.ts           # Mock STT adapter (returns fixed transcription)
+│   │   ├── stt-deepgram.ts       # Deepgram STT adapter
+│   │   ├── tts-openai.ts         # OpenAI TTS adapter
+│   │   ├── db-turso.ts           # Turso/libSQL database adapter
+│   │   ├── db-convex.ts          # Convex database adapter
+│   │   ├── storage-s3.ts         # S3 storage adapter (AWS Signature V4)
+│   │   └── storage-r2.ts         # R2 storage adapter (wraps S3)
 │   │
 │   ├── db/                       # Database layer
 │   │   ├── client.ts             # SQLite provider (implements IDBProvider)
@@ -43,6 +53,9 @@ agentos-comms-mcp/
 │   │   ├── schema-rate-limiting.sql # Rate limiting table (usage_logs with indexes)
 │   │   ├── schema-observability.sql # Audit log table with hash chain
 │   │   ├── schema-voicemail.sql  # Voicemail messages table (answering machine storage)
+│   │   ├── schema-call-logs.sql # Call logs table (duration, cost, recording, transfer)
+│   │   ├── schema-compliance.sql # DNC list + GDPR erasure requests tables
+│   │   ├── schema-billing.sql   # Billing config table
 │   │   ├── migrate.ts            # Migration runner (runs all schema files)
 │   │   └── seed.ts               # Test agent seeder (npm run seed)
 │   │
@@ -66,7 +79,10 @@ agentos-comms-mcp/
 │   │   ├── register-provider.ts  # comms_register_provider (verify + save credentials to .env)
 │   │   ├── set-agent-limits.ts   # comms_set_agent_limits (admin-only: set rate/spending caps)
 │   │   ├── get-usage-dashboard.ts # comms_get_usage_dashboard (usage stats, costs, limits)
-│   │   └── onboard-customer.ts  # comms_onboard_customer (unified onboarding: provision + DNS + instructions)
+│   │   ├── onboard-customer.ts  # comms_onboard_customer (unified onboarding: provision + DNS + instructions)
+│   │   ├── transfer-call.ts     # comms_transfer_call (transfer live call to human/agent)
+│   │   ├── get-billing-summary.ts # comms_get_billing_summary + comms_set_billing_config
+│   │   └── expand-agent-pool.ts # comms_expand_agent_pool (resize pool)
 │   ├── channels/                 # Channel implementations (empty — Phase 2+)
 │   ├── security/                 # Auth, rate limiting, input validation
 │   │   ├── token-manager.ts      # Bearer token generate/store/verify/revoke (SHA-256 hashed)
@@ -80,7 +96,8 @@ agentos-comms-mcp/
 │   │   ├── cors.ts             # CORS middleware (configurable allowed origins, OPTIONS preflight)
 │   │   ├── http-rate-limiter.ts # HTTP-level per-IP + global rate limiting (in-memory)
 │   │   ├── ip-filter.ts        # IP allowlist/denylist middleware factory (admin + webhook scopes)
-│   │   └── anomaly-detector.ts # Volume spike, brute force, rapid token rotation detection
+│   │   ├── anomaly-detector.ts # Volume spike, brute force, rapid token rotation detection
+│   │   └── compliance.ts      # Content filter, DNC, TCPA, CAN-SPAM, GDPR erasure
 │   ├── provisioning/             # Agent provisioning helpers
 │   │   ├── phone-number.ts      # Buy, configure webhooks, release phone numbers
 │   │   ├── whatsapp-sender.ts   # WhatsApp pool assign/return/register
@@ -97,7 +114,11 @@ agentos-comms-mcp/
 │       ├── env-writer.ts         # Read/write .env file (atomic, preserves comments)
 │       ├── credential-testers.ts # Test Twilio + ElevenLabs + Resend API credentials
 │       ├── setup-page.ts         # HTML setup page (5 cards: Twilio, ElevenLabs, Resend, Server, Voice)
-│       └── router.ts             # Express routes: /admin/setup, /admin/api/*
+│       ├── dashboard-page.ts    # Admin dashboard HTML page (agents, usage, alerts)
+│       ├── swagger-page.ts      # Swagger UI HTML page (CDN-based, dark theme)
+│       ├── openapi-spec.ts      # OpenAPI 3.1 spec generator
+│       ├── scenario-runner.ts   # 8 demo scenarios for testing
+│       └── router.ts             # Express routes: /admin/setup, /admin/api/*, /admin/dashboard, /admin/api-docs
 │
 ├── storage/                      # Audio files served at /storage (auto-created)
 ├── data/                         # SQLite database file (auto-created)
@@ -118,7 +139,15 @@ agentos-comms-mcp/
 │   ├── observability.test.ts  # Dry test for observability & alerts (26 assertions)
 │   ├── setup-ui.test.ts      # Dry test for expanded setup UI & admin API (24 assertions)
 │   ├── onboarding.test.ts    # Dry test for config architecture & customer onboarding
-│   └── attack-hardening.test.ts # Dry test for attack hardening (security headers, CORS, rate limit, IP filter, replay)
+│   ├── attack-hardening.test.ts # Dry test for attack hardening (security headers, CORS, rate limit, IP filter, replay)
+│   ├── advanced-voice.test.ts # Dry test for advanced voice (transfer, call logs, STT, audio) — 26 assertions
+│   ├── provider-adapters.test.ts # Dry test for provider adapters (Vonage, S3, R2, Turso, Convex) — 42 assertions
+│   ├── swagger.test.ts        # Dry test for Swagger UI + OpenAPI spec — 29 assertions
+│   ├── dashboard.test.ts      # Dry test for admin dashboard — 17 assertions
+│   ├── compliance.test.ts     # Dry test for compliance (content filter, DNC, TCPA, GDPR) — 27 assertions
+│   ├── billing.test.ts        # Dry test for billing & markup — 36 assertions
+│   ├── documentation.test.ts  # Dry test for documentation completeness — 52 assertions
+│   └── end-to-end.test.ts     # Comprehensive end-to-end test — 49 assertions
 │
 └── docs/
     ├── SPEC.md                   # Project specification (source of truth)
@@ -128,6 +157,14 @@ agentos-comms-mcp/
     ├── STRUCTURE.md              # This file
     ├── MENU.md                   # Developer menu actions
     ├── ONBOARDING.md             # User-facing setup & agent connection guide
+    ├── SETUP.md                  # Full setup guide
+    ├── API.md                    # REST API reference
+    ├── MCP-TOOLS.md              # MCP tool reference with examples
+    ├── PROVIDERS.md              # Provider adapter guide
+    ├── SECURITY.md               # Security model and hardening
+    ├── OBSERVABILITY.md          # Monitoring and alerts guide
+    ├── ARCHITECTURE.md           # System architecture
+    ├── TROUBLESHOOTING.md        # Common issues and fixes
     └── references/               # External reference documents
         ├── PROJECT-SCOPE.md
         ├── ARCHITECTURE-OVERVIEW.md

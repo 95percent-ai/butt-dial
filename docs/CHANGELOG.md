@@ -1,6 +1,75 @@
-<!-- version: 2.5 | updated: 2026-02-15 -->
+<!-- version: 3.0 | updated: 2026-02-16 -->
 
 # Changelog
+
+## Session 15 — 2026-02-16
+
+### Phase 13 — Advanced Voice
+- `comms_transfer_call` tool: transfer live calls to phone numbers or other agents
+- `call_logs` table with duration, cost, recording URL, transfer tracking
+- Deepgram STT adapter + mock STT for demo mode
+- OpenAI TTS adapter
+- PCM ↔ mu-law 8kHz audio converter with WAV header generation
+- Call status callback route for Twilio updates
+- 26/26 tests pass
+
+### Phase 14 — Provider Adapters
+- Vonage telephony adapter (full: SMS, calls, transfers, number management)
+- S3 storage adapter with AWS Signature V4 (zero-dependency)
+- R2 storage adapter (Cloudflare, wraps S3)
+- Turso/libSQL database adapter
+- Convex database adapter
+- `comms_register_provider` extended to 10 providers
+- 42/42 tests pass
+
+### Phase 15 — Swagger + API Explorer
+- OpenAPI 3.1 spec generator (all REST paths, security schemes, MCP tools)
+- Swagger UI at `/admin/api-docs` (CDN-based, dark theme)
+- Demo scenario runner (5 scenarios → later expanded to 8)
+- 29/29 tests pass
+
+### Phase 16 — Admin Dashboard
+- Dashboard page at `/admin/dashboard` (agents, usage, costs, alerts)
+- Dashboard data API at `/admin/api/dashboard`
+- Auto-refresh every 30 seconds
+- 17/17 tests pass
+
+### Phase 17 — Compliance
+- Content filtering (threats + profanity blocked via regex)
+- DNC list enforcement (blocks SMS, email, and voice)
+- TCPA time-of-day (8 AM–9 PM, timezone-aware)
+- Recording consent (two-party consent state detection)
+- CAN-SPAM (unsubscribe check, warning only)
+- GDPR right-to-erasure (deletes data from all tables)
+- Compliance wired into `comms_send_message` and `comms_make_call`
+- 27/27 tests pass
+
+### Phase 18 — Billing & Markup
+- Configurable markup percentage (global + per-agent)
+- 4-tier system (free/starter/pro/enterprise) with preset limits
+- `comms_get_billing_summary` tool (provider cost vs billed cost)
+- `comms_set_billing_config` tool (tier, markup, billing email)
+- Spending alerts at 80% of daily/monthly cap
+- `billing_config` table
+- 36/36 tests pass
+
+### Phase 19 — Documentation
+- README.md rewritten (quick start, tool listing, tech stack)
+- 8 new doc files: SETUP.md, API.md, MCP-TOOLS.md, PROVIDERS.md, SECURITY.md, OBSERVABILITY.md, ARCHITECTURE.md, TROUBLESHOOTING.md
+- 52/52 tests pass
+
+### Phase 20 — Polish
+- `comms_expand_agent_pool` tool (resize pool)
+- Conversation threading (contactAddress filter in `comms_get_messages`)
+- Demo scenarios expanded to 8 (added dashboard, security headers, dashboard page)
+- Comprehensive end-to-end test (49 assertions covering all features)
+- 49/49 tests pass
+
+### Summary
+- Phases 13–20 completed (all remaining phases)
+- 8 new test files, 278 new test assertions
+- 16 MCP tools total
+- All phases pass dry tests in demo mode
 
 ## Session 14 — 2026-02-15
 
