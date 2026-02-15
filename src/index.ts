@@ -5,13 +5,15 @@ import { WebSocketServer } from "ws";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { config } from "./lib/config.js";
 import { logger } from "./lib/logger.js";
-import { initProviders } from "./providers/factory.js";
+import { initProviders, getProvider } from "./providers/factory.js";
 import { runMigrations } from "./db/migrate.js";
 import { createMcpServer } from "./server.js";
 import { webhookRouter } from "./webhooks/router.js";
 import { adminRouter } from "./admin/router.js";
 import { handleVoiceWebSocket } from "./webhooks/voice-ws.js";
 import { authMiddleware } from "./security/auth-middleware.js";
+import { metrics } from "./observability/metrics.js";
+import { initAlertManager } from "./observability/alert-manager.js";
 
 async function main() {
   // 1. Initialize providers (DB first)
@@ -19,6 +21,10 @@ async function main() {
 
   // 2. Run database migrations
   runMigrations();
+
+  // 2b. Initialize observability
+  const db = getProvider("database");
+  initAlertManager(db);
 
   // 3. Create Express app
   const app = express();
@@ -93,6 +99,12 @@ async function main() {
       environment: config.nodeEnv,
       demoMode: config.demoMode,
     });
+
+    // 10. Uptime gauge — update every 15 seconds
+    setInterval(() => {
+      metrics.gauge("mcp_uptime_seconds", process.uptime());
+    }, 15_000);
+    metrics.gauge("mcp_uptime_seconds", process.uptime());
   });
 }
 

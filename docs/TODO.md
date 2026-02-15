@@ -1,4 +1,4 @@
-<!-- version: 3.3 | updated: 2026-02-15 -->
+<!-- version: 3.4 | updated: 2026-02-15 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -185,13 +185,13 @@ Prevent abuse and track spend.
 ## Phase 11 — Feature: Observability & Admin Alerts
 Full visibility without reading private messages.
 
-- [ ] Health check endpoints (/health liveness, /health/ready provider check)
-- [ ] Prometheus metrics endpoint (/metrics)
-- [ ] Structured JSON logger (no PII)
-- [ ] Audit log with SHA-256 hash chain (audit_log table)
-- [ ] Alert manager (severity routing: CRITICAL/HIGH/MEDIUM/LOW)
-- [ ] WhatsApp alerter to admin (ADMIN_WHATSAPP_NUMBER)
-- [ ] **Verify:** /metrics returns counters. Trigger a CRITICAL event → admin gets WhatsApp alert. Audit log entries are hash-chained.
+- [x] Health check endpoints (/health liveness, /health/ready provider check)
+- [x] Prometheus metrics endpoint (/metrics)
+- [x] Structured JSON logger (no PII)
+- [x] Audit log with SHA-256 hash chain (audit_log table)
+- [x] Alert manager (severity routing: CRITICAL/HIGH/MEDIUM/LOW)
+- [x] WhatsApp alerter to admin (ADMIN_WHATSAPP_NUMBER)
+- [x] **Verify (dry):** 26/26 assertions pass — metrics increment/gauge/Prometheus format, audit log hash chain insert/verify/corrupt detection, alert routing by severity, WhatsApp alerter returns false when not configured
 
 ## Phase 12 — Feature: Attack Hardening
 Layer on protection now that the core works.

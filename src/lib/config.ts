@@ -65,6 +65,10 @@ const configSchema = z.object({
   defaultMaxSpendPerMonth: z.coerce.number().default(100),
   defaultMaxCallsPerDaySameNumber: z.coerce.number().default(2),
 
+  // Admin alerts
+  adminWhatsappNumber: z.string().optional(),
+  adminWhatsappSender: z.string().optional(),
+
   // Demo mode
   demoMode: z
     .string()
@@ -111,6 +115,8 @@ function loadConfig() {
     defaultMaxSpendPerDay: process.env.DEFAULT_MAX_SPEND_PER_DAY,
     defaultMaxSpendPerMonth: process.env.DEFAULT_MAX_SPEND_PER_MONTH,
     defaultMaxCallsPerDaySameNumber: process.env.DEFAULT_MAX_CALLS_PER_DAY_SAME_NUMBER,
+    adminWhatsappNumber: process.env.ADMIN_WHATSAPP_NUMBER,
+    adminWhatsappSender: process.env.ADMIN_WHATSAPP_SENDER,
     demoMode: process.env.DEMO_MODE,
   };
 

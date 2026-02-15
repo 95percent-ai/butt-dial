@@ -1,4 +1,4 @@
-<!-- version: 2.0 | updated: 2026-02-15 -->
+<!-- version: 2.1 | updated: 2026-02-15 -->
 
 # Project Structure
 
@@ -39,6 +39,7 @@ agentos-comms-mcp/
 │   │   ├── schema.sql            # Core tables (agent_channels, messages, agent_pool, whatsapp_pool)
 │   │   ├── schema-security.sql   # Security tables (agent_tokens, provider_credentials, spending_limits)
 │   │   ├── schema-rate-limiting.sql # Rate limiting table (usage_logs with indexes)
+│   │   ├── schema-observability.sql # Audit log table with hash chain
 │   │   ├── migrate.ts            # Migration runner (runs all schema files)
 │   │   └── seed.ts               # Test agent seeder (npm run seed)
 │   │
@@ -78,7 +79,11 @@ agentos-comms-mcp/
 │   ├── media/                    # TTS, media storage (empty — Phase 4+)
 │   ├── billing/                  # Cost tracking (empty — Phase 10+)
 │   ├── routing/                  # Route duplication (empty — Phase 13+)
-│   ├── observability/            # Metrics, alerts (empty — Phase 11+)
+│   ├── observability/            # Metrics, audit log, alerts
+│   │   ├── metrics.ts           # Prometheus-compatible counters/gauges + text format
+│   │   ├── audit-log.ts         # SHA-256 hash-chained immutable audit trail
+│   │   ├── alert-manager.ts     # Severity-routed alert dispatcher (CRITICAL→WhatsApp, etc.)
+│   │   └── whatsapp-alerter.ts  # Sends formatted alerts to admin WhatsApp number
 │   └── admin/                    # Admin UI — setup wizard, credential management
 │       ├── env-writer.ts         # Read/write .env file (atomic, preserves comments)
 │       ├── credential-testers.ts # Test Twilio + ElevenLabs API credentials
@@ -100,7 +105,8 @@ agentos-comms-mcp/
 │   ├── whatsapp.test.ts          # Dry test for WhatsApp send/receive/templates (37 assertions)
 │   ├── provisioning.test.ts     # Dry test for provisioning/teardown (60 assertions)
 │   ├── security.test.ts         # Dry test for security & auth (49 assertions)
-│   └── rate-limiting.test.ts   # Dry test for rate limiting & cost tracking (27 assertions)
+│   ├── rate-limiting.test.ts   # Dry test for rate limiting & cost tracking (27 assertions)
+│   └── observability.test.ts  # Dry test for observability & alerts (26 assertions)
 │
 └── docs/
     ├── SPEC.md                   # Project specification (source of truth)

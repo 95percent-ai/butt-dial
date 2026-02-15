@@ -1,6 +1,23 @@
-<!-- version: 2.1 | updated: 2026-02-15 -->
+<!-- version: 2.2 | updated: 2026-02-15 -->
 
 # Changelog
+
+## Session 11 — 2026-02-15
+
+### Phase 11: Observability & Admin Alerts
+- Created `audit_log` table with SHA-256 hash chain (schema-observability.sql)
+- Built Prometheus-compatible metrics collector (counters, gauges, text format)
+- Added `/metrics` endpoint returning Prometheus text format
+- Upgraded `/health/ready` with real DB ping + config presence checks
+- Built audit log module (append, verify chain, query with filters)
+- Built WhatsApp alerter (sends formatted admin alerts, never throws)
+- Built alert manager (severity routing: CRITICAL/HIGH→WhatsApp+log+audit, MEDIUM→log+audit, LOW→log)
+- Wired metrics into send-message (mcp_messages_sent_total per channel)
+- Wired alerts into rate-limiter (fires MEDIUM alert on breach)
+- Wired audit log into provision/deprovision tools
+- Added uptime gauge to index.ts (15-second interval)
+- Added admin WhatsApp config fields (ADMIN_WHATSAPP_NUMBER, ADMIN_WHATSAPP_SENDER)
+- Test suite: 26/26 assertions pass (DEC-038 through DEC-041)
 
 ## Session 10 — 2026-02-15
 

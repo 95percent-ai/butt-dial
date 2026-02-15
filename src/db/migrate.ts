@@ -23,6 +23,10 @@ export function runMigrations(): void {
   const rateLimitingSchema = fs.readFileSync(rateLimitingSchemaPath, "utf-8");
   db.exec(rateLimitingSchema);
 
+  const observabilitySchemaPath = path.join(projectRoot, "src", "db", "schema-observability.sql");
+  const observabilitySchema = fs.readFileSync(observabilitySchemaPath, "utf-8");
+  db.exec(observabilitySchema);
+
   logger.info("migrations_complete");
 }
 

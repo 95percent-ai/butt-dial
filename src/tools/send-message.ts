@@ -12,6 +12,7 @@ import { logger } from "../lib/logger.js";
 import { requireAgent, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { sanitize, SanitizationError, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
+import { metrics } from "../observability/metrics.js";
 
 interface AgentRow {
   agent_id: string;
@@ -141,6 +142,7 @@ async function sendSms(
   );
 
   logUsage(db, { agentId, actionType: "sms", channel: "sms", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
+  metrics.increment("mcp_messages_sent_total", { channel: "sms" });
 
   logger.info("send_message_success", {
     messageId, agentId, to, channel: "sms",
@@ -211,6 +213,7 @@ async function sendEmail(
   );
 
   logUsage(db, { agentId, actionType: "email", channel: "email", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
+  metrics.increment("mcp_messages_sent_total", { channel: "email" });
 
   logger.info("send_message_success", {
     messageId, agentId, to, channel: "email",
@@ -274,6 +277,7 @@ async function sendWhatsApp(
   );
 
   logUsage(db, { agentId, actionType: "whatsapp", channel: "whatsapp", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
+  metrics.increment("mcp_messages_sent_total", { channel: "whatsapp" });
 
   logger.info("send_message_success", {
     messageId, agentId, to, channel: "whatsapp",

@@ -1,4 +1,4 @@
-<!-- version: 2.8 | updated: 2026-02-15 -->
+<!-- version: 2.9 | updated: 2026-02-15 -->
 
 # Decisions Log
 
@@ -224,3 +224,25 @@ All 7 decisions follow a pattern: **make it configurable, with sensible defaults
 **Date:** 2026-02-15
 **What:** Rate limiting is skipped entirely in demo mode and for admin (master token) requests. Same pattern as auth guards.
 **Why:** Zero friction for development and admin operations. Matches the established auth pattern.
+
+## DEC-038: Metrics — Plain Map, No Library
+**Date:** 2026-02-15
+**What:** Metrics use `Map<string, number>` with text formatting, no Prometheus client library.
+**Why:** Zero deps. Prometheus text format is trivially simple (`name value\n`). Counters reset on restart, which is acceptable at MVP scale since Prometheus scrapes frequently.
+**Alternatives:** prom-client npm package (rejected — unnecessary dependency for simple counters).
+
+## DEC-039: Audit Log — SHA-256 Hash Chain
+**Date:** 2026-02-15
+**What:** Each audit_log row stores `prev_hash` (previous row's hash) and `row_hash` (SHA-256 of `prev_hash|timestamp|eventType|actor|target|details`). Makes the log tamper-evident.
+**Why:** Compliance requirement. Any modification to a historical row breaks the chain, which `verifyAuditChain()` detects.
+
+## DEC-040: Alert Routing — Direct Function Call
+**Date:** 2026-02-15
+**What:** `sendAlert()` routes by severity synchronously (CRITICAL/HIGH → WhatsApp + log + audit; MEDIUM → log + audit; LOW → log only). No queue or worker.
+**Why:** Simple for MVP. WhatsApp send failure logs and returns false — alerting never throws or breaks main flow.
+**Alternatives:** Message queue (rejected — overkill for MVP). Background worker (rejected — same).
+
+## DEC-041: Health/Ready — DB Ping, Config Presence Only
+**Date:** 2026-02-15
+**What:** `/health/ready` does a real `SELECT 1` against the DB, but only checks config presence (not live API pings) for providers.
+**Why:** Real API pings to Twilio/Resend would be slow and wasteful on every readiness check. Config presence is sufficient to know if providers are configured.

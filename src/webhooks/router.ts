@@ -1,11 +1,13 @@
 import { Router } from "express";
 import type { Request, Response } from "express";
 import { config } from "../lib/config.js";
+import { getProvider } from "../providers/factory.js";
 import { handleInboundSms } from "./inbound-sms.js";
 import { handleInboundVoice, handleOutboundVoice } from "./inbound-voice.js";
 import { handleInboundEmail } from "./inbound-email.js";
 import { handleInboundWhatsApp } from "./inbound-whatsapp.js";
 import { verifyTwilioSignature, verifyResendSignature } from "../security/webhook-signature.js";
+import { metrics } from "../observability/metrics.js";
 
 export const webhookRouter = Router();
 
@@ -33,12 +35,32 @@ webhookRouter.post("/webhooks/:agentId/whatsapp", verifyTwilioSignature, handleI
 webhookRouter.post("/webhooks/:agentId/voice", verifyTwilioSignature, handleInboundVoice);
 webhookRouter.post("/webhooks/:agentId/outbound-voice", verifyTwilioSignature, handleOutboundVoice);
 
-// Readiness probe — checks provider connectivity (expanded in Phase 11)
+// Prometheus metrics endpoint
+webhookRouter.get("/metrics", (_req: Request, res: Response) => {
+  res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
+  res.send(metrics.getPrometheusText());
+});
+
+// Readiness probe — real connectivity checks
 webhookRouter.get("/health/ready", (_req: Request, res: Response) => {
-  res.json({
-    status: "ready",
-    providers: {
-      database: "ok",
-    },
-  });
+  const checks: Record<string, string> = {};
+  let allOk = true;
+
+  // Database: real query
+  try {
+    const db = getProvider("database");
+    db.query("SELECT 1");
+    checks.database = "ok";
+  } catch {
+    checks.database = "error";
+    allOk = false;
+  }
+
+  // Provider config presence checks (not live API pings — those would be slow)
+  checks.telephony = config.twilioAccountSid ? "configured" : "not_configured";
+  checks.email = config.resendApiKey ? "configured" : "not_configured";
+  checks.whatsapp = config.twilioAccountSid ? "configured" : "not_configured";
+
+  const status = allOk ? "ready" : "degraded";
+  res.status(allOk ? 200 : 503).json({ status, providers: checks });
 });

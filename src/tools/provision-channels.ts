@@ -15,6 +15,7 @@ import { assignFromPool, returnToPool } from "../provisioning/whatsapp-sender.js
 import { generateEmailAddress } from "../provisioning/email-identity.js";
 import { requireAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { generateToken, storeToken, revokeAgentTokens } from "../security/token-manager.js";
+import { appendAuditLog } from "../observability/audit-log.js";
 
 interface PoolRow {
   max_agents: number;
@@ -177,6 +178,13 @@ export function registerProvisionChannelsTool(server: McpServer): void {
           `INSERT OR IGNORE INTO spending_limits (id, agent_id) VALUES (?, ?)`,
           [limitsId, agentId]
         );
+
+        appendAuditLog(db, {
+          eventType: "agent_provisioned",
+          actor: "admin",
+          target: agentId,
+          details: { displayName, phoneNumber, emailAddress, whatsappStatus },
+        });
 
         logger.info("agent_provisioned", { agentId, displayName, phoneNumber, emailAddress, whatsappStatus });
 

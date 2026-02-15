@@ -7,6 +7,8 @@
 import { randomUUID } from "crypto";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
+import { metrics } from "../observability/metrics.js";
+import { sendAlert } from "../observability/alert-manager.js";
 import type { AuthInfo } from "./auth-guard.js";
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -101,6 +103,19 @@ export function checkRateLimits(
 
   const limits = getAgentLimits(db, agentId);
 
+  function fireRateLimitAlert(limitType: string, current: number, max: number, resetDescription: string): never {
+    metrics.increment("mcp_rate_limit_hits_total", { limit_type: limitType });
+    // Fire alert asynchronously — don't block the throw
+    sendAlert({
+      severity: "MEDIUM",
+      title: "Rate limit exceeded",
+      message: `Agent ${agentId}: ${limitType} (${current}/${max}). Resets ${resetDescription}.`,
+      actor: agentId,
+      details: { limitType, current, max },
+    }).catch(() => {}); // swallow — alerting must not interfere
+    throw new RateLimitError(limitType, current, max, resetDescription);
+  }
+
   // 1. Per-minute check
   const minuteCount = db.query<CountRow>(
     "SELECT COUNT(*) as cnt FROM usage_logs WHERE agent_id = ? AND created_at >= datetime('now', '-1 minute')",
@@ -108,7 +123,7 @@ export function checkRateLimits(
   )[0]?.cnt ?? 0;
 
   if (minuteCount >= limits.maxActionsPerMinute) {
-    throw new RateLimitError("per-minute", minuteCount, limits.maxActionsPerMinute, "in up to 60 seconds");
+    fireRateLimitAlert("per-minute", minuteCount, limits.maxActionsPerMinute, "in up to 60 seconds");
   }
 
   // 2. Per-hour check
@@ -118,7 +133,7 @@ export function checkRateLimits(
   )[0]?.cnt ?? 0;
 
   if (hourCount >= limits.maxActionsPerHour) {
-    throw new RateLimitError("per-hour", hourCount, limits.maxActionsPerHour, "in up to 60 minutes");
+    fireRateLimitAlert("per-hour", hourCount, limits.maxActionsPerHour, "in up to 60 minutes");
   }
 
   // 3. Per-day check (calendar day UTC)
@@ -128,7 +143,7 @@ export function checkRateLimits(
   )[0]?.cnt ?? 0;
 
   if (dayCount >= limits.maxActionsPerDay) {
-    throw new RateLimitError("per-day", dayCount, limits.maxActionsPerDay, "at midnight UTC");
+    fireRateLimitAlert("per-day", dayCount, limits.maxActionsPerDay, "at midnight UTC");
   }
 
   // 4. Daily spending cap
@@ -138,7 +153,7 @@ export function checkRateLimits(
   )[0]?.total ?? 0;
 
   if (daySpend >= limits.maxSpendPerDay) {
-    throw new RateLimitError("daily-spend", daySpend, limits.maxSpendPerDay, "at midnight UTC");
+    fireRateLimitAlert("daily-spend", daySpend, limits.maxSpendPerDay, "at midnight UTC");
   }
 
   // 5. Monthly spending cap (calendar month UTC)
@@ -148,7 +163,7 @@ export function checkRateLimits(
   )[0]?.total ?? 0;
 
   if (monthSpend >= limits.maxSpendPerMonth) {
-    throw new RateLimitError("monthly-spend", monthSpend, limits.maxSpendPerMonth, "at the start of next month");
+    fireRateLimitAlert("monthly-spend", monthSpend, limits.maxSpendPerMonth, "at the start of next month");
   }
 
   // 6. Contact frequency (voice calls to same number, per day)
@@ -159,7 +174,7 @@ export function checkRateLimits(
     )[0]?.cnt ?? 0;
 
     if (contactCount >= limits.maxCallsPerDaySameNumber) {
-      throw new RateLimitError(
+      fireRateLimitAlert(
         "contact-frequency",
         contactCount,
         limits.maxCallsPerDaySameNumber,

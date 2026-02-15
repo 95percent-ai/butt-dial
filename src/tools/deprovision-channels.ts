@@ -11,6 +11,7 @@ import { releasePhoneNumber } from "../provisioning/phone-number.js";
 import { returnToPool } from "../provisioning/whatsapp-sender.js";
 import { requireAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { revokeAgentTokens } from "../security/token-manager.js";
+import { appendAuditLog } from "../observability/audit-log.js";
 
 interface AgentRow {
   agent_id: string;
@@ -96,6 +97,13 @@ export function registerDeprovisionChannelsTool(server: McpServer): void {
       db.run(
         "UPDATE agent_pool SET active_agents = MAX(0, active_agents - 1), updated_at = datetime('now') WHERE id = 'default'"
       );
+
+      appendAuditLog(db, {
+        eventType: "agent_deprovisioned",
+        actor: "admin",
+        target: agentId,
+        details: { numberReleased: shouldRelease && !!agent.phone_number, whatsappReturned: !!agent.whatsapp_sender_sid },
+      });
 
       logger.info("agent_deprovisioned", { agentId });
 
