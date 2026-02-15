@@ -9,6 +9,9 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
+import { requireAgent, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { sanitize, SanitizationError, sanitizationErrorResponse } from "../security/sanitizer.js";
+import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 
 interface AgentRow {
   agent_id: string;
@@ -32,7 +35,22 @@ export function registerSendMessageTool(server: McpServer): void {
       templateId: z.string().optional().describe("WhatsApp content template SID (e.g. HX...) for messages outside 24h window"),
       templateVars: z.record(z.string()).optional().describe("Template variable substitutions (e.g. {\"1\": \"John\"})"),
     },
-    async ({ agentId, to, body, channel, subject, html, templateId, templateVars }) => {
+    async ({ agentId, to, body, channel, subject, html, templateId, templateVars }, extra) => {
+      // Auth: agent can only send as themselves
+      try {
+        requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
+      } catch (err) {
+        return authErrorResponse(err);
+      }
+
+      // Sanitize inputs
+      try {
+        sanitize(body, "body");
+        sanitize(to, "to");
+      } catch (err) {
+        return sanitizationErrorResponse(err);
+      }
+
       const db = getProvider("database");
 
       // Look up the agent
@@ -57,6 +75,15 @@ export function registerSendMessageTool(server: McpServer): void {
           content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" is not active (status: ${agent.status})` }) }],
           isError: true,
         };
+      }
+
+      // Rate limit check (before any provider call)
+      const actionType = channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
+      try {
+        checkRateLimits(db, agentId, actionType, channel, to, extra.authInfo as AuthInfo | undefined);
+      } catch (err) {
+        if (err instanceof RateLimitError) return rateLimitErrorResponse(err);
+        throw err;
       }
 
       // Route based on channel
@@ -112,6 +139,8 @@ async function sendSms(
      VALUES (?, ?, 'sms', 'outbound', ?, ?, ?, ?, ?, ?)`,
     [messageId, agentId, agent.phone_number, to, body, result.messageId, result.status, result.cost ?? null]
   );
+
+  logUsage(db, { agentId, actionType: "sms", channel: "sms", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
 
   logger.info("send_message_success", {
     messageId, agentId, to, channel: "sms",
@@ -181,6 +210,8 @@ async function sendEmail(
     [messageId, agentId, agent.email_address, to, `[${subject}] ${body}`, result.messageId, result.status, result.cost ?? null]
   );
 
+  logUsage(db, { agentId, actionType: "email", channel: "email", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
+
   logger.info("send_message_success", {
     messageId, agentId, to, channel: "email",
     externalId: result.messageId, status: result.status,
@@ -241,6 +272,8 @@ async function sendWhatsApp(
      VALUES (?, ?, 'whatsapp', 'outbound', ?, ?, ?, ?, ?, ?)`,
     [messageId, agentId, agent.whatsapp_sender_sid, to, body, result.messageId, result.status, result.cost ?? null]
   );
+
+  logUsage(db, { agentId, actionType: "whatsapp", channel: "whatsapp", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
 
   logger.info("send_message_success", {
     messageId, agentId, to, channel: "whatsapp",

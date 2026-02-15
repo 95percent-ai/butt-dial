@@ -8,12 +8,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export function runMigrations(): void {
   const db = getProvider("database");
-  // schema.sql lives in src/db/ — resolve from project root
+  // schema files live in src/db/ — resolve from project root
   const projectRoot = path.join(__dirname, "..", "..");
   const schemaPath = path.join(projectRoot, "src", "db", "schema.sql");
-  const schema = fs.readFileSync(schemaPath, "utf-8");
+  const securitySchemaPath = path.join(projectRoot, "src", "db", "schema-security.sql");
 
+  const schema = fs.readFileSync(schemaPath, "utf-8");
   db.exec(schema);
+
+  const securitySchema = fs.readFileSync(securitySchemaPath, "utf-8");
+  db.exec(securitySchema);
+
+  const rateLimitingSchemaPath = path.join(projectRoot, "src", "db", "schema-rate-limiting.sql");
+  const rateLimitingSchema = fs.readFileSync(rateLimitingSchemaPath, "utf-8");
+  db.exec(rateLimitingSchema);
+
   logger.info("migrations_complete");
 }
 

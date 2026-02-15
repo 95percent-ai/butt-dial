@@ -1,4 +1,4 @@
-<!-- version: 1.8 | updated: 2026-02-15 -->
+<!-- version: 2.0 | updated: 2026-02-15 -->
 
 # Project Structure
 
@@ -37,7 +37,9 @@ agentos-comms-mcp/
 │   ├── db/                       # Database layer
 │   │   ├── client.ts             # SQLite provider (implements IDBProvider)
 │   │   ├── schema.sql            # Core tables (agent_channels, messages, agent_pool, whatsapp_pool)
-│   │   ├── migrate.ts            # Migration runner
+│   │   ├── schema-security.sql   # Security tables (agent_tokens, provider_credentials, spending_limits)
+│   │   ├── schema-rate-limiting.sql # Rate limiting table (usage_logs with indexes)
+│   │   ├── migrate.ts            # Migration runner (runs all schema files)
 │   │   └── seed.ts               # Test agent seeder (npm run seed)
 │   │
 │   ├── webhooks/                 # Inbound webhook handlers
@@ -57,9 +59,18 @@ agentos-comms-mcp/
 │   │   ├── provision-channels.ts # comms_provision_channels (buy number, assign WhatsApp, generate email)
 │   │   ├── deprovision-channels.ts # comms_deprovision_channels (release number, return pool, deactivate)
 │   │   ├── get-channel-status.ts # comms_get_channel_status (per-channel info, message counts, pool)
-│   │   └── register-provider.ts  # comms_register_provider (verify + save credentials to .env)
+│   │   ├── register-provider.ts  # comms_register_provider (verify + save credentials to .env)
+│   │   ├── set-agent-limits.ts   # comms_set_agent_limits (admin-only: set rate/spending caps)
+│   │   └── get-usage-dashboard.ts # comms_get_usage_dashboard (usage stats, costs, limits)
 │   ├── channels/                 # Channel implementations (empty — Phase 2+)
-│   ├── security/                 # Auth, rate limiting (empty — Phase 9+)
+│   ├── security/                 # Auth, rate limiting, input validation
+│   │   ├── token-manager.ts      # Bearer token generate/store/verify/revoke (SHA-256 hashed)
+│   │   ├── auth-middleware.ts    # Express middleware on POST /messages (validates bearer tokens)
+│   │   ├── auth-guard.ts        # requireAgent() + requireAdmin() helpers for tool callbacks
+│   │   ├── sanitizer.ts         # Input validation (XSS, SQLi, CRLF, path traversal, command injection)
+│   │   ├── crypto.ts            # AES-256-GCM encrypt/decrypt for credential storage
+│   │   ├── webhook-signature.ts # Twilio HMAC-SHA1 + Resend/Svix signature verification middleware
+│   │   └── rate-limiter.ts     # Rate limiting: check limits, log usage, spending caps, contact frequency
 │   ├── provisioning/             # Agent provisioning helpers
 │   │   ├── phone-number.ts      # Buy, configure webhooks, release phone numbers
 │   │   ├── whatsapp-sender.ts   # WhatsApp pool assign/return/register
@@ -87,7 +98,9 @@ agentos-comms-mcp/
 │   ├── voice-call.test.ts        # Dry test for comms_make_call + voice WebSocket (25 assertions)
 │   ├── email.test.ts             # Dry test for email send/receive (38 assertions)
 │   ├── whatsapp.test.ts          # Dry test for WhatsApp send/receive/templates (37 assertions)
-│   └── provisioning.test.ts     # Dry test for provisioning/teardown (60 assertions)
+│   ├── provisioning.test.ts     # Dry test for provisioning/teardown (60 assertions)
+│   ├── security.test.ts         # Dry test for security & auth (49 assertions)
+│   └── rate-limiting.test.ts   # Dry test for rate limiting & cost tracking (27 assertions)
 │
 └── docs/
     ├── SPEC.md                   # Project specification (source of truth)

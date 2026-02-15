@@ -9,6 +9,8 @@ import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
 import { releasePhoneNumber } from "../provisioning/phone-number.js";
 import { returnToPool } from "../provisioning/whatsapp-sender.js";
+import { requireAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { revokeAgentTokens } from "../security/token-manager.js";
 
 interface AgentRow {
   agent_id: string;
@@ -25,7 +27,14 @@ export function registerDeprovisionChannelsTool(server: McpServer): void {
       agentId: z.string().describe("The agent ID to deprovision"),
       releaseNumber: z.boolean().default(true).describe("Whether to release the phone number back to Twilio (default: true)"),
     },
-    async ({ agentId, releaseNumber: shouldRelease }) => {
+    async ({ agentId, releaseNumber: shouldRelease }, extra) => {
+      // Auth: only admin can deprovision
+      try {
+        requireAdmin(extra.authInfo as AuthInfo | undefined);
+      } catch (err) {
+        return authErrorResponse(err);
+      }
+
       const db = getProvider("database");
 
       // 1. Look up agent
@@ -68,13 +77,22 @@ export function registerDeprovisionChannelsTool(server: McpServer): void {
         returnToPool(db, agentId);
       }
 
-      // 4. Update agent_channels status
+      // 4. Revoke all tokens for this agent
+      const tokensRevoked = revokeAgentTokens(db, agentId);
+      if (tokensRevoked > 0) {
+        logger.info("agent_tokens_revoked", { agentId, count: tokensRevoked });
+      }
+
+      // 5. Delete spending limits
+      db.run("DELETE FROM spending_limits WHERE agent_id = ?", [agentId]);
+
+      // 6. Update agent_channels status
       db.run(
         "UPDATE agent_channels SET status = 'deprovisioned', updated_at = datetime('now') WHERE agent_id = ?",
         [agentId]
       );
 
-      // 5. Decrement pool
+      // 7. Decrement pool
       db.run(
         "UPDATE agent_pool SET active_agents = MAX(0, active_agents - 1), updated_at = datetime('now') WHERE id = 'default'"
       );

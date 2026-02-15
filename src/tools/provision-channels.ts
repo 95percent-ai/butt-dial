@@ -13,6 +13,8 @@ import { logger } from "../lib/logger.js";
 import { searchAndBuyNumber, configureNumberWebhooks, releasePhoneNumber } from "../provisioning/phone-number.js";
 import { assignFromPool, returnToPool } from "../provisioning/whatsapp-sender.js";
 import { generateEmailAddress } from "../provisioning/email-identity.js";
+import { requireAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { generateToken, storeToken, revokeAgentTokens } from "../security/token-manager.js";
 
 interface PoolRow {
   max_agents: number;
@@ -43,7 +45,14 @@ export function registerProvisionChannelsTool(server: McpServer): void {
       providerOverrides: z.record(z.string()).optional().describe("Per-provider config overrides"),
       routeDuplication: z.record(z.string()).optional().describe("Route duplication config"),
     },
-    async ({ agentId, displayName, greeting, systemPrompt, country, capabilities, emailDomain, providerOverrides, routeDuplication }) => {
+    async ({ agentId, displayName, greeting, systemPrompt, country, capabilities, emailDomain, providerOverrides, routeDuplication }, extra) => {
+      // Auth: only admin can provision
+      try {
+        requireAdmin(extra.authInfo as AuthInfo | undefined);
+      } catch (err) {
+        return authErrorResponse(err);
+      }
+
       const db = getProvider("database");
 
       // 1. Check agent doesn't already exist
@@ -158,6 +167,17 @@ export function registerProvisionChannelsTool(server: McpServer): void {
         );
         const slotsRemaining = updatedPool[0] ? updatedPool[0].max_agents - updatedPool[0].active_agents : 0;
 
+        // 9. Generate security token for this agent
+        const { plainToken, tokenHash } = generateToken();
+        storeToken(db, agentId, tokenHash, `provisioned-${displayName}`);
+
+        // 10. Create default spending limits row
+        const limitsId = randomUUID();
+        db.run(
+          `INSERT OR IGNORE INTO spending_limits (id, agent_id) VALUES (?, ?)`,
+          [limitsId, agentId]
+        );
+
         logger.info("agent_provisioned", { agentId, displayName, phoneNumber, emailAddress, whatsappStatus });
 
         return {
@@ -167,6 +187,7 @@ export function registerProvisionChannelsTool(server: McpServer): void {
               success: true,
               agentId,
               displayName,
+              securityToken: plainToken,
               channels: {
                 phone: phoneNumber ? { number: phoneNumber, status: "active" } : null,
                 whatsapp: capabilities.whatsapp ? { number: whatsappNumber, senderSid: whatsappSenderSid, status: whatsappStatus } : null,
@@ -200,6 +221,26 @@ export function registerProvisionChannelsTool(server: McpServer): void {
               error: rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr),
             });
           }
+        }
+
+        // Rollback: revoke any issued tokens
+        try {
+          revokeAgentTokens(db, agentId);
+        } catch (rollbackErr) {
+          logger.error("provisioning_rollback_token_revoke_failed", {
+            agentId,
+            error: rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr),
+          });
+        }
+
+        // Rollback: remove spending limits row
+        try {
+          db.run("DELETE FROM spending_limits WHERE agent_id = ?", [agentId]);
+        } catch (rollbackErr) {
+          logger.error("provisioning_rollback_spending_limits_failed", {
+            agentId,
+            error: rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr),
+          });
         }
 
         // Rollback: remove agent row if inserted

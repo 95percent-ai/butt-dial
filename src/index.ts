@@ -11,6 +11,7 @@ import { createMcpServer } from "./server.js";
 import { webhookRouter } from "./webhooks/router.js";
 import { adminRouter } from "./admin/router.js";
 import { handleVoiceWebSocket } from "./webhooks/voice-ws.js";
+import { authMiddleware } from "./security/auth-middleware.js";
 
 async function main() {
   // 1. Initialize providers (DB first)
@@ -40,7 +41,7 @@ async function main() {
     await mcpServer.connect(transport);
   });
 
-  app.post("/messages", async (req, res) => {
+  app.post("/messages", authMiddleware, async (req, res) => {
     const sessionId = req.query.sessionId as string;
     const transport = transports.get(sessionId);
 

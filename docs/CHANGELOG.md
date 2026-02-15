@@ -1,6 +1,18 @@
-<!-- version: 1.9 | updated: 2026-02-15 -->
+<!-- version: 2.1 | updated: 2026-02-15 -->
 
 # Changelog
+
+## Session 10 — 2026-02-15
+
+### Phase 10: Rate Limiting & Cost Tracking
+- Created `usage_logs` table with indexes for rate checking and cost tracking
+- Built rate limiter utility (checkRateLimits, logUsage, updateUsageCost, getAgentLimits)
+- Integrated rate checks + usage logging into send-message, make-call, send-voice-message tools
+- Created `comms_set_agent_limits` tool (admin-only, partial update of spending limits)
+- Created `comms_get_usage_dashboard` tool (per-agent stats, costs, limits)
+- Provisioning now creates default spending_limits row; deprovision deletes it
+- Eliminated planned `rate_limits` and `contact_frequency` tables — both derived from `usage_logs`
+- 27/27 unit test assertions pass (rate-limiting.test.ts)
 
 ## Session 1 — 2026-02-12
 
@@ -317,3 +329,50 @@
 
 #### Decisions
 - DEC-019 to DEC-024: Single-account provisioning, A2P deferred, WhatsApp soft fail, rollback on failure, no hot-reload, agent-first insert order
+
+---
+
+## Session 10 — 2026-02-15
+
+### Phase 9 — Security & Auth
+
+#### New Files (7)
+- `src/db/schema-security.sql` — 3 new tables: `agent_tokens` (bearer token hashes), `provider_credentials` (encrypted creds), `spending_limits` (rate/spend caps)
+- `src/security/token-manager.ts` — generate 32-byte tokens, SHA-256 hash for storage, verify/revoke via DB
+- `src/security/auth-middleware.ts` — Express middleware on `POST /messages` validates bearer tokens, sets `req.auth` for MCP SDK
+- `src/security/auth-guard.ts` — `requireAgent(agentId, authInfo)` and `requireAdmin(authInfo)` helpers for tool callbacks
+- `src/security/sanitizer.ts` — input validation: catches XSS, SQL injection, CRLF, path traversal, command injection patterns
+- `src/security/crypto.ts` — AES-256-GCM encrypt/decrypt for credential storage (unique random IV per record)
+- `src/security/webhook-signature.ts` — Twilio HMAC-SHA1 + Resend/Svix HMAC-SHA256 signature verification middleware
+- `tests/security.test.ts` — 49 assertions across unit tests (token manager, sanitizer, crypto, Twilio sig) and integration tests (regression, provisioning token flow, sanitizer live checks)
+
+#### Modified Files (11)
+- `src/db/migrate.ts` — also runs `schema-security.sql` during migration
+- `src/index.ts` — auth middleware added to `POST /messages` handler
+- `src/lib/config.ts` — added `resendWebhookSecret` field, added warning when `MASTER_SECURITY_TOKEN` missing
+- `src/webhooks/router.ts` — Twilio signature middleware on SMS/WhatsApp/voice routes, Resend signature on email route
+- `src/providers/telephony-twilio.ts` — implemented real `verifyWebhookSignature()` with HMAC-SHA1 + timing-safe comparison
+- `src/tools/provision-channels.ts` — `requireAdmin` guard + generates security token on provision (returned once)
+- `src/tools/deprovision-channels.ts` — `requireAdmin` guard + revokes all tokens on deprovision
+- `src/tools/send-message.ts` — `requireAgent` guard + `sanitize()` on body and to fields
+- `src/tools/get-messages.ts` — `requireAgent` guard
+- `src/tools/send-voice-message.ts` — `requireAgent` guard + `sanitize()` on text and to
+- `src/tools/make-call.ts` — `requireAgent` guard + `sanitize()` on to, systemPrompt, greeting
+- `src/tools/get-channel-status.ts` — `requireAgent` guard
+- `src/tools/register-provider.ts` — `requireAdmin` guard + encrypts credentials in DB if encryption key configured
+
+#### How Auth Works
+1. Admin sets `MASTER_SECURITY_TOKEN` in `.env`
+2. Admin calls `comms_provision_channels` with master token → gets back a per-agent `securityToken`
+3. Agent uses its token for all subsequent tool calls (`Authorization: Bearer <token>`)
+4. Each tool checks: does this token belong to this agentId? (impersonation guard)
+5. Webhooks check: is this really from Twilio/Resend? (signature validation)
+6. Demo mode skips all auth (existing pattern)
+
+#### Verification
+- Build passes clean (zero TypeScript errors)
+- Dry test: 49/49 assertions pass
+- SMS + email + WhatsApp regression: all pass
+
+#### Decisions
+- DEC-025 to DEC-033: Bearer tokens (not JWT), master token from .env, Express middleware auth, demo mode bypass, sanitizer as utility function, per-route webhook signatures, AES-256-GCM credential encryption, SSE not authenticated, graceful degradation when no token configured

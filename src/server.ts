@@ -11,6 +11,8 @@ import { registerProvisionChannelsTool } from "./tools/provision-channels.js";
 import { registerDeprovisionChannelsTool } from "./tools/deprovision-channels.js";
 import { registerGetChannelStatusTool } from "./tools/get-channel-status.js";
 import { registerRegisterProviderTool } from "./tools/register-provider.js";
+import { registerSetAgentLimitsTool } from "./tools/set-agent-limits.js";
+import { registerGetUsageDashboardTool } from "./tools/get-usage-dashboard.js";
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -82,6 +84,10 @@ export function createMcpServer(): McpServer {
   registerDeprovisionChannelsTool(server);
   registerGetChannelStatusTool(server);
   registerRegisterProviderTool(server);
+
+  // Phase 10: Rate limiting & cost tracking tools
+  registerSetAgentLimitsTool(server);
+  registerGetUsageDashboardTool(server);
 
   logger.info("mcp_server_created", { name: config.mcpServerName });
 

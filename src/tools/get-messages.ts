@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
+import { requireAgent, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 
 interface MessageRow {
   id: string;
@@ -33,7 +34,14 @@ export function registerGetMessagesTool(server: McpServer): void {
       limit: z.number().default(20).describe("Max number of messages to return (default 20)"),
       channel: z.enum(["sms", "whatsapp", "email", "voice"]).optional().describe("Filter by channel"),
     },
-    async ({ agentId, limit, channel }) => {
+    async ({ agentId, limit, channel }, extra) => {
+      // Auth: agent can only view their own messages
+      try {
+        requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
+      } catch (err) {
+        return authErrorResponse(err);
+      }
+
       const db = getProvider("database");
 
       let sql = "SELECT * FROM messages WHERE agent_id = ?";

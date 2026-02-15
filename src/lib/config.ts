@@ -40,6 +40,7 @@ const configSchema = z.object({
 
   // Resend (email)
   resendApiKey: z.string().optional(),
+  resendWebhookSecret: z.string().optional(),
 
   // Email default domain (for provisioned agents)
   emailDefaultDomain: z.string().default("agents.example.com"),
@@ -96,6 +97,7 @@ function loadConfig() {
     elevenlabsApiKey: process.env.ELEVENLABS_API_KEY,
     elevenlabsDefaultVoice: process.env.ELEVENLABS_DEFAULT_VOICE,
     resendApiKey: process.env.RESEND_API_KEY,
+    resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET,
     emailDefaultDomain: process.env.EMAIL_DEFAULT_DOMAIN,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     voiceDefaultGreeting: process.env.VOICE_DEFAULT_GREETING,
@@ -119,7 +121,17 @@ function loadConfig() {
     process.exit(1);
   }
 
-  return result.data;
+  const data = result.data;
+
+  // Warn if auth is not configured (but don't crash — graceful degradation for dev)
+  if (!data.demoMode && !data.masterSecurityToken) {
+    console.warn(
+      "[SECURITY WARNING] MASTER_SECURITY_TOKEN is not set. All MCP tool calls will be unauthenticated. " +
+      "Set MASTER_SECURITY_TOKEN in .env for production use."
+    );
+  }
+
+  return data;
 }
 
 export const config = loadConfig();

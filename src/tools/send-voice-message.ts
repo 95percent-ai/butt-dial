@@ -10,6 +10,9 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
+import { requireAgent, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
+import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 
 interface AgentRow {
   agent_id: string;
@@ -27,7 +30,22 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
       text: z.string().min(1).describe("The message text to convert to speech and play"),
       voice: z.string().optional().describe("TTS voice ID (optional, uses default if omitted)"),
     },
-    async ({ agentId, to, text, voice }) => {
+    async ({ agentId, to, text, voice }, extra) => {
+      // Auth: agent can only call as themselves
+      try {
+        requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
+      } catch (err) {
+        return authErrorResponse(err);
+      }
+
+      // Sanitize inputs
+      try {
+        sanitize(text, "text");
+        sanitize(to, "to");
+      } catch (err) {
+        return sanitizationErrorResponse(err);
+      }
+
       const db = getProvider("database");
 
       // 1. Look up the agent
@@ -62,7 +80,15 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
         };
       }
 
-      // 2. Synthesize speech via TTS provider
+      // 2. Rate limit check
+      try {
+        checkRateLimits(db, agentId, "voice_message", "voice", to, extra.authInfo as AuthInfo | undefined);
+      } catch (err) {
+        if (err instanceof RateLimitError) return rateLimitErrorResponse(err);
+        throw err;
+      }
+
+      // 3. Synthesize speech via TTS provider
       const tts = getProvider("tts");
       let audioBuffer: Buffer;
       let durationSeconds: number;
@@ -80,7 +106,7 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
         };
       }
 
-      // 3. Upload audio to storage
+      // 4. Upload audio to storage
       const storage = getProvider("storage");
       const audioKey = `voice-${randomUUID()}.wav`;
       let audioUrl: string;
@@ -96,7 +122,7 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
         };
       }
 
-      // 4. Place outbound call with TwiML that plays the audio
+      // 5. Place outbound call with TwiML that plays the audio
       const twiml = `<Response><Play>${audioUrl}</Play></Response>`;
       const telephony = getProvider("telephony");
 
@@ -120,13 +146,15 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
         };
       }
 
-      // 5. Log to messages table
+      // 6. Log to messages table
       const messageId = randomUUID();
       db.run(
         `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status)
          VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?)`,
         [messageId, agentId, agent.phone_number, to, text, callSid, callStatus]
       );
+
+      logUsage(db, { agentId, actionType: "voice_message", channel: "voice", targetAddress: to, cost: 0, externalId: callSid });
 
       logger.info("send_voice_success", {
         messageId,

@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
+import { requireAgent, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 
 interface AgentRow {
   agent_id: string;
@@ -36,7 +37,14 @@ export function registerGetChannelStatusTool(server: McpServer): void {
     {
       agentId: z.string().describe("The agent ID to query"),
     },
-    async ({ agentId }) => {
+    async ({ agentId }, extra) => {
+      // Auth: agent can only view their own status
+      try {
+        requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
+      } catch (err) {
+        return authErrorResponse(err);
+      }
+
       const db = getProvider("database");
 
       // Look up agent

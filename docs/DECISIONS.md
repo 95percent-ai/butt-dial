@@ -1,4 +1,4 @@
-<!-- version: 2.6 | updated: 2026-02-15 -->
+<!-- version: 2.8 | updated: 2026-02-15 -->
 
 # Decisions Log
 
@@ -155,3 +155,72 @@
 ## Architectural Theme
 
 All 7 decisions follow a pattern: **make it configurable, with sensible defaults.** The MCP server is a standalone product that different systems connect to. It can't assume one deployment model. The connected system (AgentOS, third-party platform, etc.) configures identity, isolation, billing, media, and other behaviors at setup time.
+
+---
+
+## DEC-025: Auth Mechanism — Bearer Token (Not JWT)
+**Date:** 2026-02-15
+**What:** Agent authentication uses simple bearer tokens (32 random bytes, SHA-256 hashed in DB). Not JWTs.
+**Why:** Simpler, instantly revocable via DB update (no expiration management), no token parsing needed. Plaintext returned once at provisioning, stored only as hash.
+**Alternatives considered:** JWT (complex, requires expiration + refresh flow), OAuth2 (overkill for MVP).
+
+## DEC-026: Master Token from .env
+**Date:** 2026-02-15
+**What:** A `MASTER_SECURITY_TOKEN` in `.env` serves as the admin credential. It can access any agent and perform admin-only operations.
+**Why:** Solves the chicken-and-egg problem — you need a token before any agent exists. Admin sets it in `.env`, uses it to provision agents, agents get their own tokens.
+
+## DEC-027: Auth Interception — Express Middleware on POST /messages
+**Date:** 2026-02-15
+**What:** Bearer token validation happens in Express middleware on `POST /messages`. The middleware sets `req.auth`, which the MCP SDK natively reads and passes as `extra.authInfo` to every tool callback.
+**Why:** Cleanest integration path — the MCP SDK already supports `req.auth`. No custom transport or SDK patches needed.
+
+## DEC-028: Demo Mode Skips All Auth
+**Date:** 2026-02-15
+**What:** When `DEMO_MODE=true`, the auth middleware sets dummy admin credentials and skips all checks. All existing tests continue to pass unchanged.
+**Why:** Matches the existing demo mode pattern. Zero friction for development.
+
+## DEC-029: Input Sanitizer — Utility Function, Not Middleware
+**Date:** 2026-02-15
+**What:** Input sanitization is a utility function (`sanitize()`) called explicitly inside tool callbacks, not a global Express middleware.
+**Why:** Precise control over which fields to check. Not all tool inputs need sanitization (e.g., boolean flags, enum values). Tools call it on specific string fields.
+
+## DEC-030: Webhook Signatures — Per-Route Express Middleware
+**Date:** 2026-02-15
+**What:** Twilio and Resend webhook signature verification is done as per-route Express middleware. Twilio uses HMAC-SHA1, Resend uses Svix HMAC-SHA256. Both skip in demo mode.
+**Why:** Each provider has a different verification method. Per-route middleware keeps it clean. Graceful degradation — if no auth token/secret configured, logs a warning and continues.
+
+## DEC-031: Credential Encryption — AES-256-GCM
+**Date:** 2026-02-15
+**What:** Provider credentials are encrypted using AES-256-GCM before storage in the `provider_credentials` table. Each record gets a unique random IV. Key from `CREDENTIALS_ENCRYPTION_KEY` in `.env`.
+**Why:** Authenticated encryption prevents both reading and tampering. Unique IV per record prevents pattern analysis. Optional — only encrypts if key is configured.
+
+## DEC-032: SSE Endpoint Not Authenticated
+**Date:** 2026-02-15
+**What:** The `GET /sse` endpoint (SSE connection) is not authenticated. Only `POST /messages` (tool calls) requires a token.
+**Why:** SSE is server→client only (event stream). You can't call tools without `POST /messages`. Sufficient for MVP. Adding SSE auth later is backwards-compatible.
+
+## DEC-033: Master Token Required — Warn, Don't Crash
+**Date:** 2026-02-15
+**What:** If `MASTER_SECURITY_TOKEN` is not set and `DEMO_MODE=false`, the server logs a warning but still starts. Tool calls pass through without auth checks.
+**Why:** Graceful degradation for development. Don't break existing dev workflows. The warning is visible enough to catch in production.
+
+## DEC-034: Rate Limit Source — Query usage_logs Table
+**Date:** 2026-02-15
+**What:** Rate limit checks query the `usage_logs` table directly (counting recent rows) rather than maintaining in-memory counters or a separate rate_limits table.
+**Why:** Simple, survives restarts, sufficient at MVP scale with SQLite. No state management needed.
+**Alternatives considered:** In-memory sliding window (lost on restart), Redis (external dependency), separate counters table (more complexity).
+
+## DEC-035: Spending Windows — Calendar Day/Month UTC
+**Date:** 2026-02-15
+**What:** Daily and monthly spending caps use calendar day and calendar month boundaries in UTC, not rolling 24h/30d windows.
+**Why:** Simpler to understand and implement. SQLite date functions work naturally with calendar boundaries. Rolling windows add complexity without clear benefit at MVP scale.
+
+## DEC-036: Contact Frequency — Derived from usage_logs
+**Date:** 2026-02-15
+**What:** Contact frequency limits (max calls per day to the same number) are checked by querying `usage_logs` filtered by agent + target + action type, rather than maintaining a separate `contact_frequency` table.
+**Why:** Same data, one table, simpler. Eliminated a planned table from the schema.
+
+## DEC-037: Demo Mode + Admin Skip Rate Limits
+**Date:** 2026-02-15
+**What:** Rate limiting is skipped entirely in demo mode and for admin (master token) requests. Same pattern as auth guards.
+**Why:** Zero friction for development and admin operations. Matches the established auth pattern.

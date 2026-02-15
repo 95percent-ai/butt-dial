@@ -3,10 +3,15 @@
  * Tests connectivity, writes credentials to .env, returns status.
  */
 
+import { randomUUID } from "crypto";
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { saveCredentials } from "../admin/env-writer.js";
 import { logger } from "../lib/logger.js";
+import { config } from "../lib/config.js";
+import { getProvider } from "../providers/factory.js";
+import { requireAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { encrypt } from "../security/crypto.js";
 
 const PROVIDER_CONFIGS: Record<string, {
   envMapping: Record<string, string>;
@@ -104,7 +109,14 @@ export function registerRegisterProviderTool(server: McpServer): void {
       credentials: z.record(z.string()).describe("Credential key-value pairs (e.g. { accountSid: '...', authToken: '...' })"),
       autoVerify: z.boolean().default(true).describe("Test connectivity before saving (default: true)"),
     },
-    async ({ provider, credentials, autoVerify }) => {
+    async ({ provider, credentials, autoVerify }, extra) => {
+      // Auth: only admin can register providers
+      try {
+        requireAdmin(extra.authInfo as AuthInfo | undefined);
+      } catch (err) {
+        return authErrorResponse(err);
+      }
+
       const providerConfig = PROVIDER_CONFIGS[provider];
 
       if (!providerConfig) {
@@ -155,6 +167,26 @@ export function registerRegisterProviderTool(server: McpServer): void {
 
       // Write to .env
       saveCredentials(envCredentials);
+
+      // Also store encrypted in DB if encryption key is configured
+      if (config.credentialsEncryptionKey) {
+        const db = getProvider("database");
+        for (const [key, value] of Object.entries(credentials)) {
+          const envKey = providerConfig.envMapping[key];
+          if (!envKey) continue;
+          const encrypted = encrypt(value, config.credentialsEncryptionKey);
+          db.run(
+            `INSERT INTO provider_credentials (id, provider, credential_key, encrypted_value, iv, auth_tag)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT(provider, credential_key) DO UPDATE SET
+               encrypted_value = excluded.encrypted_value,
+               iv = excluded.iv,
+               auth_tag = excluded.auth_tag,
+               updated_at = datetime('now')`,
+            [randomUUID(), provider, envKey, encrypted.encrypted, encrypted.iv, encrypted.authTag]
+          );
+        }
+      }
 
       logger.info("provider_registered", {
         provider,

@@ -5,6 +5,7 @@ import { handleInboundSms } from "./inbound-sms.js";
 import { handleInboundVoice, handleOutboundVoice } from "./inbound-voice.js";
 import { handleInboundEmail } from "./inbound-email.js";
 import { handleInboundWhatsApp } from "./inbound-whatsapp.js";
+import { verifyTwilioSignature, verifyResendSignature } from "../security/webhook-signature.js";
 
 export const webhookRouter = Router();
 
@@ -20,17 +21,17 @@ webhookRouter.get("/health", (_req: Request, res: Response) => {
 });
 
 // Inbound SMS webhook — Twilio POSTs here when someone texts the agent's number
-webhookRouter.post("/webhooks/:agentId/sms", handleInboundSms);
+webhookRouter.post("/webhooks/:agentId/sms", verifyTwilioSignature, handleInboundSms);
 
 // Inbound email webhook — Resend POSTs here when someone emails the agent's address
-webhookRouter.post("/webhooks/:agentId/email", handleInboundEmail);
+webhookRouter.post("/webhooks/:agentId/email", verifyResendSignature, handleInboundEmail);
 
 // Inbound WhatsApp webhook — Twilio POSTs here when someone sends WhatsApp to agent's number
-webhookRouter.post("/webhooks/:agentId/whatsapp", handleInboundWhatsApp);
+webhookRouter.post("/webhooks/:agentId/whatsapp", verifyTwilioSignature, handleInboundWhatsApp);
 
 // Voice webhooks — Twilio POSTs here when a call connects
-webhookRouter.post("/webhooks/:agentId/voice", handleInboundVoice);
-webhookRouter.post("/webhooks/:agentId/outbound-voice", handleOutboundVoice);
+webhookRouter.post("/webhooks/:agentId/voice", verifyTwilioSignature, handleInboundVoice);
+webhookRouter.post("/webhooks/:agentId/outbound-voice", verifyTwilioSignature, handleOutboundVoice);
 
 // Readiness probe — checks provider connectivity (expanded in Phase 11)
 webhookRouter.get("/health/ready", (_req: Request, res: Response) => {

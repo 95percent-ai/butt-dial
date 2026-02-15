@@ -1,4 +1,4 @@
-<!-- version: 3.1 | updated: 2026-02-15 -->
+<!-- version: 3.3 | updated: 2026-02-15 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -158,26 +158,29 @@ Automate what we've been doing manually. Full agent lifecycle + customer onboard
 ## Phase 9 — MVP: Security & Auth
 Lock it down. Every tool call authenticated.
 
-- [ ] Agent registration + security token issuance (token-manager.ts)
-- [ ] Auth middleware (validate token on every MCP tool call)
-- [ ] Impersonation guard (token bound to agentId)
-- [ ] Webhook signature validation (Twilio X-Twilio-Signature, SendGrid)
-- [ ] Input sanitizer (SQL injection, XSS, header injection, path traversal)
-- [ ] Provider credentials encrypted at rest (AES-256)
-- [ ] agent_tokens table + spending_limits table + provider_credentials table
-- [ ] **Verify:** Valid token → tool works. Wrong token → rejected. Spoofed agentId → rejected. Unsigned webhook → rejected.
+- [x] Agent registration + security token issuance (token-manager.ts)
+- [x] Auth middleware (validate token on every MCP tool call)
+- [x] Impersonation guard (token bound to agentId)
+- [x] Webhook signature validation (Twilio X-Twilio-Signature, Resend/Svix)
+- [x] Input sanitizer (SQL injection, XSS, header injection, path traversal, command injection)
+- [x] Provider credentials encrypted at rest (AES-256-GCM)
+- [x] agent_tokens table + spending_limits table + provider_credentials table
+- [x] Auth guards on all tool files (requireAgent for agent tools, requireAdmin for admin tools)
+- [x] Provisioning returns securityToken, deprovision revokes it
+- [x] **Verify (dry):** 49/49 assertions pass — token manager, sanitizer, crypto, Twilio signature, provisioning token flow, sanitizer integration, SMS + email + WhatsApp regression
 
 ## Phase 10 — MVP: Rate Limiting & Cost Tracking
 Prevent abuse and track spend.
 
-- [ ] Rate limiter (sliding window: per-minute, per-hour, per-day)
-- [ ] Spending caps (per-day, per-month) — enforced, not advisory
-- [ ] Anti-harassment frequency tracking (max calls/day to same number)
-- [ ] Cost tracker (per-action cost recording in usage_logs)
-- [ ] `comms_get_usage_dashboard` tool
-- [ ] `comms_set_agent_limits` tool
-- [ ] rate_limits + usage_logs + contact_frequency tables
-- [ ] **Verify:** Hit rate limit → action blocked with remaining quota. Exceed spending cap → blocked. Dashboard shows correct totals.
+- [x] Rate limiter (per-minute, per-hour, per-day action counts)
+- [x] Spending caps (per-day, per-month) — enforced, not advisory
+- [x] Anti-harassment frequency tracking (max calls/day to same number)
+- [x] Cost tracker (per-action cost recording in usage_logs)
+- [x] `comms_get_usage_dashboard` tool
+- [x] `comms_set_agent_limits` tool
+- [x] usage_logs table + indexes (rate_limits/contact_frequency derived from usage_logs — see DEC-034/036)
+- [x] Provisioning creates default spending_limits row, deprovision deletes it
+- [x] **Verify (dry):** 27/27 assertions pass — getAgentLimits defaults, logUsage, checkRateLimits pass/fail for each limit type, demo mode skip, admin skip, error formatting
 
 ## Phase 11 — Feature: Observability & Admin Alerts
 Full visibility without reading private messages.

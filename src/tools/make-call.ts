@@ -13,6 +13,9 @@ import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 import { storeCallConfig } from "../webhooks/voice-sessions.js";
+import { requireAgent, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
+import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 
 interface AgentRow {
   agent_id: string;
@@ -44,7 +47,23 @@ export function registerMakeCallTool(server: McpServer): void {
         .optional()
         .describe("Language code (default: en-US)"),
     },
-    async ({ agentId, to, systemPrompt, greeting, voice, language }) => {
+    async ({ agentId, to, systemPrompt, greeting, voice, language }, extra) => {
+      // Auth: agent can only call as themselves
+      try {
+        requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
+      } catch (err) {
+        return authErrorResponse(err);
+      }
+
+      // Sanitize inputs
+      try {
+        sanitize(to, "to");
+        if (systemPrompt) sanitize(systemPrompt, "systemPrompt");
+        if (greeting) sanitize(greeting, "greeting");
+      } catch (err) {
+        return sanitizationErrorResponse(err);
+      }
+
       const db = getProvider("database");
 
       // Look up the agent
@@ -77,6 +96,14 @@ export function registerMakeCallTool(server: McpServer): void {
           content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" is not active (status: ${agent.status})` }) }],
           isError: true,
         };
+      }
+
+      // Rate limit check
+      try {
+        checkRateLimits(db, agentId, "voice_call", "voice", to, extra.authInfo as AuthInfo | undefined);
+      } catch (err) {
+        if (err instanceof RateLimitError) return rateLimitErrorResponse(err);
+        throw err;
       }
 
       // Store call config in session store so the outbound webhook can read it
@@ -118,6 +145,8 @@ export function registerMakeCallTool(server: McpServer): void {
          VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?)`,
         [messageId, agentId, agent.phone_number, to, systemPrompt || null, result.callSid, result.status]
       );
+
+      logUsage(db, { agentId, actionType: "voice_call", channel: "voice", targetAddress: to, cost: 0, externalId: result.callSid });
 
       logger.info("make_call_success", {
         messageId,

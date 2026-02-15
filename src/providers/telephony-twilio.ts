@@ -3,6 +3,7 @@
  * Only sendSms() is implemented for Phase 2; other methods throw "not implemented".
  */
 
+import { createHmac, timingSafeEqual } from "crypto";
 import { logger } from "../lib/logger.js";
 import type {
   ITelephonyProvider,
@@ -295,11 +296,33 @@ export function createTwilioTelephonyProvider(cfg: TwilioConfig): ITelephonyProv
     },
 
     verifyWebhookSignature(
-      _headers: Record<string, string>,
-      _body: string,
-      _url: string
+      headers: Record<string, string>,
+      body: string,
+      url: string
     ): boolean {
-      throw new Error("verifyWebhookSignature is not implemented yet");
+      const signature = headers["x-twilio-signature"];
+      if (!signature) return false;
+
+      // Build the data string: URL + sorted POST params
+      let data = url;
+      if (body) {
+        const params = new URLSearchParams(body);
+        const sorted = Array.from(params.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+        for (const [key, value] of sorted) {
+          data += key + value;
+        }
+      }
+
+      const expected = createHmac("sha1", cfg.authToken)
+        .update(data)
+        .digest("base64");
+
+      // Timing-safe comparison
+      const sigBuf = Buffer.from(signature);
+      const expBuf = Buffer.from(expected);
+      if (sigBuf.length !== expBuf.length) return false;
+
+      return timingSafeEqual(sigBuf, expBuf);
     },
   };
 }
