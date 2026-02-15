@@ -4,6 +4,9 @@ import { spawn } from "node:child_process";
 import { getProviderStatus, saveCredentials } from "./env-writer.js";
 import { testTwilioCredentials, testElevenLabsCredentials, testResendCredentials } from "./credential-testers.js";
 import { renderSetupPage } from "./setup-page.js";
+import { renderSwaggerPage } from "./swagger-page.js";
+import { generateOpenApiSpec } from "./openapi-spec.js";
+import { runDemoScenarios } from "./scenario-runner.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 
@@ -47,6 +50,24 @@ function adminAuth(req: Request, res: Response, next: NextFunction): void {
 /** Serve the setup page (GET — no auth required) */
 adminRouter.get("/admin/setup", (_req: Request, res: Response) => {
   res.type("html").send(renderSetupPage());
+});
+
+/** Serve Swagger UI (GET — no auth required) */
+adminRouter.get("/admin/api-docs", (_req: Request, res: Response) => {
+  const spec = generateOpenApiSpec();
+  res.type("html").send(renderSwaggerPage(JSON.stringify(spec)));
+});
+
+/** Serve raw OpenAPI spec as JSON */
+adminRouter.get("/admin/api-docs/spec.json", (_req: Request, res: Response) => {
+  res.json(generateOpenApiSpec());
+});
+
+/** Run demo scenarios */
+adminRouter.post("/admin/api/run-scenarios", adminAuth, async (_req: Request, res: Response) => {
+  const serverUrl = `http://localhost:${config.port}`;
+  const results = await runDemoScenarios(serverUrl);
+  res.json({ results, allPassed: results.every((r) => r.passed) });
 });
 
 /** Return provider config status (masked values) */
