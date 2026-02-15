@@ -425,13 +425,21 @@ export function renderSetupPage(): string {
 
     loadStatus();
 
+    // Get auth headers (includes master token if set)
+    function getAuthHeaders() {
+      const token = document.getElementById("server-master-token").value.trim();
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = "Bearer " + token;
+      return headers;
+    }
+
     // Auto-save helper (for test-then-save flow)
     async function autoSave(credentials, resultId) {
       showResult(resultId, "loading", "Saving...");
       try {
         const res = await fetch("/admin/api/save", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getAuthHeaders(),
           body: JSON.stringify({ credentials }),
         });
         const data = await res.json();
@@ -452,7 +460,7 @@ export function renderSetupPage(): string {
       try {
         const res = await fetch("/admin/api/save", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getAuthHeaders(),
           body: JSON.stringify({ credentials }),
         });
         const data = await res.json();
@@ -484,7 +492,7 @@ export function renderSetupPage(): string {
       try {
         const res = await fetch("/admin/api/test/twilio", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getAuthHeaders(),
           body: JSON.stringify({ accountSid: sid, authToken: token }),
         });
         const data = await res.json();
@@ -518,7 +526,7 @@ export function renderSetupPage(): string {
       try {
         const res = await fetch("/admin/api/test/elevenlabs", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getAuthHeaders(),
           body: JSON.stringify({ apiKey: key }),
         });
         const data = await res.json();
@@ -552,7 +560,7 @@ export function renderSetupPage(): string {
       try {
         const res = await fetch("/admin/api/test/resend", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getAuthHeaders(),
           body: JSON.stringify({ apiKey: key }),
         });
         const data = await res.json();
@@ -621,7 +629,7 @@ export function renderSetupPage(): string {
       result.textContent = "Restarting server...";
 
       try {
-        await fetch("/admin/api/deploy", { method: "POST" });
+        await fetch("/admin/api/deploy", { method: "POST", headers: getAuthHeaders() });
       } catch {
         // Expected — server dies mid-response
       }

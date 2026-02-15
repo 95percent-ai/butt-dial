@@ -13,6 +13,7 @@ import { registerGetChannelStatusTool } from "./tools/get-channel-status.js";
 import { registerRegisterProviderTool } from "./tools/register-provider.js";
 import { registerSetAgentLimitsTool } from "./tools/set-agent-limits.js";
 import { registerGetUsageDashboardTool } from "./tools/get-usage-dashboard.js";
+import { registerOnboardCustomerTool } from "./tools/onboard-customer.js";
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -84,6 +85,9 @@ export function createMcpServer(): McpServer {
   registerDeprovisionChannelsTool(server);
   registerGetChannelStatusTool(server);
   registerRegisterProviderTool(server);
+
+  // Phase 8: Onboarding tool
+  registerOnboardCustomerTool(server);
 
   // Phase 10: Rate limiting & cost tracking tools
   registerSetAgentLimitsTool(server);

@@ -15,6 +15,10 @@ const configSchema = z.object({
   credentialsEncryptionKey: z.string().optional(),
   jwtSecret: z.string().optional(),
 
+  // Configuration architecture
+  identityMode: z.enum(["dedicated", "shared", "hybrid"]).default("dedicated"),
+  isolationMode: z.enum(["single-account", "per-agent-subaccount", "per-customer-subaccount"]).default("single-account"),
+
   // Agent pool
   initialAgentPoolSize: z.coerce.number().default(5),
 
@@ -69,6 +73,24 @@ const configSchema = z.object({
   adminWhatsappNumber: z.string().optional(),
   adminWhatsappSender: z.string().optional(),
 
+  // CORS
+  corsAllowedOrigins: z.string().optional(),
+
+  // HTTP rate limiting
+  httpRateLimitPerIp: z.coerce.number().default(60),
+  httpRateLimitGlobal: z.coerce.number().default(100),
+
+  // IP filtering
+  adminIpAllowlist: z.string().optional(),
+  webhookIpAllowlist: z.string().optional(),
+  ipDenylist: z.string().optional(),
+
+  // Anomaly detector
+  anomalyDetectorEnabled: z
+    .string()
+    .transform((v) => v !== "false")
+    .default("true"),
+
   // Demo mode
   demoMode: z
     .string()
@@ -82,6 +104,8 @@ function loadConfig() {
     webhookBaseUrl: process.env.WEBHOOK_BASE_URL,
     mcpServerName: process.env.MCP_SERVER_NAME,
     nodeEnv: process.env.NODE_ENV,
+    identityMode: process.env.IDENTITY_MODE,
+    isolationMode: process.env.ISOLATION_MODE,
     masterSecurityToken: process.env.MASTER_SECURITY_TOKEN,
     credentialsEncryptionKey: process.env.CREDENTIALS_ENCRYPTION_KEY,
     jwtSecret: process.env.JWT_SECRET,
@@ -117,6 +141,13 @@ function loadConfig() {
     defaultMaxCallsPerDaySameNumber: process.env.DEFAULT_MAX_CALLS_PER_DAY_SAME_NUMBER,
     adminWhatsappNumber: process.env.ADMIN_WHATSAPP_NUMBER,
     adminWhatsappSender: process.env.ADMIN_WHATSAPP_SENDER,
+    corsAllowedOrigins: process.env.CORS_ALLOWED_ORIGINS,
+    httpRateLimitPerIp: process.env.HTTP_RATE_LIMIT_PER_IP,
+    httpRateLimitGlobal: process.env.HTTP_RATE_LIMIT_GLOBAL,
+    adminIpAllowlist: process.env.ADMIN_IP_ALLOWLIST,
+    webhookIpAllowlist: process.env.WEBHOOK_IP_ALLOWLIST,
+    ipDenylist: process.env.IP_DENYLIST,
+    anomalyDetectorEnabled: process.env.ANOMALY_DETECTOR_ENABLED,
     demoMode: process.env.DEMO_MODE,
   };
 
@@ -159,6 +190,14 @@ function logStartupWarnings(cfg: z.infer<typeof configSchema>): void {
 
   if (!cfg.anthropicApiKey) {
     console.info("[INFO] No Anthropic key — answering machine disabled");
+  }
+
+  if (cfg.identityMode !== "dedicated") {
+    console.warn(`[WARN] Identity mode "${cfg.identityMode}" is not yet implemented — only "dedicated" is supported`);
+  }
+
+  if (cfg.isolationMode !== "single-account") {
+    console.warn(`[WARN] Isolation mode "${cfg.isolationMode}" is not yet implemented — only "single-account" is supported`);
   }
 }
 

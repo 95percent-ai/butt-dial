@@ -1,4 +1,4 @@
-<!-- version: 3.7 | updated: 2026-02-15 -->
+<!-- version: 3.8 | updated: 2026-02-15 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -142,14 +142,8 @@ Automate what we've been doing manually. Full agent lifecycle + customer onboard
 - [x] `comms_deprovision_channels` tool (release number, return pool slot, clean up)
 - [x] `comms_get_channel_status` tool
 - [x] Agent pool management (configurable pool size, default 5)
-- [ ] Configuration architecture: identity mode (dedicated/shared/hybrid), isolation mode (single account/per-agent subaccount/per-customer subaccount)
-- [ ] Automated customer onboarding:
-  - Twilio subaccount creation via API
-  - Phone number purchase + webhook config via API
-  - WhatsApp sender registration via Senders API (assign from pool)
-  - SendGrid subuser creation via API
-  - Email DNS record generation (return records for customer to add)
-  - A2P 10DLC campaign submission via API (track approval status)
+- [x] Configuration architecture: identity mode (dedicated/shared/hybrid), isolation mode (single account/per-agent subaccount/per-customer subaccount) — config fields added, only dedicated/single-account implemented, provisioning guards unsupported modes
+- [x] Automated customer onboarding: `comms_onboard_customer` tool — provisions all channels, generates email DNS records, returns complete setup package (security token, channels, DNS, webhook URLs, SSE instructions)
 - [x] `comms_register_provider` tool (register/verify third-party credentials)
 - [x] **Verify (dry):** 60/60 assertions pass — provision agent with all channels, deprovision, pool capacity, register provider, SMS + email + WhatsApp regression
 - [ ] **Verify (live):** Real Twilio number purchase + release *(future — requires full Twilio account)*
@@ -195,12 +189,13 @@ Full visibility without reading private messages.
 ## Phase 12 — Feature: Attack Hardening
 Layer on protection now that the core works.
 
-- [ ] DDoS protection middleware (global + per-IP rate limits, payload caps, slowloris)
-- [ ] IP allowlist/denylist for admin + webhook endpoints
-- [ ] Replay attack prevention (webhook timestamp validation, 5-min window)
-- [ ] CORS + CSP headers
-- [ ] Anomaly detector (volume spikes, geo anomalies, brute force, rapid token rotation)
-- [ ] Brute-force lockout on auth endpoints
+- [x] DDoS protection middleware (global + per-IP HTTP rate limits, 1MB payload caps, trust proxy)
+- [x] IP allowlist/denylist for admin + webhook endpoints
+- [x] Replay attack prevention (Twilio nonce cache with 5-min TTL, Resend timestamp validation)
+- [x] CORS middleware (configurable allowed origins, OPTIONS preflight 204) + security headers (CSP, X-Frame, nosniff, XSS-Protection, HSTS, Referrer-Policy)
+- [x] Anomaly detector (volume spikes, brute force detection, rapid token rotation)
+- [x] Brute-force lockout on auth endpoints (10 failures → 15-min lockout, HIGH alert)
+- [x] Admin route auth (Bearer token on POST routes, GET /admin/setup stays open)
 - [ ] **Verify:** Replay an old webhook → rejected. Flood requests → throttled. Anomaly triggers alert.
 
 ## Phase 13 — Feature: Advanced Voice

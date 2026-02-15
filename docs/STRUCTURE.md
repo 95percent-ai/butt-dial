@@ -1,4 +1,4 @@
-<!-- version: 2.4 | updated: 2026-02-15 -->
+<!-- version: 2.5 | updated: 2026-02-15 -->
 
 # Project Structure
 
@@ -65,7 +65,8 @@ agentos-comms-mcp/
 │   │   ├── get-channel-status.ts # comms_get_channel_status (per-channel info, message counts, pool)
 │   │   ├── register-provider.ts  # comms_register_provider (verify + save credentials to .env)
 │   │   ├── set-agent-limits.ts   # comms_set_agent_limits (admin-only: set rate/spending caps)
-│   │   └── get-usage-dashboard.ts # comms_get_usage_dashboard (usage stats, costs, limits)
+│   │   ├── get-usage-dashboard.ts # comms_get_usage_dashboard (usage stats, costs, limits)
+│   │   └── onboard-customer.ts  # comms_onboard_customer (unified onboarding: provision + DNS + instructions)
 │   ├── channels/                 # Channel implementations (empty — Phase 2+)
 │   ├── security/                 # Auth, rate limiting, input validation
 │   │   ├── token-manager.ts      # Bearer token generate/store/verify/revoke (SHA-256 hashed)
@@ -73,8 +74,13 @@ agentos-comms-mcp/
 │   │   ├── auth-guard.ts        # requireAgent() + requireAdmin() helpers for tool callbacks
 │   │   ├── sanitizer.ts         # Input validation (XSS, SQLi, CRLF, path traversal, command injection)
 │   │   ├── crypto.ts            # AES-256-GCM encrypt/decrypt for credential storage
-│   │   ├── webhook-signature.ts # Twilio HMAC-SHA1 + Resend/Svix signature verification middleware
-│   │   └── rate-limiter.ts     # Rate limiting: check limits, log usage, spending caps, contact frequency
+│   │   ├── webhook-signature.ts # Twilio HMAC-SHA1 + Resend/Svix signature verification + replay nonce cache
+│   │   ├── rate-limiter.ts     # Rate limiting: check limits, log usage, spending caps, contact frequency
+│   │   ├── security-headers.ts # X-Frame-Options, CSP, nosniff, XSS-Protection, Referrer-Policy, HSTS
+│   │   ├── cors.ts             # CORS middleware (configurable allowed origins, OPTIONS preflight)
+│   │   ├── http-rate-limiter.ts # HTTP-level per-IP + global rate limiting (in-memory)
+│   │   ├── ip-filter.ts        # IP allowlist/denylist middleware factory (admin + webhook scopes)
+│   │   └── anomaly-detector.ts # Volume spike, brute force, rapid token rotation detection
 │   ├── provisioning/             # Agent provisioning helpers
 │   │   ├── phone-number.ts      # Buy, configure webhooks, release phone numbers
 │   │   ├── whatsapp-sender.ts   # WhatsApp pool assign/return/register
@@ -110,7 +116,9 @@ agentos-comms-mcp/
 │   ├── security.test.ts         # Dry test for security & auth (49 assertions)
 │   ├── rate-limiting.test.ts   # Dry test for rate limiting & cost tracking (27 assertions)
 │   ├── observability.test.ts  # Dry test for observability & alerts (26 assertions)
-│   └── setup-ui.test.ts      # Dry test for expanded setup UI & admin API (24 assertions)
+│   ├── setup-ui.test.ts      # Dry test for expanded setup UI & admin API (24 assertions)
+│   ├── onboarding.test.ts    # Dry test for config architecture & customer onboarding
+│   └── attack-hardening.test.ts # Dry test for attack hardening (security headers, CORS, rate limit, IP filter, replay)
 │
 └── docs/
     ├── SPEC.md                   # Project specification (source of truth)

@@ -1,6 +1,54 @@
-<!-- version: 2.4 | updated: 2026-02-15 -->
+<!-- version: 2.5 | updated: 2026-02-15 -->
 
 # Changelog
+
+## Session 14 — 2026-02-15
+
+### Phase 8 — Configuration Architecture & Customer Onboarding (DEC-044, DEC-045)
+
+#### New Files (2)
+- `src/tools/onboard-customer.ts` — unified `comms_onboard_customer` admin tool: provisions all channels, generates email DNS records, returns complete setup package (security token, channels, DNS records, webhook URLs, SSE instructions)
+- `tests/onboarding.test.ts` — dry test for config architecture and onboarding flow
+
+#### Modified Files (4)
+- `src/lib/config.ts` — added `identityMode`, `isolationMode` config fields with defaults (dedicated, single-account) + startup warnings for unsupported modes
+- `src/tools/provision-channels.ts` — added guard rejecting unsupported identity/isolation modes
+- `src/server.ts` — registered `comms_onboard_customer` tool
+- `src/admin/router.ts` — added `IDENTITY_MODE`, `ISOLATION_MODE` to save whitelist
+- `.env.example` — added "Configuration Architecture" section
+
+### Phase 12 — Attack Hardening (DEC-046 through DEC-049)
+
+#### New Files (6)
+- `src/security/security-headers.ts` — X-Frame-Options DENY, CSP, nosniff, XSS-Protection, Referrer-Policy, HSTS (production only), relaxed CSP for admin paths
+- `src/security/cors.ts` — CORS middleware with configurable origins (falls back to webhookBaseUrl), OPTIONS preflight 204
+- `src/security/http-rate-limiter.ts` — in-memory per-IP + global HTTP rate limiting, configurable limits, 60s cleanup
+- `src/security/ip-filter.ts` — IP allowlist/denylist factory for admin + webhook scopes, empty allowlist = allow all
+- `src/security/anomaly-detector.ts` — volume spike (3x threshold), brute-force (>10/5min), rapid token rotation (>3/hour), fires alerts
+- `tests/attack-hardening.test.ts` — dry test for all security middleware (headers, CORS, rate limiter, IP filter, replay, anomaly)
+
+#### Modified Files (6)
+- `src/index.ts` — wired trust proxy, security headers, CORS, HTTP rate limiter, IP filter, anomaly detector, body size limits (1MB)
+- `src/security/auth-middleware.ts` — added brute-force lockout (10 failures → 15-min 429), failed auth tracking, reset on success
+- `src/security/webhook-signature.ts` — added replay prevention nonce cache (5-min TTL, 60s cleanup)
+- `src/admin/router.ts` — added `adminAuth` middleware on all POST routes, imported config + logger
+- `src/admin/setup-page.ts` — all fetch() calls now include `Authorization: Bearer <token>` when master token field has value
+- `src/lib/config.ts` — added `corsAllowedOrigins`, `httpRateLimitPerIp`, `httpRateLimitGlobal`, `adminIpAllowlist`, `webhookIpAllowlist`, `ipDenylist`, `anomalyDetectorEnabled`
+- `.env.example` — added "Security Hardening" section
+
+#### Test Results
+- `tests/onboarding.test.ts` — 31/31 passed
+- `tests/attack-hardening.test.ts` — 33/33 passed
+- `npm run build` — clean compile
+
+#### Session End State
+- **Completed:** Phase 8 (config architecture + onboarding) and Phase 12 (attack hardening) fully implemented and tested
+- **`.env` restored to:** `DEMO_MODE=false` (was temporarily `true` for tests)
+- **Server:** not running (was stopped after tests)
+- **Next up:** Phase 12 verify item (live replay/flood/anomaly testing), then Phase 13 (Advanced Voice) or Phase 15 (Swagger)
+- **No uncommitted work** — all changes are saved but not git-committed yet (developer should review and commit)
+
+---
 
 ## Session 13 — 2026-02-15
 

@@ -1,4 +1,4 @@
-<!-- version: 3.1 | updated: 2026-02-15 -->
+<!-- version: 3.2 | updated: 2026-02-15 -->
 
 # Decisions Log
 
@@ -259,3 +259,39 @@ All 7 decisions follow a pattern: **make it configurable, with sensible defaults
 **What:** Setup UI is a single page with 5 provider cards (Twilio, ElevenLabs, Resend, Server Settings, Voice Defaults). No step wizard. Startup validation logs warnings for missing credentials but never crashes.
 **Why:** A wizard implies a required sequence. In reality, providers are independently optional — you might configure email without voice, or run entirely in demo mode. Warnings instead of crashes let the server run in partially-configured states (dev, demo, gradual setup).
 **Alternatives considered:** Multi-step wizard (rejected — forces artificial ordering), crash on missing creds (rejected — blocks development and demo mode).
+
+## DEC-044: Identity & Isolation Modes — Config Only, Dedicated/Single-Account Implemented
+**Date:** 2026-02-15
+**What:** Added `identityMode` (dedicated/shared/hybrid) and `isolationMode` (single-account/per-agent-subaccount/per-customer-subaccount) to config. Only dedicated + single-account is implemented. Provisioning guards reject unsupported modes with clear error.
+**Why:** The config schema anticipates future multi-tenancy needs without implementing them prematurely. Guards ensure no silent failure if someone sets an unsupported mode.
+**Alternatives considered:** Implement all modes now (rejected — YAGNI, adds complexity without demand).
+
+## DEC-045: Unified Onboarding Tool — comms_onboard_customer
+**Date:** 2026-02-15
+**What:** Single admin tool that wraps provisioning + email DNS + connection instructions into one call. Returns everything needed to connect: security token, channel info, DNS records, webhook URLs, SSE instructions.
+**Why:** Reduces onboarding from multiple tool calls to one. Makes it easy for the connected AI agent system to provision new customers.
+**Alternatives considered:** Keep provisioning as separate steps (rejected — too many round-trips for a standard flow).
+
+## DEC-046: Zero-Dependency Security Middleware
+**Date:** 2026-02-15
+**What:** All HTTP security (headers, CORS, rate limiting, IP filtering) built with plain Express middleware. No helmet, cors, or rate-limit packages.
+**Why:** Keeps dependencies minimal. The logic is simple enough that wrapping it in 30 lines of code is cleaner than adding a dependency. Also avoids version conflicts with Express 5.
+**Alternatives considered:** helmet + cors + express-rate-limit packages (rejected — three new dependencies for simple middleware).
+
+## DEC-047: In-Memory Rate Limiting & Nonce Cache
+**Date:** 2026-02-15
+**What:** HTTP rate limiter and replay nonce cache use in-memory Maps with periodic cleanup intervals. Not Redis or DB-backed.
+**Why:** Single-instance server doesn't need distributed state. In-memory is fastest and simplest. Cleanup intervals prevent unbounded memory growth. If clustering is needed later, swap to Redis.
+**Alternatives considered:** Redis (rejected — overkill for single instance), DB-backed (rejected — adds latency to every request).
+
+## DEC-048: Brute-Force Lockout — 10 Failures, 15 Minutes
+**Date:** 2026-02-15
+**What:** After 10 failed auth attempts from an IP, lock it out for 15 minutes (429 response). Fires HIGH alert. Successful auth resets counter.
+**Why:** Prevents credential stuffing while being lenient enough for legitimate users who mistype once or twice. 15 minutes is long enough to frustrate attackers but short enough to not permanently block legitimate users.
+**Alternatives considered:** Exponential backoff (rejected — more complex, 15-min flat is simpler), CAPTCHA (rejected — MCP is API-only, no browser).
+
+## DEC-049: Admin Route Auth — Bearer Token on POST Only
+**Date:** 2026-02-15
+**What:** Admin POST routes require `Authorization: Bearer <masterToken>`. GET /admin/setup stays open. No token configured = allow (graceful degradation).
+**Why:** Setup page must be accessible without auth (it's where you set the token). POST routes that modify config need protection. Graceful degradation matches existing patterns (DEC-033).
+**Alternatives considered:** Auth on all routes including GET (rejected — blocks setup page access), session cookies (rejected — adds state management complexity).

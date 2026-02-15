@@ -16,6 +16,11 @@ import { metrics } from "./observability/metrics.js";
 import { initAlertManager } from "./observability/alert-manager.js";
 import { registerAgentSession, unregisterAgentSession } from "./lib/agent-registry.js";
 import { dispatchPendingVoicemails } from "./lib/voicemail-dispatcher.js";
+import { securityHeaders } from "./security/security-headers.js";
+import { corsMiddleware } from "./security/cors.js";
+import { httpRateLimiter } from "./security/http-rate-limiter.js";
+import { ipFilter } from "./security/ip-filter.js";
+import { startAnomalyDetector } from "./security/anomaly-detector.js";
 
 async function main() {
   // 1. Initialize providers (DB first)
@@ -28,8 +33,17 @@ async function main() {
   const db = getProvider("database");
   initAlertManager(db);
 
+  // 2c. Start anomaly detector
+  startAnomalyDetector(db);
+
   // 3. Create Express app
   const app = express();
+
+  // 3a. Security middleware (before routes)
+  app.set("trust proxy", 1);
+  app.use(securityHeaders);
+  app.use(corsMiddleware);
+  app.use(httpRateLimiter);
 
   // 4. MCP SSE endpoint (before body parsers — transport reads raw stream)
   const transports = new Map<string, SSEServerTransport>();
@@ -80,13 +94,14 @@ async function main() {
   });
 
   // 5. Body parsers + routes (after MCP so transport gets raw stream)
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 
   // 6. Static file serving for audio storage (Twilio fetches audio from here)
   app.use("/storage", express.static(path.resolve("storage")));
 
   app.use(webhookRouter);
+  app.use("/admin", ipFilter("admin"));
   app.use(adminRouter);
 
   // 7. Wrap Express with http.createServer for WebSocket support

@@ -11,6 +11,38 @@ import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
 
 /**
+ * Nonce cache for replay prevention.
+ * Stores MessageSid/CallSid → timestamp. Entries expire after 5 minutes.
+ */
+const nonceCache = new Map<string, number>();
+
+const NONCE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// Cleanup expired nonces every 60 seconds
+const nonceCleanupInterval = setInterval(() => {
+  const now = Date.now();
+  for (const [sid, ts] of nonceCache) {
+    if (now - ts > NONCE_TTL_MS) {
+      nonceCache.delete(sid);
+    }
+  }
+}, 60_000);
+if (nonceCleanupInterval.unref) nonceCleanupInterval.unref();
+
+/** Check and record a nonce (MessageSid or CallSid). Returns true if replay detected. */
+function isReplay(sid: string | undefined): boolean {
+  if (!sid) return false;
+  if (nonceCache.has(sid)) return true;
+  nonceCache.set(sid, Date.now());
+  return false;
+}
+
+/** Reset nonce cache (for testing). */
+export function resetNonceCache(): void {
+  nonceCache.clear();
+}
+
+/**
  * Middleware to verify Twilio webhook signatures.
  * Skips verification in demo mode.
  */
@@ -49,6 +81,14 @@ export function verifyTwilioSignature(req: Request, res: Response, next: NextFun
 
     if (!valid) {
       logger.warn("twilio_sig_invalid", { url: fullUrl });
+      res.status(403).send("<Response/>");
+      return;
+    }
+
+    // Replay prevention: check MessageSid or CallSid
+    const sid = (req.body as Record<string, string>)?.MessageSid || (req.body as Record<string, string>)?.CallSid;
+    if (isReplay(sid)) {
+      logger.warn("twilio_replay_detected", { sid });
       res.status(403).send("<Response/>");
       return;
     }
