@@ -33,8 +33,9 @@ export function registerGetMessagesTool(server: McpServer): void {
       agentId: z.string().describe("The agent ID to list messages for"),
       limit: z.number().default(20).describe("Max number of messages to return (default 20)"),
       channel: z.enum(["sms", "whatsapp", "email", "voice"]).optional().describe("Filter by channel"),
+      contactAddress: z.string().optional().describe("Filter by contact address (phone/email) — shows conversation thread"),
     },
-    async ({ agentId, limit, channel }, extra) => {
+    async ({ agentId, limit, channel, contactAddress }, extra) => {
       // Auth: agent can only view their own messages
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
@@ -50,6 +51,11 @@ export function registerGetMessagesTool(server: McpServer): void {
       if (channel) {
         sql += " AND channel = ?";
         params.push(channel);
+      }
+
+      if (contactAddress) {
+        sql += " AND (from_address = ? OR to_address = ?)";
+        params.push(contactAddress, contactAddress);
       }
 
       sql += " ORDER BY created_at DESC LIMIT ?";

@@ -16,6 +16,7 @@ import { registerGetUsageDashboardTool } from "./tools/get-usage-dashboard.js";
 import { registerOnboardCustomerTool } from "./tools/onboard-customer.js";
 import { registerTransferCallTool } from "./tools/transfer-call.js";
 import { registerBillingTools } from "./tools/get-billing-summary.js";
+import { registerExpandAgentPoolTool } from "./tools/expand-agent-pool.js";
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -100,6 +101,9 @@ export function createMcpServer(): McpServer {
 
   // Phase 18: Billing tools
   registerBillingTools(server);
+
+  // Phase 20: Pool expansion
+  registerExpandAgentPoolTool(server);
 
   logger.info("mcp_server_created", { name: config.mcpServerName });
 

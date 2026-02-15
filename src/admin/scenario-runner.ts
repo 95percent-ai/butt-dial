@@ -64,6 +64,36 @@ export async function runDemoScenarios(serverUrl: string): Promise<ScenarioResul
     return `OpenAPI ${spec.openapi}, ${pathCount} paths`;
   }));
 
+  // Scenario 6: Admin dashboard data
+  results.push(await runScenario("Dashboard data API", async () => {
+    const resp = await fetch(`${serverUrl}/admin/api/dashboard`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json() as Record<string, unknown>;
+    if (!Array.isArray(data.agents)) throw new Error("Missing agents array");
+    if (!data.usage) throw new Error("Missing usage section");
+    return `Dashboard OK: ${(data.agents as unknown[]).length} agents`;
+  }));
+
+  // Scenario 7: Security headers present
+  results.push(await runScenario("Security headers", async () => {
+    const resp = await fetch(`${serverUrl}/health`);
+    const headers = resp.headers;
+    const xfo = headers.get("x-frame-options");
+    const xcto = headers.get("x-content-type-options");
+    if (!xfo) throw new Error("Missing X-Frame-Options");
+    if (!xcto) throw new Error("Missing X-Content-Type-Options");
+    return `X-Frame-Options: ${xfo}, X-Content-Type-Options: ${xcto}`;
+  }));
+
+  // Scenario 8: Admin dashboard page loads
+  results.push(await runScenario("Dashboard page loads", async () => {
+    const resp = await fetch(`${serverUrl}/admin/dashboard`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const html = await resp.text();
+    if (!html.includes("Admin Dashboard")) throw new Error("Dashboard title not found");
+    return `Dashboard page loaded (${html.length} bytes)`;
+  }));
+
   return results;
 }
 
