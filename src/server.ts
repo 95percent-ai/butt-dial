@@ -15,6 +15,7 @@ import { registerSetAgentLimitsTool } from "./tools/set-agent-limits.js";
 import { registerGetUsageDashboardTool } from "./tools/get-usage-dashboard.js";
 import { registerOnboardCustomerTool } from "./tools/onboard-customer.js";
 import { registerTransferCallTool } from "./tools/transfer-call.js";
+import { registerBillingTools } from "./tools/get-billing-summary.js";
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -96,6 +97,9 @@ export function createMcpServer(): McpServer {
   // Phase 10: Rate limiting & cost tracking tools
   registerSetAgentLimitsTool(server);
   registerGetUsageDashboardTool(server);
+
+  // Phase 18: Billing tools
+  registerBillingTools(server);
 
   logger.info("mcp_server_created", { name: config.mcpServerName });
 

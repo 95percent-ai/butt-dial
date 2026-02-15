@@ -39,6 +39,10 @@ export function runMigrations(): void {
   const complianceSchema = fs.readFileSync(complianceSchemaPath, "utf-8");
   db.exec(complianceSchema);
 
+  const billingSchemaPath = path.join(projectRoot, "src", "db", "schema-billing.sql");
+  const billingSchema = fs.readFileSync(billingSchemaPath, "utf-8");
+  db.exec(billingSchema);
+
   logger.info("migrations_complete");
 }
 

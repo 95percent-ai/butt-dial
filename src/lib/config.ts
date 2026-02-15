@@ -124,6 +124,9 @@ const configSchema = z.object({
     .transform((v) => v !== "false")
     .default("true"),
 
+  // Billing
+  billingMarkupPercent: z.coerce.number().default(0),
+
   // Demo mode
   demoMode: z
     .string()
@@ -200,6 +203,7 @@ function loadConfig() {
     webhookIpAllowlist: process.env.WEBHOOK_IP_ALLOWLIST,
     ipDenylist: process.env.IP_DENYLIST,
     anomalyDetectorEnabled: process.env.ANOMALY_DETECTOR_ENABLED,
+    billingMarkupPercent: process.env.BILLING_MARKUP_PERCENT,
     demoMode: process.env.DEMO_MODE,
   };
 
