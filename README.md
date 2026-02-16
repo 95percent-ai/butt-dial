@@ -1,4 +1,4 @@
-# AgentOS Communication MCP Server
+# Agent AI Communication MCP Server
 
 An MCP server that gives AI agents full communication abilities: phone calls, SMS, email, and WhatsApp. Agents can talk to humans or other AI agents. The recipient doesn't need to know if the sender is human or AI.
 
