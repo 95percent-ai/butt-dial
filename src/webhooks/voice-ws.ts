@@ -51,7 +51,57 @@ Your job:
 2. Ask the caller to leave a message.
 3. Ask if they have any preferences for how or when they'd like to be contacted back.
 4. Thank them and say goodbye.
-Keep responses short and natural — this is a phone call, not a chat.`;
+Keep responses short and natural — this is a phone call, not a chat.
+
+You also have tools to take actions during the call:
+- forward_sms: Send an SMS message to a phone number
+- forward_email: Send an email to an address
+- transfer_call: Transfer this call to another phone number
+
+Use these tools when the caller asks you to forward a message, send info to someone, or transfer the call.
+Do NOT use tools unless the caller explicitly asks for an action.`;
+
+const VOICE_TOOLS = [
+  {
+    name: "forward_sms",
+    description: "Send an SMS text message to a phone number on behalf of the caller.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        to: { type: "string" as const, description: "Destination phone number in E.164 format (e.g. +15551234567)" },
+        message: { type: "string" as const, description: "The text message to send" },
+      },
+      required: ["to", "message"],
+    },
+  },
+  {
+    name: "forward_email",
+    description: "Send an email message to an address on behalf of the caller.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        to: { type: "string" as const, description: "Destination email address" },
+        subject: { type: "string" as const, description: "Email subject line" },
+        message: { type: "string" as const, description: "Email body text" },
+      },
+      required: ["to", "subject", "message"],
+    },
+  },
+  {
+    name: "transfer_call",
+    description: "Transfer the current phone call to another number.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        to: { type: "string" as const, description: "Phone number to transfer the call to in E.164 format" },
+        announcement: { type: "string" as const, description: "Optional message to announce before transferring" },
+      },
+      required: ["to"],
+    },
+  },
+];
+
+const MAX_TOOL_ITERATIONS = 3;
 
 const UNAVAILABLE_MESSAGE =
   "No one is available to take your call right now. Please try again later. Goodbye.";
@@ -107,9 +157,92 @@ async function tryAgentSampling(
   }
 }
 
+/** Look up the agent's phone number and email from the DB */
+function getAgentContactInfo(agentId: string): { phone: string | null; email: string | null } {
+  try {
+    const db = getProvider("database");
+    const rows = db.query<{ phone_number: string | null; email_address: string | null }>(
+      "SELECT phone_number, email_address FROM agent_channels WHERE agent_id = ?",
+      [agentId]
+    );
+    if (rows.length > 0) {
+      return { phone: rows[0].phone_number, email: rows[0].email_address };
+    }
+  } catch {}
+  return { phone: null, email: null };
+}
+
+/** Execute a voice tool call and return a text result */
+async function executeVoiceTool(
+  toolName: string,
+  input: Record<string, unknown>,
+  conv: VoiceConversation
+): Promise<string> {
+  const agentContact = getAgentContactInfo(conv.agentId);
+
+  switch (toolName) {
+    case "forward_sms": {
+      const to = input.to as string;
+      const message = input.message as string;
+      const from = agentContact.phone || conv.to; // agent's number or the number that was called
+      try {
+        const telephony = getProvider("telephony");
+        const result = await telephony.sendSms({ from, to, body: message });
+        logger.info("voice_tool_sms_sent", { callSid: conv.callSid, to, messageId: result.messageId });
+        return `SMS sent successfully to ${to}. Message ID: ${result.messageId}`;
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error("voice_tool_sms_error", { callSid: conv.callSid, to, error: errMsg });
+        return `Failed to send SMS: ${errMsg}`;
+      }
+    }
+
+    case "forward_email": {
+      const to = input.to as string;
+      const subject = input.subject as string;
+      const message = input.message as string;
+      const domain = (() => { try { return new URL(config.webhookBaseUrl).hostname; } catch { return "buttdial.app"; } })();
+      const from = agentContact.email || `noreply@${domain}`;
+      try {
+        const email = getProvider("email");
+        const result = await email.send({ from, to, subject, body: message });
+        logger.info("voice_tool_email_sent", { callSid: conv.callSid, to, messageId: result.messageId });
+        return `Email sent successfully to ${to}. Message ID: ${result.messageId}`;
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error("voice_tool_email_error", { callSid: conv.callSid, to, error: errMsg });
+        return `Failed to send email: ${errMsg}`;
+      }
+    }
+
+    case "transfer_call": {
+      const to = input.to as string;
+      const announcement = input.announcement as string | undefined;
+      try {
+        const telephony = getProvider("telephony");
+        const result = await telephony.transferCall({
+          callSid: conv.callSid,
+          to,
+          announcementText: announcement,
+        });
+        logger.info("voice_tool_transfer", { callSid: conv.callSid, to, status: result.status });
+        return `Call transfer initiated to ${to}. Status: ${result.status}`;
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        logger.error("voice_tool_transfer_error", { callSid: conv.callSid, to, error: errMsg });
+        return `Failed to transfer call: ${errMsg}`;
+      }
+    }
+
+    default:
+      return `Unknown tool: ${toolName}`;
+  }
+}
+
 /**
- * Get a response from the Anthropic answering machine.
- * Returns the full response text, or null if Anthropic is unavailable.
+ * Get a response from the Anthropic answering machine with tool-use support.
+ * Loops up to MAX_TOOL_ITERATIONS times when Claude requests tool calls.
+ * Returns the final text response, or null if Anthropic is unavailable.
  */
 async function tryAnsweringMachine(
   conv: VoiceConversation
@@ -121,17 +254,71 @@ async function tryAnsweringMachine(
     const { default: Anthropic } = await import("@anthropic-ai/sdk");
     const client = new Anthropic({ apiKey: config.anthropicApiKey });
 
-    const response = await client.messages.create({
+    // Use custom system prompt if one was provided (outbound call config),
+    // otherwise fall back to the default answering machine prompt
+    const isCustomPrompt = conv.systemPrompt && conv.systemPrompt !== config.voiceDefaultSystemPrompt;
+    const systemPrompt = isCustomPrompt ? conv.systemPrompt : ANSWERING_MACHINE_SYSTEM_PROMPT;
+
+    // Build messages array for the tool-use loop (copy so we don't pollute conv.history)
+    const messages: Array<{ role: string; content: unknown }> = conv.history.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    for (let i = 0; i < MAX_TOOL_ITERATIONS; i++) {
+      const response = await client.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 300,
+        system: systemPrompt,
+        tools: VOICE_TOOLS as any,
+        messages: messages as any,
+      });
+
+      const hasToolUse = response.content.some((b) => b.type === "tool_use");
+
+      if (!hasToolUse) {
+        // Final text response
+        const textBlock = response.content.find((b) => b.type === "text");
+        return textBlock && "text" in textBlock ? textBlock.text : null;
+      }
+
+      // Process tool calls
+      messages.push({ role: "assistant", content: response.content });
+
+      const toolResults: Array<{ type: "tool_result"; tool_use_id: string; content: string }> = [];
+
+      for (const block of response.content) {
+        if (block.type !== "tool_use") continue;
+        const toolBlock = block as { id: string; name: string; input: Record<string, unknown> };
+
+        logger.info("voice_tool_call", {
+          callSid: conv.callSid,
+          tool: toolBlock.name,
+          input: toolBlock.input,
+          iteration: i + 1,
+        });
+
+        const result = await executeVoiceTool(toolBlock.name, toolBlock.input, conv);
+
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: toolBlock.id,
+          content: result,
+        });
+      }
+
+      messages.push({ role: "user", content: toolResults });
+    }
+
+    // Exceeded max iterations — ask Claude for a final text response without tools
+    const finalResponse = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 300,
-      system: ANSWERING_MACHINE_SYSTEM_PROMPT,
-      messages: conv.history.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
+      system: systemPrompt,
+      messages: messages as any,
     });
 
-    const textBlock = response.content.find((b) => b.type === "text");
+    const textBlock = finalResponse.content.find((b) => b.type === "text");
     return textBlock && "text" in textBlock ? textBlock.text : null;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -213,6 +400,12 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
         // Read system prompt from call config (outbound) or use default
         const callConfig = sessionId ? getCallConfig(sessionId) : undefined;
         const systemPrompt = callConfig?.systemPrompt || config.voiceDefaultSystemPrompt;
+
+        // Clean up the one-time session config now that we've read it
+        if (sessionId) {
+          const { removeCallConfig } = await import("./voice-sessions.js");
+          removeCallConfig(sessionId);
+        }
 
         // Determine mode: agent connected → "agent", otherwise → "answering-machine"
         const agentSession = agentId ? getAgentSession(agentId) : undefined;
