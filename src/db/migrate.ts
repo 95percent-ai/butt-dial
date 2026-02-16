@@ -67,6 +67,23 @@ export function runMigrations(): void {
     }
   }
 
+  // Phase 22: Translation — add language column to agent_channels, body_original + source_language to messages
+  try {
+    db.run("ALTER TABLE agent_channels ADD COLUMN language TEXT DEFAULT 'en-US'");
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.run("ALTER TABLE messages ADD COLUMN body_original TEXT");
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.run("ALTER TABLE messages ADD COLUMN source_language TEXT");
+  } catch {
+    // Column already exists
+  }
+
   // Ensure default organization exists
   try {
     const existing = db.query<{ id: string }>("SELECT id FROM organizations WHERE id = 'default'");

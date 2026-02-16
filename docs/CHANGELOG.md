@@ -1,6 +1,20 @@
-<!-- version: 3.1 | updated: 2026-02-16 -->
+<!-- version: 3.2 | updated: 2026-02-16 -->
 
 # Changelog
+
+## Session 17 — 2026-02-16
+
+### Phase 22 — Dynamic Language + Real-Time Translation
+- **New file:** `src/lib/translator.ts` — translation engine using Anthropic API (Claude Haiku)
+- **Config:** `TRANSLATION_ENABLED` boolean (default: false), reuses `ANTHROPIC_API_KEY`
+- **DB migration:** `language` column on `agent_channels`, `body_original` + `source_language` on `messages`
+- **Voice translation bridge:** inbound transcription translated caller→agent language, outbound response translated agent→caller language
+- **SMS/WhatsApp translation:** auto-detect incoming message language, translate to agent's language, store original
+- **Inbound voice:** agent's language used for TwiML instead of global default
+- **MCP tools:** `targetLanguage` param on `comms_make_call` and `comms_send_message` for outbound translation
+- **Admin UI:** language dropdown in agent edit panel, translation toggle card in settings, status badge
+- **Admin API:** `POST /admin/api/agents/:agentId/language`, `TRANSLATION_ENABLED` in save list, translation service in dashboard
+- **Tests:** 33/33 translation tests pass, 49/49 end-to-end regression pass
 
 ## Session 16 — 2026-02-16
 

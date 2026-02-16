@@ -15,6 +15,7 @@ import { sanitize, SanitizationError, sanitizationErrorResponse } from "../secur
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 import { metrics } from "../observability/metrics.js";
 import { preSendCheck } from "../security/compliance.js";
+import { translate, needsTranslation, getAgentLanguage } from "../lib/translator.js";
 
 interface AgentRow {
   agent_id: string;
@@ -37,8 +38,9 @@ export function registerSendMessageTool(server: McpServer): void {
       html: z.string().optional().describe("Optional HTML body for email"),
       templateId: z.string().optional().describe("WhatsApp content template SID (e.g. HX...) for messages outside 24h window"),
       templateVars: z.record(z.string()).optional().describe("Template variable substitutions (e.g. {\"1\": \"John\"})"),
+      targetLanguage: z.string().optional().describe("Language of the recipient (e.g. he-IL, es-MX). When different from agent's language, the message body is translated before sending."),
     },
-    async ({ agentId, to, body, channel, subject, html, templateId, templateVars }, extra) => {
+    async ({ agentId, to, body, channel, subject, html, templateId, templateVars, targetLanguage }, extra) => {
       // Auth: agent can only send as themselves
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
@@ -108,13 +110,29 @@ export function registerSendMessageTool(server: McpServer): void {
         };
       }
 
+      // Translate outbound message if targetLanguage differs from agent's language
+      let translatedBody = body;
+      let bodyOriginal: string | undefined;
+      const agentLang = getAgentLanguage(db, agentId);
+
+      if (targetLanguage && needsTranslation(agentLang, targetLanguage)) {
+        translatedBody = await translate(body, agentLang, targetLanguage);
+        if (translatedBody !== body) {
+          bodyOriginal = body;
+          logger.info("outbound_message_translated", {
+            agentId, channel, targetLanguage, agentLanguage: agentLang,
+            originalLength: body.length, translatedLength: translatedBody.length,
+          });
+        }
+      }
+
       // Route based on channel
       if (channel === "email") {
-        return await sendEmail(db, agent, agentId, to, body, orgId, subject, html);
+        return await sendEmail(db, agent, agentId, to, translatedBody, orgId, subject, html, bodyOriginal);
       } else if (channel === "whatsapp") {
-        return await sendWhatsApp(db, agent, agentId, to, body, orgId, templateId, templateVars);
+        return await sendWhatsApp(db, agent, agentId, to, translatedBody, orgId, templateId, templateVars, bodyOriginal);
       } else {
-        return await sendSms(db, agent, agentId, to, body, orgId);
+        return await sendSms(db, agent, agentId, to, translatedBody, orgId, bodyOriginal);
       }
     }
   );
@@ -129,6 +147,7 @@ async function sendSms(
   to: string,
   body: string,
   orgId: string,
+  bodyOriginal?: string,
 ) {
   if (!agent.phone_number) {
     logger.warn("send_message_no_phone", { agentId });
@@ -158,9 +177,9 @@ async function sendSms(
 
   const messageId = randomUUID();
   db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost, org_id)
-     VALUES (?, ?, 'sms', 'outbound', ?, ?, ?, ?, ?, ?, ?)`,
-    [messageId, agentId, agent.phone_number, to, body, result.messageId, result.status, result.cost ?? null, orgId]
+    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, body_original, external_id, status, cost, org_id)
+     VALUES (?, ?, 'sms', 'outbound', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [messageId, agentId, agent.phone_number, to, body, bodyOriginal || null, result.messageId, result.status, result.cost ?? null, orgId]
   );
 
   logUsage(db, { agentId, actionType: "sms", channel: "sms", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
@@ -192,6 +211,7 @@ async function sendEmail(
   orgId: string,
   subject?: string,
   html?: string,
+  bodyOriginal?: string,
 ) {
   if (!agent.email_address) {
     logger.warn("send_message_no_email", { agentId });
@@ -230,9 +250,9 @@ async function sendEmail(
 
   const messageId = randomUUID();
   db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost, org_id)
-     VALUES (?, ?, 'email', 'outbound', ?, ?, ?, ?, ?, ?, ?)`,
-    [messageId, agentId, agent.email_address, to, `[${subject}] ${body}`, result.messageId, result.status, result.cost ?? null, orgId]
+    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, body_original, external_id, status, cost, org_id)
+     VALUES (?, ?, 'email', 'outbound', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [messageId, agentId, agent.email_address, to, `[${subject}] ${body}`, bodyOriginal ? `[${subject}] ${bodyOriginal}` : null, result.messageId, result.status, result.cost ?? null, orgId]
   );
 
   logUsage(db, { agentId, actionType: "email", channel: "email", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
@@ -264,6 +284,7 @@ async function sendWhatsApp(
   orgId: string,
   templateId?: string,
   templateVars?: Record<string, string>,
+  bodyOriginal?: string,
 ) {
   if (!agent.whatsapp_sender_sid) {
     logger.warn("send_message_no_whatsapp", { agentId });
@@ -295,9 +316,9 @@ async function sendWhatsApp(
 
   const messageId = randomUUID();
   db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost, org_id)
-     VALUES (?, ?, 'whatsapp', 'outbound', ?, ?, ?, ?, ?, ?, ?)`,
-    [messageId, agentId, agent.whatsapp_sender_sid, to, body, result.messageId, result.status, result.cost ?? null, orgId]
+    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, body_original, external_id, status, cost, org_id)
+     VALUES (?, ?, 'whatsapp', 'outbound', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [messageId, agentId, agent.whatsapp_sender_sid, to, body, bodyOriginal || null, result.messageId, result.status, result.cost ?? null, orgId]
   );
 
   logUsage(db, { agentId, actionType: "whatsapp", channel: "whatsapp", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });

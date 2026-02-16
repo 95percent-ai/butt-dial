@@ -13,6 +13,7 @@ import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 import { storeCallConfig } from "../webhooks/voice-sessions.js";
+import { getAgentLanguage } from "../lib/translator.js";
 import { requireAgent, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { requireAgentInOrg } from "../security/org-scope.js";
 import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
@@ -47,9 +48,13 @@ export function registerMakeCallTool(server: McpServer): void {
       language: z
         .string()
         .optional()
-        .describe("Language code (default: en-US)"),
+        .describe("Language code for STT/TTS (default: agent's language)"),
+      targetLanguage: z
+        .string()
+        .optional()
+        .describe("Language spoken by the person being called (e.g. he-IL, es-MX). When different from agent's language, real-time translation is applied."),
     },
-    async ({ agentId, to, systemPrompt, greeting, voice, language }, extra) => {
+    async ({ agentId, to, systemPrompt, greeting, voice, language, targetLanguage }, extra) => {
       // Auth: agent can only call as themselves
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
@@ -146,12 +151,16 @@ export function registerMakeCallTool(server: McpServer): void {
 
       // Store call config in session store so the outbound webhook can read it
       const sessionId = randomUUID();
+      const agentLang = getAgentLanguage(db, agentId);
+      const callLang = targetLanguage || language || agentLang;
       storeCallConfig(sessionId, {
         agentId,
         systemPrompt: systemPrompt || config.voiceDefaultSystemPrompt,
         greeting: greeting || config.voiceDefaultGreeting,
         voice: voice || config.voiceDefaultVoice,
-        language: language || config.voiceDefaultLanguage,
+        language: callLang,
+        callerLanguage: targetLanguage || undefined,
+        agentLanguage: agentLang,
       });
 
       // Build the webhook URL that Twilio will hit when the call connects

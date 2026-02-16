@@ -14,6 +14,10 @@ export interface VoiceCallConfig {
   greeting: string;
   voice: string;
   language: string;
+  /** Language of the person being called (for outbound translation) */
+  callerLanguage?: string;
+  /** Agent's operating language (from agent_channels.language) */
+  agentLanguage?: string;
 }
 
 export interface VoiceConversation {
@@ -29,6 +33,10 @@ export interface VoiceConversation {
     callerMessage: string;
     callerPreferences?: string;
   };
+  /** Language of the caller/called party */
+  callerLanguage?: string;
+  /** Agent's operating language */
+  agentLanguage?: string;
 }
 
 /** Pre-call config stored by comms_make_call, read by outbound webhook */

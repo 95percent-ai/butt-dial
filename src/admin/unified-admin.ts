@@ -517,6 +517,77 @@ export function renderAdminPage(specJson: string): string {
     .progress-fill.warn { background: var(--warning); }
     .progress-fill.danger { background: var(--error); }
 
+    /* ── Service Status Strip ─────────────────────────────────── */
+    .service-strip {
+      display: flex;
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+      padding: 0.75rem 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      flex-wrap: wrap;
+    }
+
+    .service-dot {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .service-dot .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .service-dot .dot.ok { background: var(--success); }
+    .service-dot .dot.not_configured { background: var(--text-muted); }
+    .service-dot .dot.error { background: var(--error); }
+
+    /* ── Activity Table ──────────────────────────────────────────── */
+    .activity-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.825rem;
+    }
+
+    .activity-table th {
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .activity-table td {
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .activity-table tr:last-child td { border-bottom: none; }
+
+    .channel-badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .channel-badge.sms { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+    .channel-badge.email { background: rgba(63, 185, 80, 0.15); color: var(--success); }
+    .channel-badge.voice, .channel-badge.call { background: rgba(188, 140, 255, 0.15); color: #bc8cff; }
+    .channel-badge.whatsapp { background: rgba(63, 185, 80, 0.15); color: var(--success); }
+
     /* ── Alerts Table ───────────────────────────────────────────── */
     .alerts-table {
       width: 100%;
@@ -811,6 +882,14 @@ export function renderAdminPage(specJson: string): string {
       <div id="tab-dashboard" class="tab-content active">
         <h1 class="page-title">Dashboard</h1>
 
+        <div class="service-strip" id="service-strip">
+          <div class="service-dot"><span class="dot" id="svc-database"></span> Database</div>
+          <div class="service-dot"><span class="dot" id="svc-telephony"></span> Telephony</div>
+          <div class="service-dot"><span class="dot" id="svc-email"></span> Email</div>
+          <div class="service-dot"><span class="dot" id="svc-whatsapp"></span> WhatsApp</div>
+          <div class="service-dot"><span class="dot" id="svc-voice"></span> Voice</div>
+        </div>
+
         <div class="health-grid">
           <div class="health-card">
             <div class="big-number" id="stat-uptime">--</div>
@@ -823,6 +902,14 @@ export function renderAdminPage(specJson: string): string {
           <div class="health-card">
             <div class="big-number" id="stat-messages">0</div>
             <div class="card-label">Total Messages</div>
+          </div>
+          <div class="health-card">
+            <div class="big-number" id="stat-calls">0</div>
+            <div class="card-label">Total Calls</div>
+          </div>
+          <div class="health-card">
+            <div class="big-number" id="stat-voicemails" style="color:var(--accent)">0</div>
+            <div class="card-label">Pending Voicemails</div>
           </div>
           <div class="health-card">
             <div class="big-number" id="stat-cost">$0.00</div>
@@ -870,6 +957,26 @@ export function renderAdminPage(specJson: string): string {
             </div>
             <div class="progress-bar"><div class="progress-fill" id="fill-spend-month" style="width:0%"></div></div>
           </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Recent Activity</span>
+          </div>
+          <table class="activity-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Target</th>
+                <th>Status</th>
+                <th>Cost</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="activity-body">
+              <tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:1rem;">No activity yet</td></tr>
+            </tbody>
+          </table>
         </div>
 
         <div class="card">
@@ -1001,6 +1108,7 @@ export function renderAdminPage(specJson: string): string {
               <option value="ko-KR">Korean</option>
               <option value="zh-CN">Chinese (Mandarin)</option>
               <option value="ar-SA">Arabic</option>
+              <option value="he-IL">Hebrew</option>
               <option value="hi-IN">Hindi</option>
               <option value="nl-NL">Dutch</option>
               <option value="pl-PL">Polish</option>
@@ -1011,6 +1119,27 @@ export function renderAdminPage(specJson: string): string {
           </div>
           <div class="settings-actions">
             <button class="btn btn-sm btn-primary" onclick="saveVoice()">Save</button>
+          </div>
+        </div>
+
+        <div class="card" id="card-translation">
+          <div class="card-header">
+            <span class="card-title">Translation</span>
+            <span class="badge badge-info" id="translation-badge">--</span>
+          </div>
+          <div class="card-desc">Real-time message translation between agent and caller/sender languages. Requires Anthropic API key.</div>
+          <div class="field">
+            <label>Enable Translation</label>
+            <select id="translation-enabled">
+              <option value="false">Disabled</option>
+              <option value="true">Enabled</option>
+            </select>
+          </div>
+          <div class="card-desc" style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;">
+            Uses the Anthropic API key configured above. Each translation costs ~$0.001-0.005. Translation is applied when agent language differs from sender/caller language.
+          </div>
+          <div class="settings-actions">
+            <button class="btn btn-sm btn-primary" onclick="saveTranslation()">Save</button>
           </div>
         </div>
 
@@ -1295,37 +1424,77 @@ export function renderAdminPage(specJson: string): string {
         document.getElementById('stat-uptime').textContent =
           hours > 0 ? hours + 'h ' + mins + 'm' : mins + 'm';
 
+        /* Service status strip */
+        const svc = dash.services || {};
+        ['database', 'telephony', 'email', 'whatsapp', 'voice'].forEach(s => {
+          const dot = document.getElementById('svc-' + s);
+          if (dot) {
+            dot.className = 'dot ' + (svc[s] || 'not_configured');
+          }
+        });
+
         /* Health cards */
         const agents = dash.agents || [];
         const activeCount = agents.filter(a => a.status === 'active' || a.status === 'ACTIVE').length;
         document.getElementById('stat-agents').textContent = activeCount || agents.length;
         document.getElementById('stat-messages').textContent = (dash.usage?.totalMessages || 0).toLocaleString();
+        document.getElementById('stat-calls').textContent = (dash.usage?.totalCalls || 0).toLocaleString();
+        const vmCount = dash.usage?.pendingVoicemails || 0;
+        const vmEl = document.getElementById('stat-voicemails');
+        vmEl.textContent = vmCount;
+        vmEl.style.color = vmCount > 0 ? 'var(--warning)' : 'var(--accent)';
         document.getElementById('stat-cost').textContent = '$' + (dash.usage?.totalCost || 0).toFixed(2);
 
-        /* Progress bars */
+        /* Progress bars — use real daily/monthly spend and dynamic limits */
+        const limits = dash.usage?.limits || {};
         const actionsToday = dash.usage?.todayActions || 0;
-        const actionsLimit = 500;
+        const actionsLimit = limits.maxActionsDay || 500;
         const actionsPct = Math.min(100, (actionsToday / actionsLimit) * 100);
         document.getElementById('usage-actions').textContent = actionsToday + ' / ' + actionsLimit;
         const fillActions = document.getElementById('fill-actions');
         fillActions.style.width = actionsPct + '%';
         fillActions.className = 'progress-fill' + (actionsPct > 90 ? ' danger' : actionsPct > 70 ? ' warn' : '');
 
-        const spendDay = dash.usage?.totalCost || 0;
-        const spendDayLimit = 10;
+        const spendDay = dash.usage?.spendToday || 0;
+        const spendDayLimit = limits.maxSpendDay || 10;
         const spendDayPct = Math.min(100, (spendDay / spendDayLimit) * 100);
         document.getElementById('usage-spend-day').textContent = '$' + spendDay.toFixed(2) + ' / $' + spendDayLimit.toFixed(2);
         const fillSpendDay = document.getElementById('fill-spend-day');
         fillSpendDay.style.width = spendDayPct + '%';
         fillSpendDay.className = 'progress-fill' + (spendDayPct > 90 ? ' danger' : spendDayPct > 70 ? ' warn' : '');
 
-        const spendMonth = dash.usage?.totalCost || 0;
-        const spendMonthLimit = 100;
+        const spendMonth = dash.usage?.spendThisMonth || 0;
+        const spendMonthLimit = limits.maxSpendMonth || 100;
         const spendMonthPct = Math.min(100, (spendMonth / spendMonthLimit) * 100);
         document.getElementById('usage-spend-month').textContent = '$' + spendMonth.toFixed(2) + ' / $' + spendMonthLimit.toFixed(2);
         const fillSpendMonth = document.getElementById('fill-spend-month');
         fillSpendMonth.style.width = spendMonthPct + '%';
         fillSpendMonth.className = 'progress-fill' + (spendMonthPct > 90 ? ' danger' : spendMonthPct > 70 ? ' warn' : '');
+
+        /* Recent activity table */
+        const activityBody = document.getElementById('activity-body');
+        const activity = dash.recentActivity || [];
+        if (activity.length === 0) {
+          activityBody.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:1rem;">No activity yet</td></tr>';
+        } else {
+          activityBody.innerHTML = activity.map(a => {
+            const ch = (a.channel || a.actionType || '').toLowerCase();
+            const chLabel = (a.channel || a.actionType || 'unknown').toUpperCase();
+            const statusOk = (a.status || '').toLowerCase() === 'ok' || (a.status || '').toLowerCase() === 'success' || (a.status || '').toLowerCase() === 'delivered';
+            const statusBadge = statusOk
+              ? '<span class="badge badge-success">OK</span>'
+              : '<span class="badge badge-error">' + escHtml(String(a.status || 'unknown')) + '</span>';
+            const cost = typeof a.cost === 'number' ? '$' + a.cost.toFixed(4) : '--';
+            const ts = a.timestamp ? timeAgo(a.timestamp) : '--';
+            return '<tr>' +
+              '<td><span class="channel-badge ' + escAttr(ch) + '">' + escHtml(chLabel) + '</span></td>' +
+              '<td style="font-size:0.8rem;">' + escHtml(String(a.target || '--')) + '</td>' +
+              '<td>' + statusBadge + '</td>' +
+              '<td style="color:var(--text-muted);font-size:0.8rem;">' + cost + '</td>' +
+              '<td style="color:var(--text-muted);white-space:nowrap;font-size:0.8rem;">' + ts + '</td>' +
+              '</tr>';
+          }).join('');
+        }
 
         /* Alerts table */
         const alertsBody = document.getElementById('alerts-body');
@@ -1477,6 +1646,23 @@ export function renderAdminPage(specJson: string): string {
         }
         if (status.server?.isolationMode) {
           document.getElementById('server-isolation').value = status.server.isolationMode;
+        }
+        /* Translation status */
+        if (status.translation) {
+          document.getElementById('translation-enabled').value = status.translation.enabled ? 'true' : 'false';
+          const tBadge = document.getElementById('translation-badge');
+          if (tBadge) {
+            if (status.translation.enabled && status.translation.hasApiKey) {
+              tBadge.textContent = 'Active';
+              tBadge.className = 'badge badge-success';
+            } else if (status.translation.enabled) {
+              tBadge.textContent = 'No API Key';
+              tBadge.className = 'badge badge-warning';
+            } else {
+              tBadge.textContent = 'Disabled';
+              tBadge.className = 'badge';
+            }
+          }
         }
       } catch (err) {
         console.error('Status load error:', err);
@@ -1837,8 +2023,33 @@ export function renderAdminPage(specJson: string): string {
           '</div>' +
           '<div style="margin-top:0.75rem;"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();saveLimits(\\'' + escAttr(agentId) + '\\',' + idx + ')">Save Limits</button></div>' +
           '</div>' +
-          /* Right: Billing */
+          /* Right: Billing + Language */
           '<div class="edit-section">' +
+          '<h4>Agent Language</h4>' +
+          '<div class="field"><label>Operating Language</label>' +
+          '<select id="agent-lang-' + idx + '">' +
+          '<option value="en-US"' + (a.language === 'en-US' || !a.language ? ' selected' : '') + '>English (US)</option>' +
+          '<option value="en-GB"' + (a.language === 'en-GB' ? ' selected' : '') + '>English (UK)</option>' +
+          '<option value="es-ES"' + (a.language === 'es-ES' ? ' selected' : '') + '>Spanish (Spain)</option>' +
+          '<option value="es-MX"' + (a.language === 'es-MX' ? ' selected' : '') + '>Spanish (Mexico)</option>' +
+          '<option value="fr-FR"' + (a.language === 'fr-FR' ? ' selected' : '') + '>French</option>' +
+          '<option value="de-DE"' + (a.language === 'de-DE' ? ' selected' : '') + '>German</option>' +
+          '<option value="it-IT"' + (a.language === 'it-IT' ? ' selected' : '') + '>Italian</option>' +
+          '<option value="pt-BR"' + (a.language === 'pt-BR' ? ' selected' : '') + '>Portuguese (Brazil)</option>' +
+          '<option value="ja-JP"' + (a.language === 'ja-JP' ? ' selected' : '') + '>Japanese</option>' +
+          '<option value="ko-KR"' + (a.language === 'ko-KR' ? ' selected' : '') + '>Korean</option>' +
+          '<option value="zh-CN"' + (a.language === 'zh-CN' ? ' selected' : '') + '>Chinese (Mandarin)</option>' +
+          '<option value="ar-SA"' + (a.language === 'ar-SA' ? ' selected' : '') + '>Arabic</option>' +
+          '<option value="he-IL"' + (a.language === 'he-IL' ? ' selected' : '') + '>Hebrew</option>' +
+          '<option value="hi-IN"' + (a.language === 'hi-IN' ? ' selected' : '') + '>Hindi</option>' +
+          '<option value="nl-NL"' + (a.language === 'nl-NL' ? ' selected' : '') + '>Dutch</option>' +
+          '<option value="pl-PL"' + (a.language === 'pl-PL' ? ' selected' : '') + '>Polish</option>' +
+          '<option value="ru-RU"' + (a.language === 'ru-RU' ? ' selected' : '') + '>Russian</option>' +
+          '<option value="sv-SE"' + (a.language === 'sv-SE' ? ' selected' : '') + '>Swedish</option>' +
+          '<option value="tr-TR"' + (a.language === 'tr-TR' ? ' selected' : '') + '>Turkish</option>' +
+          '</select></div>' +
+          '<div style="margin-top:0.5rem;"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();saveAgentLanguage(\\'' + escAttr(agentId) + '\\',' + idx + ')">Save Language</button></div>' +
+          '<hr style="border-color:var(--border);margin:0.75rem 0;">' +
           '<h4>Billing</h4>' +
           '<div class="field"><label>Tier</label>' +
           '<select id="tier-' + idx + '" onchange="event.stopPropagation();onTierChange(' + idx + ')">' +
@@ -1937,6 +2148,35 @@ export function renderAdminPage(specJson: string): string {
       }
     }
 
+    async function saveAgentLanguage(agentId, idx) {
+      try {
+        const lang = document.getElementById('agent-lang-' + idx).value;
+        const res = await apiFetch('/admin/api/agents/' + encodeURIComponent(agentId) + '/language', {
+          method: 'POST',
+          body: JSON.stringify({ language: lang })
+        });
+        const data = await res.json();
+        showToast(data.success ? 'Language saved: ' + lang : (data.error || 'Failed'), data.success ? 'success' : 'error');
+        if (data.success) loadAgents();
+      } catch {
+        showToast('Network error', 'error');
+      }
+    }
+
+    async function saveTranslation() {
+      const enabled = document.getElementById('translation-enabled').value;
+      try {
+        const res = await apiFetch('/admin/api/save', {
+          method: 'POST',
+          body: JSON.stringify({ credentials: { TRANSLATION_ENABLED: enabled } })
+        });
+        const data = await res.json();
+        showToast(data.success ? 'Translation ' + (enabled === 'true' ? 'enabled' : 'disabled') : (data.message || 'Failed'), data.success ? 'success' : 'error');
+      } catch {
+        showToast('Network error', 'error');
+      }
+    }
+
     /* ── Swagger UI ───────────────────────────────────────────── */
     function initSwagger() {
       if (swaggerLoaded) return;
@@ -2000,6 +2240,16 @@ export function renderAdminPage(specJson: string): string {
 
     function escAttr(str) {
       return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function timeAgo(ts) {
+      const now = Date.now();
+      const then = new Date(ts).getTime();
+      const diff = Math.max(0, Math.floor((now - then) / 1000));
+      if (diff < 60) return diff + 's ago';
+      if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+      return Math.floor(diff / 86400) + 'd ago';
     }
   </script>
 </body>

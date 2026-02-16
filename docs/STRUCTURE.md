@@ -1,4 +1,4 @@
-<!-- version: 3.1 | updated: 2026-02-16 -->
+<!-- version: 3.2 | updated: 2026-02-16 -->
 
 # Project Structure
 
@@ -21,7 +21,8 @@ agentos-comms-mcp/
 │   │   ├── voicemail-dispatcher.ts # Dispatches pending voicemails when agent reconnects via SSE
 │   │   ├── billing.ts            # Billing module: markup, tiers, spending alerts
 │   │   ├── audio-converter.ts    # PCM ↔ mu-law 8kHz converter + WAV headers
-│   │   └── org-manager.ts        # Organization CRUD + token management (multi-tenant)
+│   │   ├── org-manager.ts        # Organization CRUD + token management (multi-tenant)
+│   │   └── translator.ts         # Language detection + translation via Anthropic API (Claude Haiku)
 │   │
 │   ├── providers/                # Pluggable provider adapters
 │   │   ├── interfaces.ts         # All 8 provider interfaces
@@ -124,7 +125,10 @@ agentos-comms-mcp/
 │       ├── swagger-page.ts      # Swagger UI HTML page (CDN-based, dark theme)
 │       ├── openapi-spec.ts      # OpenAPI 3.1 spec generator
 │       ├── scenario-runner.ts   # 8 demo scenarios for testing
-│       └── router.ts             # Express routes: /admin/setup, /admin/api/*, /admin/dashboard, /admin/api-docs
+│       ├── unified-admin.ts      # Unified admin SPA (dashboard, settings, agents, API docs, simulator)
+│       ├── simulator-page.ts    # Simulator tab HTML (chat agent, guided walkthrough)
+│       ├── simulator-api.ts     # Simulator API handlers (tools, execute, chat)
+│       └── router.ts             # Express routes: /admin, /admin/api/*, redirects from old pages
 │
 ├── storage/                      # Audio files served at /storage (auto-created)
 ├── data/                         # SQLite database file (auto-created)
@@ -154,7 +158,8 @@ agentos-comms-mcp/
 │   ├── billing.test.ts        # Dry test for billing & markup — 36 assertions
 │   ├── documentation.test.ts  # Dry test for documentation completeness — 52 assertions
 │   ├── end-to-end.test.ts     # Comprehensive end-to-end test — 49 assertions
-│   └── multi-tenant.test.ts   # Multi-tenant organization isolation test — 50 assertions
+│   ├── multi-tenant.test.ts   # Multi-tenant organization isolation test — 50 assertions
+│   └── translation.test.ts   # Translation feature test — 33 assertions
 │
 └── docs/
     ├── SPEC.md                   # Project specification (source of truth)

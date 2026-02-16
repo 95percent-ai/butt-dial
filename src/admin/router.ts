@@ -147,6 +147,90 @@ adminRouter.get("/admin/api/dashboard", adminAuth, (req: Request, res: Response)
       _totalCost = tc2[0]?.total || 0;
     } catch {}
 
+    // Spend today (org-scoped)
+    let _spendToday = 0;
+    try {
+      const st = db.query<{ total: number }>(
+        `SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE created_at >= date('now', 'start of day')${of.clause}`,
+        of.params
+      );
+      _spendToday = st[0]?.total || 0;
+    } catch {}
+
+    // Spend this month (org-scoped)
+    let _spendThisMonth = 0;
+    try {
+      const sm = db.query<{ total: number }>(
+        `SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE created_at >= date('now', 'start of month')${of.clause}`,
+        of.params
+      );
+      _spendThisMonth = sm[0]?.total || 0;
+    } catch {}
+
+    // Call stats (org-scoped)
+    let _totalCalls = 0;
+    let _todayCalls = 0;
+    try {
+      const tc = db.query<{ cnt: number }>(
+        `SELECT COUNT(*) as cnt FROM call_logs WHERE 1=1${of.clause}`,
+        of.params
+      );
+      _totalCalls = tc[0]?.cnt || 0;
+    } catch {}
+    try {
+      const tdc = db.query<{ cnt: number }>(
+        `SELECT COUNT(*) as cnt FROM call_logs WHERE created_at >= date('now', 'start of day')${of.clause}`,
+        of.params
+      );
+      _todayCalls = tdc[0]?.cnt || 0;
+    } catch {}
+
+    // Pending voicemails (org-scoped)
+    let _pendingVoicemails = 0;
+    try {
+      const pv = db.query<{ cnt: number }>(
+        `SELECT COUNT(*) as cnt FROM voicemail_messages WHERE status = 'pending'${of.clause}`,
+        of.params
+      );
+      _pendingVoicemails = pv[0]?.cnt || 0;
+    } catch {}
+
+    // Aggregated spending limits
+    let _limits: { maxActionsDay?: number; maxSpendDay?: number; maxSpendMonth?: number } = {};
+    try {
+      const lim = db.query<{ mad: number; msd: number; msm: number }>(
+        `SELECT MAX(max_actions_per_day) as mad, MAX(max_spend_per_day) as msd, MAX(max_spend_per_month) as msm FROM spending_limits WHERE 1=1${of.clause}`,
+        of.params
+      );
+      if (lim[0]) {
+        _limits = {
+          maxActionsDay: lim[0].mad || 500,
+          maxSpendDay: lim[0].msd || 10,
+          maxSpendMonth: lim[0].msm || 100,
+        };
+      }
+    } catch {}
+
+    // Recent activity feed (org-scoped)
+    let recentActivity: Array<Record<string, unknown>> = [];
+    try {
+      recentActivity = db.query<Record<string, unknown>>(
+        `SELECT action_type, channel, target_address, status, cost, created_at FROM usage_logs WHERE 1=1${of.clause} ORDER BY created_at DESC LIMIT 15`,
+        of.params
+      );
+    } catch {}
+
+    // Service status — inline provider checks
+    const providerStatus = getProviderStatus();
+    const services = {
+      database: "ok" as string,
+      telephony: providerStatus.twilio?.configured ? "ok" : "not_configured",
+      email: providerStatus.resend?.configured ? "ok" : "not_configured",
+      whatsapp: providerStatus.twilio?.configured ? "ok" : "not_configured",
+      voice: (providerStatus.elevenlabs?.configured || providerStatus.voice?.configured) ? "ok" : "not_configured",
+      translation: (config.translationEnabled && config.anthropicApiKey) ? "ok" : config.translationEnabled ? "no_api_key" : "disabled",
+    };
+
     // Recent audit log entries as "alerts" (org-scoped)
     let alerts: Array<Record<string, unknown>> = [];
     try {
@@ -164,7 +248,26 @@ adminRouter.get("/admin/api/dashboard", adminAuth, (req: Request, res: Response)
         totalMessages: totalMessages[0]?.cnt || 0,
         todayActions: _todayActions,
         totalCost: _totalCost,
+        spendToday: _spendToday,
+        spendThisMonth: _spendThisMonth,
+        totalCalls: _totalCalls,
+        todayCalls: _todayCalls,
+        pendingVoicemails: _pendingVoicemails,
+        limits: {
+          maxActionsDay: _limits.maxActionsDay || 500,
+          maxSpendDay: _limits.maxSpendDay || 10,
+          maxSpendMonth: _limits.maxSpendMonth || 100,
+        },
       },
+      services,
+      recentActivity: recentActivity.map((r) => ({
+        actionType: r.action_type || "",
+        channel: r.channel || "",
+        target: r.target_address || "",
+        status: r.status || "",
+        cost: r.cost || 0,
+        timestamp: r.created_at || "",
+      })),
       alerts: alerts.map((a) => ({
         severity: String(a.severity || "INFO").toUpperCase(),
         message: a.message || "System event",
@@ -172,7 +275,7 @@ adminRouter.get("/admin/api/dashboard", adminAuth, (req: Request, res: Response)
       })),
     });
   } catch (err) {
-    res.json({ agents: [], usage: { totalMessages: 0, todayActions: 0, totalCost: 0 }, alerts: [] });
+    res.json({ agents: [], usage: { totalMessages: 0, todayActions: 0, totalCost: 0, spendToday: 0, spendThisMonth: 0, totalCalls: 0, todayCalls: 0, pendingVoicemails: 0, limits: { maxActionsDay: 500, maxSpendDay: 10, maxSpendMonth: 100 } }, services: { database: "ok", telephony: "not_configured", email: "not_configured", whatsapp: "not_configured", voice: "not_configured" }, recentActivity: [], alerts: [] });
   }
 });
 
@@ -228,7 +331,7 @@ adminRouter.get("/admin/api/agents", adminAuth, (req: Request, res: Response) =>
     const of = orgFilter(getAuthInfo(req));
 
     const agents = db.query<Record<string, unknown>>(
-      `SELECT agent_id, display_name, phone_number, email_address, whatsapp_sender_sid, status
+      `SELECT agent_id, display_name, phone_number, email_address, whatsapp_sender_sid, status, language
        FROM agent_channels WHERE 1=1${of.clause} ORDER BY provisioned_at DESC LIMIT 100`,
       of.params
     );
@@ -307,6 +410,25 @@ adminRouter.post("/admin/api/agents/:agentId/billing", adminAuth, (req: Request,
     const tierLimits = getTierLimits(updated.tier);
 
     res.json({ success: true, agentId, billingConfig: updated, tierLimits });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
+/** Update agent language */
+adminRouter.post("/admin/api/agents/:agentId/language", adminAuth, (req: Request, res: Response) => {
+  try {
+    const agentId = String(req.params.agentId);
+    const { language } = req.body ?? {};
+
+    if (!language || typeof language !== "string") {
+      res.status(400).json({ success: false, error: "language is required" });
+      return;
+    }
+
+    const db = getProvider("database");
+    db.run("UPDATE agent_channels SET language = ? WHERE agent_id = ?", [language, agentId]);
+    res.json({ success: true, agentId, language });
   } catch (err) {
     res.status(500).json({ success: false, error: String(err instanceof Error ? err.message : err) });
   }
@@ -391,6 +513,7 @@ adminRouter.post("/admin/api/save", adminAuth, (req: Request, res: Response) => 
     "OPENAI_API_KEY",
     "IDENTITY_MODE",
     "ISOLATION_MODE",
+    "TRANSLATION_ENABLED",
   ]);
 
   const filtered: Record<string, string> = {};
@@ -417,6 +540,78 @@ adminRouter.post("/admin/api/save", adminAuth, (req: Request, res: Response) => 
 adminRouter.get("/admin/api/simulator/tools", adminAuth, handleGetTools);
 adminRouter.post("/admin/api/simulator/execute", adminAuth, handleExecuteTool);
 adminRouter.post("/admin/api/simulator/chat", adminAuth, handleChat);
+
+/** Outbound AI call — admin can trigger an outbound call with a custom persona */
+adminRouter.post("/admin/api/outbound-call", adminAuth, async (req: Request, res: Response) => {
+  const { to, systemPrompt, greeting, voice, language, agentId } = req.body as Record<string, string>;
+
+  if (!to) {
+    res.status(400).json({ error: "Missing 'to' phone number" });
+    return;
+  }
+
+  const agent = agentId || "test-agent-001";
+  const sessionId = randomUUID();
+
+  // Store call config so the WebSocket handler picks up the custom system prompt
+  const { storeCallConfig } = await import("../webhooks/voice-sessions.js");
+  storeCallConfig(sessionId, {
+    agentId: agent,
+    systemPrompt: systemPrompt || config.voiceDefaultSystemPrompt,
+    greeting: greeting || "Hello",
+    voice: voice || config.voiceDefaultVoice || "default",
+    language: language || config.voiceDefaultLanguage || "en-US",
+  });
+
+  // Build webhook URL
+  const webhookUrl = `${config.webhookBaseUrl}/webhooks/${agent}/outbound-voice?session=${sessionId}`;
+  const statusUrl = `${config.webhookBaseUrl}/webhooks/${agent}/voice/status`;
+
+  // Place the call via Twilio REST API directly (bypass provider layer to avoid agent auth)
+  const twilioSid = config.twilioAccountSid;
+  const twilioToken = config.twilioAuthToken;
+  const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+
+  if (!twilioSid || !twilioToken || !fromNumber) {
+    res.status(500).json({ error: "Twilio credentials not configured" });
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      To: to,
+      From: fromNumber,
+      Url: webhookUrl,
+      StatusCallback: statusUrl,
+      StatusCallbackEvent: "initiated ringing answered completed",
+    });
+
+    const authStr = Buffer.from(`${twilioSid}:${twilioToken}`).toString("base64");
+    const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Calls.json`, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${authStr}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params.toString(),
+    });
+
+    const data = await response.json() as Record<string, unknown>;
+
+    if (!response.ok) {
+      logger.error("outbound_call_failed", { status: response.status, error: data });
+      res.status(response.status).json({ error: data });
+      return;
+    }
+
+    logger.info("outbound_call_placed", { callSid: data.sid, to, sessionId });
+    res.json({ success: true, callSid: data.sid, sessionId, to, from: fromNumber, webhookUrl });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    logger.error("outbound_call_error", { error: errMsg });
+    res.status(500).json({ error: errMsg });
+  }
+});
 
 /** Deploy — restart the server so new .env values take effect */
 adminRouter.post("/admin/api/deploy", adminAuth, (_req: Request, res: Response) => {

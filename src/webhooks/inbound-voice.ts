@@ -13,7 +13,8 @@ import type { Request, Response } from "express";
 import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
-import { getCallConfig, removeCallConfig } from "./voice-sessions.js";
+import { getCallConfig } from "./voice-sessions.js";
+import { getAgentLanguage } from "../lib/translator.js";
 
 interface AgentRow {
   agent_id: string;
@@ -93,16 +94,17 @@ export async function handleInboundVoice(req: Request, res: Response): Promise<v
     [messageId, agentId, body.From, body.To, null, body.CallSid || null, orgId]
   );
 
-  // Build TwiML via voice orchestrator
+  // Build TwiML via voice orchestrator — use agent's language instead of global default
   const voiceOrch = getProvider("voiceOrchestration");
   const wsUrl = buildWsUrl(agentId);
+  const agentLang = getAgentLanguage(db, agentId);
 
   const twiml = voiceOrch.getConnectionTwiml({
     agentId,
     websocketUrl: wsUrl,
     voice: config.voiceDefaultVoice,
     greeting: config.voiceDefaultGreeting,
-    language: config.voiceDefaultLanguage,
+    language: agentLang,
   });
 
   logger.info("inbound_voice_twiml_sent", { agentId, messageId, wsUrl });
@@ -125,11 +127,9 @@ export async function handleOutboundVoice(req: Request, res: Response): Promise<
   });
 
   // Read call config from session store (set by comms_make_call)
+  // NOTE: Don't remove it here — the WebSocket handler needs it for the system prompt.
+  // The WS handler's setup phase will clean it up.
   const callConfig = sessionId ? getCallConfig(sessionId) : undefined;
-
-  if (sessionId) {
-    removeCallConfig(sessionId); // one-time use
-  }
 
   const voiceOrch = getProvider("voiceOrchestration");
   const wsUrl = buildWsUrl(

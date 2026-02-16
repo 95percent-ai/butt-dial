@@ -28,6 +28,7 @@ import {
   getCallConfig,
   type VoiceConversation,
 } from "./voice-sessions.js";
+import { translate, needsTranslation, getAgentLanguage } from "../lib/translator.js";
 
 /** Extract agentId from the WebSocket URL path: /webhooks/:agentId/voice-ws */
 function extractAgentId(url: string | undefined): string | null {
@@ -411,6 +412,11 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
         const agentSession = agentId ? getAgentSession(agentId) : undefined;
         const mode = agentSession ? "agent" : "answering-machine";
 
+        // Resolve languages for translation bridge
+        const db = getProvider("database");
+        const agentLang = agentId ? getAgentLanguage(db, agentId) : config.voiceDefaultLanguage;
+        const callerLang = callConfig?.callerLanguage || agentLang;
+
         const conv: VoiceConversation = {
           agentId: agentId || "unknown",
           callSid: callSid || "unknown",
@@ -420,6 +426,8 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
           history: [],
           abortController: null,
           mode,
+          callerLanguage: callerLang,
+          agentLanguage: agentLang,
         };
 
         storeConversation(callSid || "unknown", conv);
@@ -467,8 +475,21 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
           promptLength: voicePrompt.length,
         });
 
-        // Add user message to history
-        conv.history.push({ role: "user", content: voicePrompt });
+        // Translate inbound transcription: caller's language → agent's language
+        let translatedPrompt = voicePrompt;
+        if (conv.callerLanguage && conv.agentLanguage && needsTranslation(conv.callerLanguage, conv.agentLanguage)) {
+          translatedPrompt = await translate(voicePrompt, conv.callerLanguage, conv.agentLanguage);
+          logger.info("voice_inbound_translated", {
+            callSid,
+            from: conv.callerLanguage,
+            to: conv.agentLanguage,
+            originalLength: voicePrompt.length,
+            translatedLength: translatedPrompt.length,
+          });
+        }
+
+        // Add translated message to history (agent sees their language)
+        conv.history.push({ role: "user", content: translatedPrompt });
 
         // Track caller messages for voicemail collection in answering-machine mode
         if (conv.mode === "answering-machine") {
@@ -504,11 +525,25 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
           responseText = UNAVAILABLE_MESSAGE;
         }
 
-        // Send complete response to Twilio
-        if (ws.readyState === ws.OPEN) {
-          ws.send(JSON.stringify({ type: "text", token: responseText, last: true }));
+        // Translate outbound response: agent's language → caller's language
+        let spokenText = responseText;
+        if (conv.callerLanguage && conv.agentLanguage && needsTranslation(conv.agentLanguage, conv.callerLanguage)) {
+          spokenText = await translate(responseText, conv.agentLanguage, conv.callerLanguage);
+          logger.info("voice_outbound_translated", {
+            callSid,
+            from: conv.agentLanguage,
+            to: conv.callerLanguage,
+            originalLength: responseText.length,
+            translatedLength: spokenText.length,
+          });
         }
 
+        // Send translated response to Twilio (caller hears their language)
+        if (ws.readyState === ws.OPEN) {
+          ws.send(JSON.stringify({ type: "text", token: spokenText, last: true }));
+        }
+
+        // Store agent's original response in history (untranslated)
         conv.history.push({ role: "assistant", content: responseText });
 
         logger.info("voice_ws_response_complete", {

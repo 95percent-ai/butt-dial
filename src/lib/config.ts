@@ -124,6 +124,12 @@ const configSchema = z.object({
     .transform((v) => v !== "false")
     .default("true"),
 
+  // Translation
+  translationEnabled: z
+    .string()
+    .transform((v) => v === "true")
+    .default("false"),
+
   // Billing
   billingMarkupPercent: z.coerce.number().default(0),
 
@@ -203,6 +209,7 @@ function loadConfig() {
     webhookIpAllowlist: process.env.WEBHOOK_IP_ALLOWLIST,
     ipDenylist: process.env.IP_DENYLIST,
     anomalyDetectorEnabled: process.env.ANOMALY_DETECTOR_ENABLED,
+    translationEnabled: process.env.TRANSLATION_ENABLED,
     billingMarkupPercent: process.env.BILLING_MARKUP_PERCENT,
     demoMode: process.env.DEMO_MODE,
   };

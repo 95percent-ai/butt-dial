@@ -1,4 +1,4 @@
-<!-- version: 4.1 | updated: 2026-02-16 -->
+<!-- version: 4.2 | updated: 2026-02-16 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -299,3 +299,20 @@ Hard security boundaries between organizations. No data leaks across tenants.
 - [x] **Tool scoping** — all 16 tool files + 5 webhook files + 4 lib files updated with org_id
 - [x] **Login bug fix** — CSS specificity fix for eye toggle button overlap
 - [x] **Tests** — 50/50 multi-tenant assertions pass (schema, org CRUD, data isolation, admin API, tokens, duplicate protection)
+
+## Phase 22 — Feature: Dynamic Language + Real-Time Translation
+Per-agent language with automatic translation across all channels.
+
+- [x] **Translator module** — `src/lib/translator.ts` with `detectLanguage()`, `translate()`, `needsTranslation()`, `getAgentLanguage()` using Anthropic API (Claude Haiku)
+- [x] **Config** — `TRANSLATION_ENABLED` boolean (default: false), reuses existing `ANTHROPIC_API_KEY`
+- [x] **DB migration** — `language` column on `agent_channels`, `body_original` + `source_language` on `messages`
+- [x] **Voice sessions** — `callerLanguage` + `agentLanguage` on `VoiceCallConfig` and `VoiceConversation`
+- [x] **Voice translation bridge** — inbound transcription translated to agent's language, outbound response translated to caller's language
+- [x] **Inbound SMS translation** — auto-detect sender language, translate to agent's language, store original in `body_original`
+- [x] **Inbound WhatsApp translation** — same pattern as SMS
+- [x] **Inbound voice** — uses agent's language instead of global default for TwiML
+- [x] **`comms_make_call` tool** — added `targetLanguage` param (language of person being called)
+- [x] **`comms_send_message` tool** — added `targetLanguage` param (translates outbound before sending)
+- [x] **Admin UI** — language dropdown in agent edit panel, translation toggle card in settings
+- [x] **Admin API** — `POST /admin/api/agents/:agentId/language`, `TRANSLATION_ENABLED` in save list, translation in dashboard services
+- [x] **Tests** — 33/33 translation assertions pass, 49/49 end-to-end regression pass

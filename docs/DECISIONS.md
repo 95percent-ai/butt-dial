@@ -1,4 +1,4 @@
-<!-- version: 3.3 | updated: 2026-02-16 -->
+<!-- version: 3.4 | updated: 2026-02-16 -->
 
 # Decisions Log
 
@@ -322,3 +322,24 @@ All 7 decisions follow a pattern: **make it configurable, with sensible defaults
 **Date:** 2026-02-16
 **What:** Changed `.login-box button` to `.login-box button[type="submit"]` to prevent submit button styling from applying to the password eye toggle.
 **Why:** CSS specificity issue — the broad selector matched all buttons in the login box. Attribute selector targets only the submit button.
+
+## DEC-055: Per-Agent Language — Column on agent_channels
+**Date:** 2026-02-16
+**What:** Added `language TEXT DEFAULT 'en-US'` column to `agent_channels`. Each agent has its own operating language. Inbound voice uses agent's language for Twilio STT instead of global default.
+**Why:** Different agents may serve different markets/languages. Global default is insufficient when agents coexist in multiple languages. The agent's language determines what they "hear" and "read".
+
+## DEC-056: Translation Engine — Anthropic API via Claude Haiku
+**Date:** 2026-02-16
+**What:** Translation uses the existing `ANTHROPIC_API_KEY` with Claude Haiku (cheapest/fastest model). No new API keys or paid dependencies. Feature gated behind `TRANSLATION_ENABLED=true` (default: false).
+**Why:** Anthropic API is already optionally configured for the answering machine. Haiku is ~$0.001 per translation — trivial cost. Keeping it off by default means zero cost until explicitly enabled.
+**Alternatives considered:** Google Translate API (requires new key), DeepL (new dependency), local models (too slow for real-time voice).
+
+## DEC-057: Translation Architecture — Stateless, No Cache
+**Date:** 2026-02-16
+**What:** Each translation is an independent API call. No translation memory, no caching, no batching.
+**Why:** Simplicity. Voice calls need real-time translation (<1s latency). Caching adds complexity with marginal benefit — most messages are unique. Haiku response time is fast enough for voice.
+
+## DEC-058: Original Message Preservation — body_original Column
+**Date:** 2026-02-16
+**What:** Added `body_original TEXT` and `source_language TEXT` columns to the `messages` table. When a message is translated, the original is stored in `body_original` and the translated version in `body`.
+**Why:** Audit trail. The agent sees the translated message, but the original is preserved for debugging, compliance, and potential re-translation. `source_language` enables language analytics.

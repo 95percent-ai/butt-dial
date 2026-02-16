@@ -1,4 +1,4 @@
-<!-- version: 1.6 | updated: 2026-02-15 -->
+<!-- version: 1.7 | updated: 2026-02-16 -->
 
 # AgentOS Communication MCP Server — Spec
 
@@ -188,6 +188,40 @@ The WebSocket handler is provider-agnostic — it only deals with text in/out.
 
 ---
 
+## Translation & Language
+
+Each agent has its own **operating language** (`agent_channels.language`, default: `en-US`). When the other side of a communication speaks a different language, the system translates in real-time. Translation is off by default and requires explicit enablement.
+
+### How it works
+
+| Direction | Language Resolution | Translation |
+|-----------|-------------------|-------------|
+| **Outbound call** | Agent language from DB, target language from `targetLanguage` tool param | Agent's response → caller's language, caller's speech → agent's language |
+| **Inbound call** | Agent language from DB, caller language = agent's language (STT needs it at call start) | No auto-detect — caller language set at call setup |
+| **Outbound SMS/WhatsApp/email** | Agent language from DB, target language from `targetLanguage` tool param | Message body translated before sending |
+| **Inbound SMS/WhatsApp** | Agent language from DB, sender language auto-detected from message text | Message translated to agent's language, original preserved |
+
+### Configuration
+
+- `TRANSLATION_ENABLED` — boolean, default `false`. Must be explicitly enabled.
+- Uses existing `ANTHROPIC_API_KEY` (Claude Haiku) — no new API keys or paid dependencies.
+- Each translation costs ~$0.001-0.005. Voice calls: ~$0.002-0.01 per turn (2 translations).
+- When disabled, missing API key, or same language: text passes through unchanged.
+- All translation calls wrapped in try/catch — failure = pass through untranslated.
+
+### Data preservation
+
+When a message is translated, the original is stored in `messages.body_original` and the detected language in `messages.source_language`. The translated version goes in `messages.body`. This provides an audit trail and enables re-translation if needed.
+
+### What it does NOT do
+
+- No language detection for inbound voice (Twilio STT needs language set at call start)
+- No mid-call language switching (ConversationRelay language is fixed per call)
+- No translation memory or caching (each request is independent)
+- No new paid dependencies
+
+---
+
 ## Agent-to-Agent Communication
 
 Agents communicate with each other through the same channels used for humans. Agent A can call Agent B's phone number, and Agent B's voice AI picks up. The communication layer is identity-agnostic.
@@ -317,3 +351,4 @@ When complete, the server should:
 19. Web-based setup wizard
 20. Comprehensive documentation
 21. Hardened against attacks
+22. Per-agent language with real-time translation across all channels

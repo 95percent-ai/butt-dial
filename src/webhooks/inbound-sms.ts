@@ -10,6 +10,7 @@ import type { Request, Response } from "express";
 import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
+import { detectLanguage, translate, needsTranslation, getAgentLanguage } from "../lib/translator.js";
 
 interface AgentRow {
   agent_id: string;
@@ -74,17 +75,40 @@ export async function handleInboundSms(req: Request, res: Response): Promise<voi
     if (orgRows.length > 0 && orgRows[0].org_id) orgId = orgRows[0].org_id;
   } catch {}
 
-  // Store message in database
+  // Detect language and translate if needed
+  const originalBody = body.Body || "";
+  let translatedBody = originalBody;
+  let sourceLanguage: string | null = null;
+  const agentLang = getAgentLanguage(db, String(agentId));
+
+  if (originalBody && config.translationEnabled) {
+    sourceLanguage = await detectLanguage(originalBody);
+    if (sourceLanguage && sourceLanguage !== "unknown" && needsTranslation(sourceLanguage, agentLang)) {
+      translatedBody = await translate(originalBody, sourceLanguage, agentLang);
+      logger.info("inbound_sms_translated", {
+        agentId,
+        from: body.From,
+        sourceLanguage,
+        agentLanguage: agentLang,
+        originalLength: originalBody.length,
+        translatedLength: translatedBody.length,
+      });
+    }
+  }
+
+  // Store message in database (translated body in body, original in body_original)
   const messageId = randomUUID();
   db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, media_url, media_type, external_id, status, org_id)
-     VALUES (?, ?, 'sms', 'inbound', ?, ?, ?, ?, ?, ?, 'received', ?)`,
+    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, body_original, source_language, media_url, media_type, external_id, status, org_id)
+     VALUES (?, ?, 'sms', 'inbound', ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?)`,
     [
       messageId,
       agentId,
       body.From,
       body.To,
-      body.Body || null,
+      translatedBody || null,
+      originalBody !== translatedBody ? originalBody : null,
+      sourceLanguage,
       body.MediaUrl0 || null,
       body.MediaContentType0 || null,
       body.MessageSid || null,
@@ -106,7 +130,9 @@ export async function handleInboundSms(req: Request, res: Response): Promise<voi
     direction: "inbound",
     from: body.From,
     to: body.To,
-    body: body.Body || "",
+    body: translatedBody,
+    bodyOriginal: originalBody !== translatedBody ? originalBody : undefined,
+    sourceLanguage: sourceLanguage || undefined,
     mediaUrl: body.MediaUrl0 || null,
     mediaType: body.MediaContentType0 || null,
     externalId: body.MessageSid || null,
