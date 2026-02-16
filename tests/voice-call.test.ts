@@ -168,16 +168,22 @@ async function main() {
         }));
       }, 200);
 
-      // Wait for response then close
+      // Wait for response then close (8s for Anthropic API call)
       setTimeout(() => {
         ws.close();
         resolve({ messages, connected });
-      }, 2000);
+      }, 8000);
     });
 
     ws.on("message", (data) => {
       try {
-        messages.push(JSON.parse(data.toString()));
+        const parsed = JSON.parse(data.toString());
+        messages.push(parsed);
+        // Close early when we get a complete response
+        if (parsed.last === true) {
+          ws.close();
+          resolve({ messages, connected });
+        }
       } catch {
         messages.push(data.toString());
       }
@@ -197,10 +203,11 @@ async function main() {
     assert(typeof firstMsg.token === "string", "response has token string");
     assert(firstMsg.last === true, "response has last: true (complete message, not streamed)");
 
-    // No agent connected + no Anthropic key in demo mode → hard-coded unavailable message
-    const token = firstMsg.token as string;
+    // No agent connected → answering machine (Anthropic) or hard-coded fallback
+    const token = (firstMsg.token as string).toLowerCase();
     assert(
-      token.includes("No one is available") || token.includes("unavailable") || token.includes("try again"),
+      token.includes("no one is available") || token.includes("unavailable") || token.includes("try again") ||
+      token.includes("not available") || token.includes("isn't available") || token.includes("leave a message"),
       "fallback message indicates unavailability"
     );
   }
