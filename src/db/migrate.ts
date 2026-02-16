@@ -67,6 +67,11 @@ export function runMigrations(): void {
     }
   }
 
+  // User accounts for registration
+  const accountsSchemaPath = path.join(projectRoot, "src", "db", "schema-accounts.sql");
+  const accountsSchema = fs.readFileSync(accountsSchemaPath, "utf-8");
+  db.exec(accountsSchema);
+
   // Phase 22: Translation — add language column to agent_channels, body_original + source_language to messages
   try {
     db.run("ALTER TABLE agent_channels ADD COLUMN language TEXT DEFAULT 'en-US'");
@@ -80,6 +85,11 @@ export function runMigrations(): void {
   }
   try {
     db.run("ALTER TABLE messages ADD COLUMN source_language TEXT");
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.run("ALTER TABLE audit_log ADD COLUMN org_id TEXT DEFAULT 'default'");
   } catch {
     // Column already exists
   }

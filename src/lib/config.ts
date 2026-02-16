@@ -130,6 +130,12 @@ const configSchema = z.object({
     .transform((v) => v === "true")
     .default("false"),
 
+  // Registration
+  registrationEnabled: z
+    .string()
+    .transform((v) => v === "true")
+    .default("false"),
+
   // Billing
   billingMarkupPercent: z.coerce.number().default(0),
 
@@ -210,6 +216,7 @@ function loadConfig() {
     ipDenylist: process.env.IP_DENYLIST,
     anomalyDetectorEnabled: process.env.ANOMALY_DETECTOR_ENABLED,
     translationEnabled: process.env.TRANSLATION_ENABLED,
+    registrationEnabled: process.env.REGISTRATION_ENABLED,
     billingMarkupPercent: process.env.BILLING_MARKUP_PERCENT,
     demoMode: process.env.DEMO_MODE,
   };

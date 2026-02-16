@@ -425,8 +425,8 @@ export function renderAdminPage(specJson: string): string {
     /* ── Dashboard ───────────────────────────────────────────────── */
     .health-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 0.65rem;
       margin-bottom: 1.5rem;
     }
 
@@ -434,19 +434,19 @@ export function renderAdminPage(specJson: string): string {
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 1.25rem;
+      padding: 0.75rem 0.5rem;
       text-align: center;
     }
 
     .health-card .big-number {
-      font-size: 2rem;
+      font-size: 1.35rem;
       font-weight: 700;
       color: var(--accent);
       line-height: 1.2;
     }
 
     .health-card .card-label {
-      font-size: 0.75rem;
+      font-size: 0.65rem;
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -482,6 +482,130 @@ export function renderAdminPage(specJson: string): string {
     .chart-wrapper canvas {
       width: 100% !important;
     }
+
+    .chart-empty {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      min-height: 180px;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .chart-empty.visible {
+      display: flex;
+    }
+
+    .chart-wrapper canvas.hidden-chart {
+      display: none;
+    }
+
+    /* ── Analytics Section ─────────────────────────────────────── */
+    .analytics-row {
+      display: grid;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .analytics-row-3 {
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    .analytics-row-2 {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .analytics-big-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 180px;
+    }
+
+    .analytics-big-stat .big-value {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: var(--success);
+      line-height: 1;
+    }
+
+    .analytics-big-stat .big-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-top: 0.5rem;
+    }
+
+    .analytics-big-stat .sub-stats {
+      display: flex;
+      gap: 1.5rem;
+      margin-top: 0.75rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .analytics-big-stat .sub-stats .stat-ok { color: var(--success); }
+    .analytics-big-stat .sub-stats .stat-fail { color: var(--error); }
+
+    /* ── Billing Note ──────────────────────────────────────────── */
+    .info-note {
+      border-left: 3px solid var(--accent);
+      padding: 0.75rem 1rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .info-note a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .info-note a:hover { text-decoration: underline; }
+
+    /* ── Top Contacts Table ────────────────────────────────────── */
+    .contacts-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.825rem;
+    }
+
+    .contacts-table th {
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .contacts-table td {
+      padding: 0.55rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .contacts-table tr:last-child td { border-bottom: none; }
+
+    /* ── Activity Search ───────────────────────────────────────── */
+    .activity-search {
+      padding: 0.4rem 0.65rem;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.8rem;
+      outline: none;
+      width: 200px;
+      transition: border-color 0.2s;
+    }
+
+    .activity-search:focus { border-color: var(--border-focus); }
 
     /* ── Progress Bars ──────────────────────────────────────────── */
     .progress-section { margin-bottom: 1.5rem; }
@@ -786,9 +910,16 @@ export function renderAdminPage(specJson: string): string {
       .app-layout { flex-direction: column; }
       .content { margin-left: 0; padding: 1rem; }
       .charts-grid { grid-template-columns: 1fr; }
-      .health-grid { grid-template-columns: repeat(2, 1fr); }
+      .health-grid { grid-template-columns: repeat(3, 1fr); }
+      .analytics-row-3 { grid-template-columns: 1fr; }
+      .analytics-row-2 { grid-template-columns: 1fr; }
       .edit-panel-inner { grid-template-columns: 1fr; }
       .inline-fields { grid-template-columns: 1fr 1fr; }
+      .activity-search { width: 140px; }
+    }
+
+    @media (max-width: 480px) {
+      .health-grid { grid-template-columns: repeat(2, 1fr); }
     }
   </style>
 </head>
@@ -815,6 +946,9 @@ export function renderAdminPage(specJson: string): string {
         <button type="submit">Sign In</button>
       </form>
       <div class="login-error" id="login-error"></div>
+      <p style="text-align:center;margin-top:16px;font-size:13px;color:#8b949e;">
+        Don't have an account? <a href="/auth/login" style="color:#58a6ff;">Register</a>
+      </p>
     </div>
   </div>
 
@@ -883,11 +1017,12 @@ export function renderAdminPage(specJson: string): string {
         <h1 class="page-title">Dashboard</h1>
 
         <div class="service-strip" id="service-strip">
-          <div class="service-dot"><span class="dot" id="svc-database"></span> Database</div>
-          <div class="service-dot"><span class="dot" id="svc-telephony"></span> Telephony</div>
+          <div class="service-dot"><span class="dot" id="svc-database"></span> System</div>
+          <div class="service-dot"><span class="dot" id="svc-telephony"></span> Phone &amp; SMS</div>
           <div class="service-dot"><span class="dot" id="svc-email"></span> Email</div>
           <div class="service-dot"><span class="dot" id="svc-whatsapp"></span> WhatsApp</div>
-          <div class="service-dot"><span class="dot" id="svc-voice"></span> Voice</div>
+          <div class="service-dot"><span class="dot" id="svc-voice"></span> Voice AI</div>
+          <div class="service-dot"><span class="dot" id="svc-assistant"></span> Assistant</div>
         </div>
 
         <div class="health-grid">
@@ -922,12 +1057,14 @@ export function renderAdminPage(specJson: string): string {
             <h3>Messages Over Time</h3>
             <div class="chart-wrapper">
               <canvas id="messages-chart"></canvas>
+              <div class="chart-empty" id="messages-chart-empty">No data yet</div>
             </div>
           </div>
           <div class="chart-card">
             <h3>Cost by Channel</h3>
             <div class="chart-wrapper">
               <canvas id="cost-chart"></canvas>
+              <div class="chart-empty" id="cost-chart-empty">No data yet</div>
             </div>
           </div>
         </div>
@@ -935,6 +1072,7 @@ export function renderAdminPage(specJson: string): string {
         <div class="card progress-section">
           <div class="card-header">
             <span class="card-title">Usage vs Limits</span>
+            <a href="#agents" onclick="switchTab('agents')" style="font-size:0.75rem;color:var(--accent);text-decoration:none;font-weight:600;">Manage Limits</a>
           </div>
           <div class="progress-item">
             <div class="progress-header">
@@ -957,11 +1095,85 @@ export function renderAdminPage(specJson: string): string {
             </div>
             <div class="progress-bar"><div class="progress-fill" id="fill-spend-month" style="width:0%"></div></div>
           </div>
+          <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.5rem;">Limits are configured per-agent in the Agents tab.</div>
+        </div>
+
+        <!-- Billing Note -->
+        <div class="card info-note">
+          This system tracks provider costs and applies markup per agent. It does not process payments.
+          <a href="#agents" onclick="switchTab('agents')">Configure per-agent billing</a>
+        </div>
+
+        <!-- Analytics Section -->
+        <div class="card-header" style="margin-top:0.5rem;margin-bottom:0.75rem;">
+          <span class="card-title" style="font-size:1rem;">Analytics (30 days)</span>
+        </div>
+
+        <div class="analytics-row analytics-row-3">
+          <div class="chart-card">
+            <h3>Delivery Rate</h3>
+            <div class="analytics-big-stat" id="analytics-delivery">
+              <div class="chart-empty visible">No data yet</div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Channel Distribution</h3>
+            <div class="chart-wrapper">
+              <canvas id="channel-dist-chart"></canvas>
+              <div class="chart-empty" id="channel-dist-empty">No data yet</div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Cost Trend (14d)</h3>
+            <div class="chart-wrapper">
+              <canvas id="cost-trend-chart"></canvas>
+              <div class="chart-empty" id="cost-trend-empty">No data yet</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="analytics-row analytics-row-2">
+          <div class="chart-card">
+            <h3>Peak Hours</h3>
+            <div class="chart-wrapper">
+              <canvas id="peak-hours-chart"></canvas>
+              <div class="chart-empty" id="peak-hours-empty">No data yet</div>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3>Error Rate (7d)</h3>
+            <div class="chart-wrapper">
+              <canvas id="error-rate-chart"></canvas>
+              <div class="chart-empty" id="error-rate-empty">No data yet</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top Contacts -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">Top Contacts</span>
+          </div>
+          <table class="contacts-table">
+            <thead>
+              <tr>
+                <th>Contact</th>
+                <th>Channel</th>
+                <th>Actions</th>
+                <th>Cost</th>
+                <th>Last Activity</th>
+              </tr>
+            </thead>
+            <tbody id="top-contacts-body">
+              <tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:1rem;">No contacts yet</td></tr>
+            </tbody>
+          </table>
         </div>
 
         <div class="card">
           <div class="card-header">
             <span class="card-title">Recent Activity</span>
+            <input type="text" class="activity-search" id="activity-search" placeholder="Filter activity..." oninput="filterActivity()">
           </div>
           <table class="activity-table">
             <thead>
@@ -1237,9 +1449,15 @@ export function renderAdminPage(specJson: string): string {
     const API_SPEC = ${specJson};
     let messagesChart = null;
     let costChart = null;
+    let channelDistChart = null;
+    let costTrendChart = null;
+    let peakHoursChart = null;
+    let errorRateChart = null;
     let dashboardTimer = null;
     let swaggerLoaded = false;
     let tierPresets = {};
+    let allActivity = [];
+    let analyticsTimer = null;
 
     /* ── Token visibility toggle ─────────────────────────────── */
     function toggleTokenVisibility() {
@@ -1384,12 +1602,17 @@ export function renderAdminPage(specJson: string): string {
       switchTab(getInitialTab());
       await checkDemoMode();
       loadDashboard();
+      loadAnalytics();
       loadSettingsStatus();
       loadVoices();
 
       /* Auto-refresh dashboard every 30 seconds */
       if (dashboardTimer) clearInterval(dashboardTimer);
       dashboardTimer = setInterval(loadDashboard, 30000);
+
+      /* Analytics refresh every 2 minutes */
+      if (analyticsTimer) clearInterval(analyticsTimer);
+      analyticsTimer = setInterval(loadAnalytics, 120000);
     }
 
     /* ── Demo Mode Check ──────────────────────────────────────── */
@@ -1426,7 +1649,7 @@ export function renderAdminPage(specJson: string): string {
 
         /* Service status strip */
         const svc = dash.services || {};
-        ['database', 'telephony', 'email', 'whatsapp', 'voice'].forEach(s => {
+        ['database', 'telephony', 'email', 'whatsapp', 'voice', 'assistant'].forEach(s => {
           const dot = document.getElementById('svc-' + s);
           if (dot) {
             dot.className = 'dot ' + (svc[s] || 'not_configured');
@@ -1472,29 +1695,8 @@ export function renderAdminPage(specJson: string): string {
         fillSpendMonth.className = 'progress-fill' + (spendMonthPct > 90 ? ' danger' : spendMonthPct > 70 ? ' warn' : '');
 
         /* Recent activity table */
-        const activityBody = document.getElementById('activity-body');
-        const activity = dash.recentActivity || [];
-        if (activity.length === 0) {
-          activityBody.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:1rem;">No activity yet</td></tr>';
-        } else {
-          activityBody.innerHTML = activity.map(a => {
-            const ch = (a.channel || a.actionType || '').toLowerCase();
-            const chLabel = (a.channel || a.actionType || 'unknown').toUpperCase();
-            const statusOk = (a.status || '').toLowerCase() === 'ok' || (a.status || '').toLowerCase() === 'success' || (a.status || '').toLowerCase() === 'delivered';
-            const statusBadge = statusOk
-              ? '<span class="badge badge-success">OK</span>'
-              : '<span class="badge badge-error">' + escHtml(String(a.status || 'unknown')) + '</span>';
-            const cost = typeof a.cost === 'number' ? '$' + a.cost.toFixed(4) : '--';
-            const ts = a.timestamp ? timeAgo(a.timestamp) : '--';
-            return '<tr>' +
-              '<td><span class="channel-badge ' + escAttr(ch) + '">' + escHtml(chLabel) + '</span></td>' +
-              '<td style="font-size:0.8rem;">' + escHtml(String(a.target || '--')) + '</td>' +
-              '<td>' + statusBadge + '</td>' +
-              '<td style="color:var(--text-muted);font-size:0.8rem;">' + cost + '</td>' +
-              '<td style="color:var(--text-muted);white-space:nowrap;font-size:0.8rem;">' + ts + '</td>' +
-              '</tr>';
-          }).join('');
-        }
+        allActivity = dash.recentActivity || [];
+        renderActivityTable(allActivity);
 
         /* Alerts table */
         const alertsBody = document.getElementById('alerts-body');
@@ -1516,8 +1718,29 @@ export function renderAdminPage(specJson: string): string {
         /* Charts */
         renderMessagesChart(hist.messagesByDay || []);
         renderCostChart(hist.costByChannel || []);
+
+        /* Top contacts (non-blocking) */
+        apiFetch('/admin/api/top-contacts').then(r => r.json()).then(d => {
+          renderTopContacts(d.contacts || []);
+        }).catch(() => {});
+
       } catch (err) {
         console.error('Dashboard load error:', err);
+      }
+    }
+
+    /* ── Load Analytics (separate, slower refresh) ─────────── */
+    async function loadAnalytics() {
+      try {
+        const res = await apiFetch('/admin/api/analytics');
+        const data = await res.json();
+        renderDeliveryRate(data.deliveryRate || {});
+        renderChannelDistChart(data.channelDistribution || []);
+        renderCostTrendChart(data.costTrend || []);
+        renderPeakHoursChart(data.peakHours || []);
+        renderErrorRateChart(data.errorRate || []);
+      } catch (err) {
+        console.error('Analytics load error:', err);
       }
     }
 
@@ -1526,7 +1749,18 @@ export function renderAdminPage(specJson: string): string {
 
     function renderMessagesChart(data) {
       const ctx = document.getElementById('messages-chart');
+      const emptyEl = document.getElementById('messages-chart-empty');
       if (!ctx) return;
+
+      if (!data || data.length === 0) {
+        ctx.classList.add('hidden-chart');
+        if (emptyEl) emptyEl.classList.add('visible');
+        if (messagesChart) { messagesChart.destroy(); messagesChart = null; }
+        return;
+      }
+
+      ctx.classList.remove('hidden-chart');
+      if (emptyEl) emptyEl.classList.remove('visible');
 
       /* Group by day, aggregate per channel */
       const days = [...new Set(data.map(d => d.day))].sort();
@@ -1565,6 +1799,7 @@ export function renderAdminPage(specJson: string): string {
 
     function renderCostChart(data) {
       const ctx = document.getElementById('cost-chart');
+      const emptyEl = document.getElementById('cost-chart-empty');
       if (!ctx) return;
 
       const labels = data.map(d => d.channel || 'unknown');
@@ -1573,20 +1808,14 @@ export function renderAdminPage(specJson: string): string {
       if (costChart) costChart.destroy();
 
       if (values.length === 0 || values.every(v => v === 0)) {
-        costChart = new Chart(ctx, {
-          type: 'doughnut',
-          data: {
-            labels: ['No data'],
-            datasets: [{ data: [1], backgroundColor: ['#21262d'], borderWidth: 0 }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: { legend: { labels: { color: '#8b949e', font: { size: 11 } } } }
-          }
-        });
+        ctx.classList.add('hidden-chart');
+        if (emptyEl) emptyEl.classList.add('visible');
+        costChart = null;
         return;
       }
+
+      ctx.classList.remove('hidden-chart');
+      if (emptyEl) emptyEl.classList.remove('visible');
 
       costChart = new Chart(ctx, {
         type: 'doughnut',
@@ -1602,6 +1831,284 @@ export function renderAdminPage(specJson: string): string {
           responsive: true,
           maintainAspectRatio: true,
           plugins: { legend: { position: 'bottom', labels: { color: '#8b949e', font: { size: 11 }, padding: 12 } } }
+        }
+      });
+    }
+
+    /* ── Activity table with search + exact timestamps ────────── */
+    function renderActivityTable(activity) {
+      const activityBody = document.getElementById('activity-body');
+      if (!activityBody) return;
+
+      if (activity.length === 0) {
+        activityBody.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:1rem;">No activity yet</td></tr>';
+        return;
+      }
+
+      activityBody.innerHTML = activity.map(a => {
+        const ch = (a.channel || a.actionType || '').toLowerCase();
+        const chLabel = (a.channel || a.actionType || 'unknown').toUpperCase();
+        const statusOk = (a.status || '').toLowerCase() === 'ok' || (a.status || '').toLowerCase() === 'success' || (a.status || '').toLowerCase() === 'delivered';
+        const statusBadge = statusOk
+          ? '<span class="badge badge-success">OK</span>'
+          : '<span class="badge badge-error">' + escHtml(String(a.status || 'unknown')) + '</span>';
+        const cost = typeof a.cost === 'number' ? '$' + a.cost.toFixed(4) : '--';
+        const tsAgo = a.timestamp ? timeAgo(a.timestamp) : '--';
+        const tsExact = a.timestamp ? new Date(a.timestamp).toLocaleString() : '';
+        return '<tr>' +
+          '<td><span class="channel-badge ' + escAttr(ch) + '">' + escHtml(chLabel) + '</span></td>' +
+          '<td style="font-size:0.8rem;">' + escHtml(String(a.target || '--')) + '</td>' +
+          '<td>' + statusBadge + '</td>' +
+          '<td style="color:var(--text-muted);font-size:0.8rem;">' + cost + '</td>' +
+          '<td style="color:var(--text-muted);white-space:nowrap;font-size:0.8rem;">' + tsAgo +
+            (tsExact ? '<br><span style="font-size:0.65rem;">' + escHtml(tsExact) + '</span>' : '') +
+          '</td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    function filterActivity() {
+      const query = (document.getElementById('activity-search').value || '').toLowerCase().trim();
+      if (!query) {
+        renderActivityTable(allActivity);
+        return;
+      }
+      const filtered = allActivity.filter(a => {
+        const text = [a.actionType, a.channel, a.target, a.status].join(' ').toLowerCase();
+        return text.includes(query);
+      });
+      renderActivityTable(filtered);
+    }
+
+    /* ── Top Contacts ──────────────────────────────────────────── */
+    function maskContact(addr) {
+      if (!addr) return '--';
+      const s = String(addr);
+      if (s.startsWith('+') && s.length > 6) {
+        return s.slice(0, 4) + '***' + s.slice(-4);
+      }
+      if (s.includes('@')) {
+        const parts = s.split('@');
+        return parts[0].slice(0, 2) + '***@' + parts[1];
+      }
+      return s.length > 6 ? s.slice(0, 3) + '***' + s.slice(-3) : s;
+    }
+
+    function renderTopContacts(contacts) {
+      const body = document.getElementById('top-contacts-body');
+      if (!body) return;
+
+      if (!contacts || contacts.length === 0) {
+        body.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:1rem;">No contacts yet</td></tr>';
+        return;
+      }
+
+      body.innerHTML = contacts.map(c => {
+        const ch = (c.channel || '').toLowerCase();
+        const chLabel = (c.channel || 'unknown').toUpperCase();
+        const cost = typeof c.total_cost === 'number' ? '$' + c.total_cost.toFixed(4) : '--';
+        const ts = c.last_activity ? timeAgo(c.last_activity) : '--';
+        return '<tr>' +
+          '<td style="font-size:0.8rem;">' + escHtml(maskContact(c.target_address)) + '</td>' +
+          '<td><span class="channel-badge ' + escAttr(ch) + '">' + escHtml(chLabel) + '</span></td>' +
+          '<td style="color:var(--text);font-weight:600;">' + (c.action_count || 0) + '</td>' +
+          '<td style="color:var(--text-muted);font-size:0.8rem;">' + cost + '</td>' +
+          '<td style="color:var(--text-muted);white-space:nowrap;font-size:0.8rem;">' + ts + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    /* ── Analytics Charts ──────────────────────────────────────── */
+    function renderDeliveryRate(data) {
+      const container = document.getElementById('analytics-delivery');
+      if (!container) return;
+
+      if (!data || !data.total || data.total === 0) {
+        container.innerHTML = '<div class="chart-empty visible">No data yet</div>';
+        return;
+      }
+
+      const pct = ((data.success || 0) / data.total * 100).toFixed(1);
+      const pctColor = parseFloat(pct) >= 95 ? 'var(--success)' : parseFloat(pct) >= 80 ? 'var(--warning)' : 'var(--error)';
+      container.innerHTML =
+        '<div class="big-value" style="color:' + pctColor + ';">' + pct + '%</div>' +
+        '<div class="big-label">Delivery Rate</div>' +
+        '<div class="sub-stats">' +
+          '<span class="stat-ok">' + (data.success || 0) + ' delivered</span>' +
+          '<span class="stat-fail">' + (data.failed || 0) + ' failed</span>' +
+        '</div>';
+    }
+
+    function renderChannelDistChart(data) {
+      const ctx = document.getElementById('channel-dist-chart');
+      const emptyEl = document.getElementById('channel-dist-empty');
+      if (!ctx) return;
+
+      if (!data || data.length === 0) {
+        ctx.classList.add('hidden-chart');
+        if (emptyEl) emptyEl.classList.add('visible');
+        if (channelDistChart) { channelDistChart.destroy(); channelDistChart = null; }
+        return;
+      }
+
+      ctx.classList.remove('hidden-chart');
+      if (emptyEl) emptyEl.classList.remove('visible');
+
+      const labels = data.map(d => d.channel || 'unknown');
+      const values = data.map(d => d.count || 0);
+
+      if (channelDistChart) channelDistChart.destroy();
+      channelDistChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: chartColors.slice(0, labels.length),
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { display: false } },
+            y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' }, beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    function renderCostTrendChart(data) {
+      const ctx = document.getElementById('cost-trend-chart');
+      const emptyEl = document.getElementById('cost-trend-empty');
+      if (!ctx) return;
+
+      if (!data || data.length === 0) {
+        ctx.classList.add('hidden-chart');
+        if (emptyEl) emptyEl.classList.add('visible');
+        if (costTrendChart) { costTrendChart.destroy(); costTrendChart = null; }
+        return;
+      }
+
+      ctx.classList.remove('hidden-chart');
+      if (emptyEl) emptyEl.classList.remove('visible');
+
+      const labels = data.map(d => (d.day || '').slice(5));
+      const values = data.map(d => d.cost || 0);
+
+      if (costTrendChart) costTrendChart.destroy();
+      costTrendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Cost ($)',
+            data: values,
+            borderColor: '#d29922',
+            backgroundColor: '#d2992233',
+            tension: 0.3,
+            fill: true,
+            pointRadius: 3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { labels: { color: '#8b949e', font: { size: 11 } } } },
+          scales: {
+            x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' } },
+            y: { ticks: { color: '#8b949e', font: { size: 10 }, callback: function(v) { return '$' + v; } }, grid: { color: '#21262d' }, beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    function renderPeakHoursChart(data) {
+      const ctx = document.getElementById('peak-hours-chart');
+      const emptyEl = document.getElementById('peak-hours-empty');
+      if (!ctx) return;
+
+      if (!data || data.length === 0) {
+        ctx.classList.add('hidden-chart');
+        if (emptyEl) emptyEl.classList.add('visible');
+        if (peakHoursChart) { peakHoursChart.destroy(); peakHoursChart = null; }
+        return;
+      }
+
+      ctx.classList.remove('hidden-chart');
+      if (emptyEl) emptyEl.classList.remove('visible');
+
+      /* Build 0-23 hour labels */
+      const hours = Array.from({length: 24}, (_, i) => i);
+      const counts = hours.map(h => {
+        const row = data.find(d => d.hour === h);
+        return row ? row.count : 0;
+      });
+      const maxCount = Math.max(...counts);
+      const bgColors = counts.map(c => c === maxCount && maxCount > 0 ? '#d29922' : '#58a6ff88');
+
+      if (peakHoursChart) peakHoursChart.destroy();
+      peakHoursChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: hours.map(h => h + ':00'),
+          datasets: [{
+            data: counts,
+            backgroundColor: bgColors,
+            borderRadius: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#8b949e', font: { size: 8 }, maxRotation: 45 }, grid: { display: false } },
+            y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' }, beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    function renderErrorRateChart(data) {
+      const ctx = document.getElementById('error-rate-chart');
+      const emptyEl = document.getElementById('error-rate-empty');
+      if (!ctx) return;
+
+      if (!data || data.length === 0) {
+        ctx.classList.add('hidden-chart');
+        if (emptyEl) emptyEl.classList.add('visible');
+        if (errorRateChart) { errorRateChart.destroy(); errorRateChart = null; }
+        return;
+      }
+
+      ctx.classList.remove('hidden-chart');
+      if (emptyEl) emptyEl.classList.remove('visible');
+
+      const labels = data.map(d => (d.day || '').slice(5));
+      const totals = data.map(d => d.total || 0);
+      const errors = data.map(d => d.errors || 0);
+
+      if (errorRateChart) errorRateChart.destroy();
+      errorRateChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Total', data: totals, borderColor: '#58a6ff', backgroundColor: '#58a6ff22', tension: 0.3, fill: true, pointRadius: 3 },
+            { label: 'Errors', data: errors, borderColor: '#f85149', backgroundColor: '#f8514922', tension: 0.3, fill: true, pointRadius: 3 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          plugins: { legend: { labels: { color: '#8b949e', font: { size: 11 } } } },
+          scales: {
+            x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' } },
+            y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' }, beginAtZero: true }
+          }
         }
       });
     }

@@ -22,6 +22,9 @@ import { httpRateLimiter } from "./security/http-rate-limiter.js";
 import { ipFilter } from "./security/ip-filter.js";
 import { startAnomalyDetector } from "./security/anomaly-detector.js";
 import { cleanupExpiredOtps } from "./security/otp.js";
+import { renderLandingPage } from "./public/landing-page.js";
+import { renderAuthPage } from "./public/auth-page.js";
+import { authApiRouter } from "./public/auth-api.js";
 
 async function main() {
   // 1. Initialize providers (DB first)
@@ -100,6 +103,13 @@ async function main() {
 
   // 6. Static file serving for audio storage (Twilio fetches audio from here)
   app.use("/storage", express.static(path.resolve("storage")));
+
+  // Landing page
+  app.get("/", (_req, res) => { res.type("html").send(renderLandingPage()); });
+
+  // Auth pages + API
+  app.get("/auth/login", (_req, res) => { res.type("html").send(renderAuthPage()); });
+  app.use("/auth/api", authApiRouter);
 
   app.use(webhookRouter);
   app.use("/admin", ipFilter("admin"));
