@@ -12,7 +12,7 @@ import { logger } from "../lib/logger.js";
 import { searchAndBuyNumber, configureNumberWebhooks, releasePhoneNumber } from "../provisioning/phone-number.js";
 import { assignFromPool, returnToPool } from "../provisioning/whatsapp-sender.js";
 import { generateEmailAddress, requestDomainVerification } from "../provisioning/email-identity.js";
-import { requireAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAdmin, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { generateToken, storeToken, revokeAgentTokens } from "../security/token-manager.js";
 import { appendAuditLog } from "../observability/audit-log.js";
 
@@ -50,6 +50,9 @@ export function registerOnboardCustomerTool(server: McpServer): void {
       } catch (err) {
         return authErrorResponse(err);
       }
+
+      const authInfo = extra.authInfo as AuthInfo | undefined;
+      const orgId = getOrgId(authInfo);
 
       // Guard: only dedicated + single-account mode is implemented
       if (config.identityMode !== "dedicated" || config.isolationMode !== "single-account") {
@@ -126,8 +129,8 @@ export function registerOnboardCustomerTool(server: McpServer): void {
         // Insert agent row
         const channelId = randomUUID();
         db.run(
-          `INSERT INTO agent_channels (id, agent_id, display_name, phone_number, whatsapp_sender_sid, whatsapp_status, email_address, voice_id, system_prompt, greeting, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+          `INSERT INTO agent_channels (id, agent_id, display_name, phone_number, whatsapp_sender_sid, whatsapp_status, email_address, voice_id, system_prompt, greeting, status, org_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
           [
             channelId,
             agentId,
@@ -139,6 +142,7 @@ export function registerOnboardCustomerTool(server: McpServer): void {
             capabilities.voiceAi ? "default" : null,
             systemPrompt || null,
             greeting || null,
+            orgId,
           ]
         );
         agentInserted = true;
@@ -176,13 +180,13 @@ export function registerOnboardCustomerTool(server: McpServer): void {
 
         // Generate security token
         const { plainToken, tokenHash } = generateToken();
-        storeToken(db, agentId, tokenHash, `onboarded-${displayName}`);
+        storeToken(db, agentId, tokenHash, `onboarded-${displayName}`, orgId);
 
         // Create default spending limits row
         const limitsId = randomUUID();
         db.run(
-          `INSERT OR IGNORE INTO spending_limits (id, agent_id) VALUES (?, ?)`,
-          [limitsId, agentId]
+          `INSERT OR IGNORE INTO spending_limits (id, agent_id, org_id) VALUES (?, ?, ?)`,
+          [limitsId, agentId, orgId]
         );
 
         // Email DNS records (if email is enabled)

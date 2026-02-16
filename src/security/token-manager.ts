@@ -9,6 +9,7 @@ import type { IDBProvider } from "../providers/interfaces.js";
 interface TokenRow {
   id: string;
   agent_id: string;
+  org_id: string | null;
   revoked_at: string | null;
 }
 
@@ -20,6 +21,7 @@ export interface GeneratedToken {
 export interface VerifiedToken {
   agentId: string;
   tokenId: string;
+  orgId?: string;
 }
 
 /** Generate a new random token and its SHA-256 hash. */
@@ -39,13 +41,14 @@ export function storeToken(
   db: IDBProvider,
   agentId: string,
   tokenHash: string,
-  label?: string
+  label?: string,
+  orgId?: string,
 ): string {
   const id = randomUUID();
   db.run(
-    `INSERT INTO agent_tokens (id, agent_id, token_hash, label)
-     VALUES (?, ?, ?, ?)`,
-    [id, agentId, tokenHash, label || null]
+    `INSERT INTO agent_tokens (id, agent_id, token_hash, label, org_id)
+     VALUES (?, ?, ?, ?, ?)`,
+    [id, agentId, tokenHash, label || null, orgId || "default"]
   );
   return id;
 }
@@ -57,7 +60,7 @@ export function verifyToken(
 ): VerifiedToken | null {
   const hash = hashToken(plainToken);
   const rows = db.query<TokenRow>(
-    "SELECT id, agent_id, revoked_at FROM agent_tokens WHERE token_hash = ?",
+    "SELECT id, agent_id, org_id, revoked_at FROM agent_tokens WHERE token_hash = ?",
     [hash]
   );
 
@@ -72,7 +75,7 @@ export function verifyToken(
     [row.id]
   );
 
-  return { agentId: row.agent_id, tokenId: row.id };
+  return { agentId: row.agent_id, tokenId: row.id, orgId: row.org_id || "default" };
 }
 
 /** Revoke all tokens for an agent. */

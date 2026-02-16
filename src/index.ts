@@ -21,6 +21,7 @@ import { corsMiddleware } from "./security/cors.js";
 import { httpRateLimiter } from "./security/http-rate-limiter.js";
 import { ipFilter } from "./security/ip-filter.js";
 import { startAnomalyDetector } from "./security/anomaly-detector.js";
+import { cleanupExpiredOtps } from "./security/otp.js";
 
 async function main() {
   // 1. Initialize providers (DB first)
@@ -140,6 +141,11 @@ async function main() {
       metrics.gauge("mcp_uptime_seconds", process.uptime());
     }, 15_000);
     metrics.gauge("mcp_uptime_seconds", process.uptime());
+
+    // 11. OTP cleanup — every 5 minutes
+    setInterval(() => {
+      try { cleanupExpiredOtps(db); } catch {}
+    }, 5 * 60 * 1000);
   });
 }
 

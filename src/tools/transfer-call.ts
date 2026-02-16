@@ -11,7 +11,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
-import { requireAgent, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgentInOrg } from "../security/org-scope.js";
 import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 
@@ -49,6 +50,10 @@ export function registerTransferCallTool(server: McpServer): void {
       }
 
       const db = getProvider("database");
+
+      const authInfo = extra.authInfo as AuthInfo | undefined;
+      const orgId = getOrgId(authInfo);
+      try { requireAgentInOrg(db, agentId, authInfo); } catch (err) { return authErrorResponse(err); }
 
       // Look up agent
       const rows = db.query<AgentRow>(
@@ -104,9 +109,9 @@ export function registerTransferCallTool(server: McpServer): void {
       // Log the transfer
       const logId = randomUUID();
       db.run(
-        `INSERT INTO call_logs (id, agent_id, call_sid, direction, from_address, to_address, status, transfer_to)
-         VALUES (?, ?, ?, 'transfer', ?, ?, 'transferred', ?)`,
-        [logId, agentId, callSid, rows[0].phone_number || agentId, targetNumber, targetNumber]
+        `INSERT INTO call_logs (id, agent_id, call_sid, direction, from_address, to_address, status, transfer_to, org_id)
+         VALUES (?, ?, ?, 'transfer', ?, ?, 'transferred', ?, ?)`,
+        [logId, agentId, callSid, rows[0].phone_number || agentId, targetNumber, targetNumber, orgId]
       );
 
       logUsage(db, { agentId, actionType: "voice_transfer", channel: "voice", targetAddress: targetNumber, cost: 0, externalId: callSid });

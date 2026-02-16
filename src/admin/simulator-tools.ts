@@ -237,6 +237,25 @@ export const TOOL_REGISTRY: ToolDef[] = [
     ],
     demoValues: { agentId: "agent-001", period: "month" },
   },
+
+  // ── Organization Management ─────────────────────────────────
+  {
+    name: "comms_create_organization",
+    description: "Create a new organization with isolated data silo. Super-admin only.",
+    category: "Admin",
+    parameters: [
+      { name: "name", type: "string", required: true, description: "Organization display name" },
+      { name: "slug", type: "string", required: true, description: "URL-safe slug (lowercase, hyphens)" },
+    ],
+    demoValues: { name: "Acme Corp", slug: "acme-corp" },
+  },
+  {
+    name: "comms_list_organizations",
+    description: "List all organizations with agent counts. Super-admin only.",
+    category: "Admin",
+    parameters: [],
+    demoValues: {},
+  },
 ];
 
 /** Get tools grouped by category */

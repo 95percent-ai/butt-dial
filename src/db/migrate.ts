@@ -43,6 +43,42 @@ export function runMigrations(): void {
   const billingSchema = fs.readFileSync(billingSchemaPath, "utf-8");
   db.exec(billingSchema);
 
+  const otpSchemaPath = path.join(projectRoot, "src", "db", "schema-otp.sql");
+  const otpSchema = fs.readFileSync(otpSchemaPath, "utf-8");
+  db.exec(otpSchema);
+
+  // Phase 21: Organization multi-tenancy
+  const orgSchemaPath = path.join(projectRoot, "src", "db", "schema-org.sql");
+  const orgSchema = fs.readFileSync(orgSchemaPath, "utf-8");
+  db.exec(orgSchema);
+
+  // Add org_id column to all data tables (idempotent — wrapped in try/catch)
+  const orgTables = [
+    "agent_channels", "messages", "usage_logs", "audit_log", "agent_pool",
+    "whatsapp_pool", "call_logs", "voicemail_messages", "spending_limits",
+    "agent_tokens", "provider_credentials", "billing_config",
+    "dnc_list", "otp_codes", "erasure_requests",
+  ];
+  for (const table of orgTables) {
+    try {
+      db.run(`ALTER TABLE ${table} ADD COLUMN org_id TEXT DEFAULT 'default'`);
+    } catch {
+      // Column already exists — safe to ignore
+    }
+  }
+
+  // Ensure default organization exists
+  try {
+    const existing = db.query<{ id: string }>("SELECT id FROM organizations WHERE id = 'default'");
+    if (existing.length === 0) {
+      db.run(
+        "INSERT INTO organizations (id, name, slug) VALUES ('default', 'Default', 'default')"
+      );
+    }
+  } catch {
+    // Table might not exist in edge cases
+  }
+
   logger.info("migrations_complete");
 }
 

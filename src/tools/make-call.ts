@@ -13,7 +13,8 @@ import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 import { storeCallConfig } from "../webhooks/voice-sessions.js";
-import { requireAgent, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgentInOrg } from "../security/org-scope.js";
 import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 import { checkTcpaTimeOfDay, checkDnc, checkContentFilter } from "../security/compliance.js";
@@ -66,6 +67,10 @@ export function registerMakeCallTool(server: McpServer): void {
       }
 
       const db = getProvider("database");
+
+      const authInfo = extra.authInfo as AuthInfo | undefined;
+      const orgId = getOrgId(authInfo);
+      try { requireAgentInOrg(db, agentId, authInfo); } catch (err) { return authErrorResponse(err); }
 
       // Look up the agent
       const rows = db.query<AgentRow>(
@@ -174,18 +179,18 @@ export function registerMakeCallTool(server: McpServer): void {
       // Log to messages table
       const messageId = randomUUID();
       db.run(
-        `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status)
-         VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?)`,
-        [messageId, agentId, agent.phone_number, to, systemPrompt || null, result.callSid, result.status]
+        `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id)
+         VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?, ?)`,
+        [messageId, agentId, agent.phone_number, to, systemPrompt || null, result.callSid, result.status, orgId]
       );
 
       // Log to call_logs table
       try {
         const callLogId = randomUUID();
         db.run(
-          `INSERT INTO call_logs (id, agent_id, call_sid, direction, from_address, to_address, status)
-           VALUES (?, ?, ?, 'outbound', ?, ?, ?)`,
-          [callLogId, agentId, result.callSid, agent.phone_number, to, result.status]
+          `INSERT INTO call_logs (id, agent_id, call_sid, direction, from_address, to_address, status, org_id)
+           VALUES (?, ?, ?, 'outbound', ?, ?, ?, ?)`,
+          [callLogId, agentId, result.callSid, agent.phone_number, to, result.status, orgId]
         );
       } catch {
         // Best-effort — call_logs table might not exist in older DB

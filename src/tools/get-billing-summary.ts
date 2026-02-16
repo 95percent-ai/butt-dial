@@ -8,7 +8,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
 import { config } from "../lib/config.js";
-import { requireAgent, requireAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, requireAdmin, getOrgId, isSuperAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { orgFilter } from "../security/org-scope.js";
 import {
   getBillingSummary,
   getAgentBillingConfig,
@@ -79,10 +80,15 @@ export function registerBillingTools(server: McpServer): void {
         };
       }
 
-      // Admin: all agents
-      const agents = db.query<AgentIdRow>(
-        "SELECT DISTINCT agent_id FROM agent_channels WHERE status = 'active'"
-      );
+      // Admin: all agents (org-scoped)
+      const org = orgFilter(authInfo);
+      let agentQuery = "SELECT DISTINCT agent_id FROM agent_channels WHERE status = 'active'";
+      const agentParams: unknown[] = [];
+      if (org.clause) {
+        agentQuery += ` AND ${org.clause}`;
+        agentParams.push(...org.params);
+      }
+      const agents = db.query<AgentIdRow>(agentQuery, agentParams);
 
       const agentSummaries = agents.map(a => ({
         agentId: a.agent_id,

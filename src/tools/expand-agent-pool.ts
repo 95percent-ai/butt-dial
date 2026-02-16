@@ -7,7 +7,8 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
-import { requireAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAdmin, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgentInOrg } from "../security/org-scope.js";
 
 interface PoolRow { max_agents: number; active_agents: number }
 

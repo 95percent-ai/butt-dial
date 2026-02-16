@@ -15,6 +15,7 @@ export interface AuditEntry {
   actor: string;
   target?: string;
   details?: Record<string, unknown>;
+  orgId?: string;
 }
 
 interface AuditRow {
@@ -55,9 +56,9 @@ export function appendAuditLog(db: DBProvider, entry: AuditEntry): string {
   const rowHash = computeHash(prevHash, timestamp, entry.eventType, entry.actor, entry.target ?? null, detailsJson);
 
   db.run(
-    `INSERT INTO audit_log (id, timestamp, event_type, actor, target, details, prev_hash, row_hash)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, timestamp, entry.eventType, entry.actor, entry.target ?? null, detailsJson, prevHash, rowHash]
+    `INSERT INTO audit_log (id, timestamp, event_type, actor, target, details, prev_hash, row_hash, org_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, timestamp, entry.eventType, entry.actor, entry.target ?? null, detailsJson, prevHash, rowHash, entry.orgId ?? "default"]
   );
 
   return id;

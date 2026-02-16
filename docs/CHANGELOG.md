@@ -1,6 +1,24 @@
-<!-- version: 3.0 | updated: 2026-02-16 -->
+<!-- version: 3.1 | updated: 2026-02-16 -->
 
 # Changelog
+
+## Session 16 — 2026-02-16
+
+### Phase 21 — Multi-Tenant Organization Isolation
+- **Login bug fix:** CSS specificity fix — `.login-box button[type="submit"]` prevents eye toggle overlap
+- **Organization tables:** `organizations` + `org_tokens` tables (schema-org.sql)
+- **Migration:** `org_id TEXT DEFAULT 'default'` added to 15 data tables, default org created
+- **Org manager:** CRUD + token management (org-manager.ts) — create, list, delete orgs, generate/verify/revoke org tokens
+- **3-tier auth:** super-admin (master token) → org-admin (org token) → agent (agent token) in auth-middleware.ts + auth-guard.ts
+- **Org-scope helpers:** orgFilter, orgWhere, requireAgentInOrg (org-scope.ts)
+- **Tool scoping:** 16 tool files updated with org_id in INSERT/WHERE clauses
+- **Webhook scoping:** 5 webhook files updated with org_id lookups on inbound messages
+- **Lib scoping:** compliance, audit-log, rate-limiter, billing — all org-scoped
+- **Admin API scoping:** Dashboard, agents, usage-history queries filter by org_id. Admin auth supports org tokens
+- **New MCP tools:** `comms_create_organization` + `comms_list_organizations` (super-admin only)
+- **Token manager:** Updated to store/return org_id on agent tokens
+- **Tests:** 50/50 multi-tenant assertions pass
+- **Regression:** 47/49 end-to-end pass (2 failures = TCPA time-of-day, not related)
 
 ## Session 15 — 2026-02-16
 

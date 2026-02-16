@@ -12,12 +12,12 @@ interface OpenAITTSConfig {
 }
 
 const OPENAI_VOICES = [
-  { id: "alloy", name: "Alloy", language: "en-US" },
-  { id: "echo", name: "Echo", language: "en-US" },
-  { id: "fable", name: "Fable", language: "en-US" },
-  { id: "onyx", name: "Onyx", language: "en-US" },
-  { id: "nova", name: "Nova", language: "en-US" },
-  { id: "shimmer", name: "Shimmer", language: "en-US" },
+  { id: "alloy", name: "Alloy", language: "en-US", gender: "neutral", description: "Balanced and versatile" },
+  { id: "echo", name: "Echo", language: "en-US", gender: "male", description: "Warm and clear" },
+  { id: "fable", name: "Fable", language: "en-US", gender: "male", description: "Expressive and dynamic" },
+  { id: "onyx", name: "Onyx", language: "en-US", gender: "male", description: "Deep and authoritative" },
+  { id: "nova", name: "Nova", language: "en-US", gender: "female", description: "Friendly and upbeat" },
+  { id: "shimmer", name: "Shimmer", language: "en-US", gender: "female", description: "Soft and gentle" },
 ];
 
 export function createOpenAITTSProvider(cfg: OpenAITTSConfig): ITTSProvider {

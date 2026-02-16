@@ -7,7 +7,8 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
-import { requireAgent, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgentInOrg } from "../security/org-scope.js";
 
 interface AgentRow {
   agent_id: string;
@@ -46,6 +47,10 @@ export function registerGetChannelStatusTool(server: McpServer): void {
       }
 
       const db = getProvider("database");
+
+      const authInfo = extra.authInfo as AuthInfo | undefined;
+      const orgId = getOrgId(authInfo);
+      try { requireAgentInOrg(db, agentId, authInfo); } catch (err) { return authErrorResponse(err); }
 
       // Look up agent
       const rows = db.query<AgentRow>(

@@ -1,4 +1,4 @@
-<!-- version: 3.2 | updated: 2026-02-15 -->
+<!-- version: 3.3 | updated: 2026-02-16 -->
 
 # Decisions Log
 
@@ -295,3 +295,30 @@ All 7 decisions follow a pattern: **make it configurable, with sensible defaults
 **What:** Admin POST routes require `Authorization: Bearer <masterToken>`. GET /admin/setup stays open. No token configured = allow (graceful degradation).
 **Why:** Setup page must be accessible without auth (it's where you set the token). POST routes that modify config need protection. Graceful degradation matches existing patterns (DEC-033).
 **Alternatives considered:** Auth on all routes including GET (rejected — blocks setup page access), session cookies (rejected — adds state management complexity).
+
+## DEC-050: Multi-Tenant — org_id on Every Table
+**Date:** 2026-02-16
+**What:** Added `org_id TEXT DEFAULT 'default'` to all 15 data tables. Existing data migrates to 'default' org. All queries include org_id filter.
+**Why:** Hard multi-tenant isolation requires every row to be org-scoped. Default org ensures backward compatibility. No cross-org joins allowed.
+**Alternatives considered:** Separate databases per org (too heavy for SQLite), tenant ID only on agent_channels with JOINs (leaky — requires JOIN discipline everywhere).
+
+## DEC-051: 3-Tier Authentication — Super-Admin, Org-Admin, Agent
+**Date:** 2026-02-16
+**What:** Three auth tiers: master token → super-admin (sees all), org token → org-admin (sees own org), agent token → agent (sees own data). Middleware checks in this order.
+**Why:** Platform operators need full access. Org admins manage their org. Agents are scoped to themselves. Clean separation of concerns.
+**Alternatives considered:** Role field on tokens (more complex), JWT with claims (adds dependency, DEC-025 already chose bearer tokens).
+
+## DEC-052: Org Token Storage — SHA-256 Hash, Same Pattern as Agent Tokens
+**Date:** 2026-02-16
+**What:** Org tokens use the same SHA-256 hashing pattern as agent tokens (DEC-025). Stored in `org_tokens` table. Raw token shown once at creation.
+**Why:** Proven pattern, consistent code, no new dependencies.
+
+## DEC-053: Admin API Org Scoping — orgFilter Helper
+**Date:** 2026-02-16
+**What:** Reusable `orgFilter()` and `orgWhere()` helpers in org-scope.ts generate SQL clauses based on auth tier. Super-admin gets empty clause (sees all), org-admin gets `AND org_id = ?`.
+**Why:** Prevents forgetting org_id in queries. Single source of truth for org filtering logic. Consistent across all endpoints.
+
+## DEC-054: Login CSS Bug — Attribute Selector Fix
+**Date:** 2026-02-16
+**What:** Changed `.login-box button` to `.login-box button[type="submit"]` to prevent submit button styling from applying to the password eye toggle.
+**Why:** CSS specificity issue — the broad selector matched all buttons in the login box. Attribute selector targets only the submit button.

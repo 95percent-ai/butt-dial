@@ -91,6 +91,10 @@ export function createElevenLabsTTSProvider(cfg: ElevenLabsConfig): ITTSProvider
         id: v.voice_id,
         name: v.name,
         language: v.labels?.language ?? "en",
+        gender: v.labels?.gender,
+        accent: v.labels?.accent,
+        description: v.labels?.description,
+        useCase: v.labels?.use_case,
       }));
     },
   };

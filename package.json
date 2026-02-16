@@ -1,5 +1,5 @@
 {
-  "name": "agentos-comms-mcp",
+  "name": "butt-dial-mcp",
   "version": "0.1.0",
   "description": "MCP server for AI agent communication — phone, SMS, email, WhatsApp",
   "type": "module",

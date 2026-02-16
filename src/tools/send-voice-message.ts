@@ -10,7 +10,8 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
-import { requireAgent, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgentInOrg } from "../security/org-scope.js";
 import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 
@@ -47,6 +48,10 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
       }
 
       const db = getProvider("database");
+
+      const authInfo = extra.authInfo as AuthInfo | undefined;
+      const orgId = getOrgId(authInfo);
+      try { requireAgentInOrg(db, agentId, authInfo); } catch (err) { return authErrorResponse(err); }
 
       // 1. Look up the agent
       const rows = db.query<AgentRow>(
@@ -149,9 +154,9 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
       // 6. Log to messages table
       const messageId = randomUUID();
       db.run(
-        `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status)
-         VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?)`,
-        [messageId, agentId, agent.phone_number, to, text, callSid, callStatus]
+        `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id)
+         VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?, ?)`,
+        [messageId, agentId, agent.phone_number, to, text, callSid, callStatus, orgId]
       );
 
       logUsage(db, { agentId, actionType: "voice_message", channel: "voice", targetAddress: to, cost: 0, externalId: callSid });

@@ -195,13 +195,14 @@ export interface UsageLogEntry {
   externalId?: string | null;
   status?: string;
   metadata?: Record<string, unknown> | null;
+  orgId?: string;
 }
 
 export function logUsage(db: DBProvider, entry: UsageLogEntry): string {
   const id = randomUUID();
   db.run(
-    `INSERT INTO usage_logs (id, agent_id, action_type, channel, target_address, cost, external_id, status, metadata)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO usage_logs (id, agent_id, action_type, channel, target_address, cost, external_id, status, metadata, org_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       entry.agentId,
@@ -212,6 +213,7 @@ export function logUsage(db: DBProvider, entry: UsageLogEntry): string {
       entry.externalId ?? null,
       entry.status ?? "success",
       entry.metadata ? JSON.stringify(entry.metadata) : null,
+      entry.orgId ?? "default",
     ]
   );
 

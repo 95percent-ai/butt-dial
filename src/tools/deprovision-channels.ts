@@ -9,7 +9,8 @@ import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
 import { releasePhoneNumber } from "../provisioning/phone-number.js";
 import { returnToPool } from "../provisioning/whatsapp-sender.js";
-import { requireAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAdmin, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgentInOrg } from "../security/org-scope.js";
 import { revokeAgentTokens } from "../security/token-manager.js";
 import { appendAuditLog } from "../observability/audit-log.js";
 
@@ -37,6 +38,9 @@ export function registerDeprovisionChannelsTool(server: McpServer): void {
       }
 
       const db = getProvider("database");
+
+      const authInfo = extra.authInfo as AuthInfo | undefined;
+      try { requireAgentInOrg(db, agentId, authInfo); } catch (err) { return authErrorResponse(err); }
 
       // 1. Look up agent
       const rows = db.query<AgentRow>(

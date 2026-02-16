@@ -8,7 +8,8 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
-import { requireAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAdmin, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgentInOrg } from "../security/org-scope.js";
 import { getAgentLimits } from "../security/rate-limiter.js";
 
 interface AgentRow { agent_id: string }
@@ -44,6 +45,9 @@ export function registerSetAgentLimitsTool(server: McpServer): void {
       }
 
       const db = getProvider("database");
+
+      const authInfo = extra.authInfo as AuthInfo | undefined;
+      try { requireAgentInOrg(db, agentId, authInfo); } catch (err) { return authErrorResponse(err); }
 
       // Verify agent exists
       const agents = db.query<AgentRow>(

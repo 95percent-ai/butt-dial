@@ -7,7 +7,8 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
-import { requireAgent, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, getOrgId, isSuperAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { orgFilter } from "../security/org-scope.js";
 import { getAgentLimits } from "../security/rate-limiter.js";
 import { config } from "../lib/config.js";
 
@@ -68,23 +69,36 @@ export function registerGetUsageDashboardTool(server: McpServer): void {
         };
       }
 
-      // Admin: all agents
-      const agents = db.query<AgentIdRow>(
-        "SELECT DISTINCT agent_id FROM agent_channels WHERE status = 'active'"
-      );
+      // Admin: all agents (org-scoped)
+      const org = orgFilter(authInfo);
+      let agentQuery = "SELECT DISTINCT agent_id FROM agent_channels WHERE status = 'active'";
+      const agentParams: unknown[] = [];
+      if (org.clause) {
+        agentQuery += ` AND ${org.clause}`;
+        agentParams.push(...org.params);
+      }
+      const agents = db.query<AgentIdRow>(agentQuery, agentParams);
 
       const agentDashboards = agents.map(a =>
         buildAgentDashboard(db, a.agent_id, timeFilter, period)
       );
 
-      // Global totals
-      const globalActions = db.query<{ cnt: number }>(
-        `SELECT COUNT(*) as cnt FROM usage_logs WHERE ${timeFilter}`
-      )[0]?.cnt ?? 0;
+      // Global totals (org-scoped)
+      let globalActionsQuery = `SELECT COUNT(*) as cnt FROM usage_logs WHERE ${timeFilter}`;
+      const globalActionsParams: unknown[] = [];
+      if (org.clause) {
+        globalActionsQuery += ` AND ${org.clause}`;
+        globalActionsParams.push(...org.params);
+      }
+      const globalActions = db.query<{ cnt: number }>(globalActionsQuery, globalActionsParams)[0]?.cnt ?? 0;
 
-      const globalCost = db.query<{ total: number | null }>(
-        `SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE ${timeFilter}`
-      )[0]?.total ?? 0;
+      let globalCostQuery = `SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE ${timeFilter}`;
+      const globalCostParams: unknown[] = [];
+      if (org.clause) {
+        globalCostQuery += ` AND ${org.clause}`;
+        globalCostParams.push(...org.params);
+      }
+      const globalCost = db.query<{ total: number | null }>(globalCostQuery, globalCostParams)[0]?.total ?? 0;
 
       return {
         content: [{

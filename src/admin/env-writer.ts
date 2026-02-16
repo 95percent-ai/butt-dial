@@ -28,6 +28,8 @@ interface ProviderStatus {
     greeting: string | null;
     voice: string | null;
     language: string | null;
+    systemPrompt: string | null;
+    ttsProvider: string | null;
   };
 }
 
@@ -75,6 +77,8 @@ export function getProviderStatus(): ProviderStatus {
   const voiceGreeting = env["VOICE_DEFAULT_GREETING"];
   const voiceVoice = env["VOICE_DEFAULT_VOICE"];
   const voiceLang = env["VOICE_DEFAULT_LANGUAGE"];
+  const voiceSystemPrompt = env["VOICE_DEFAULT_SYSTEM_PROMPT"];
+  const ttsProvider = env["PROVIDER_TTS"];
 
   return {
     twilio: {
@@ -100,6 +104,8 @@ export function getProviderStatus(): ProviderStatus {
       greeting: voiceGreeting || null,
       voice: voiceVoice || null,
       language: voiceLang || null,
+      systemPrompt: voiceSystemPrompt || null,
+      ttsProvider: ttsProvider || null,
     },
   };
 }

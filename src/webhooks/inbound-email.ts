@@ -70,6 +70,13 @@ export async function handleInboundEmail(req: Request, res: Response): Promise<v
     return;
   }
 
+  // Look up org_id for multi-tenant scoping
+  let orgId = "default";
+  try {
+    const orgRows = db.query<{ org_id: string }>("SELECT org_id FROM agent_channels WHERE agent_id = ?", [agentId]);
+    if (orgRows.length > 0 && orgRows[0].org_id) orgId = orgRows[0].org_id;
+  } catch {}
+
   // Store message in database
   const messageId = randomUUID();
   const bodyText = payload.data.subject
@@ -77,8 +84,8 @@ export async function handleInboundEmail(req: Request, res: Response): Promise<v
     : payload.data.text || "";
 
   db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status)
-     VALUES (?, ?, 'email', 'inbound', ?, ?, ?, ?, 'received')`,
+    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id)
+     VALUES (?, ?, 'email', 'inbound', ?, ?, ?, ?, 'received', ?)`,
     [
       messageId,
       agentId,
@@ -86,6 +93,7 @@ export async function handleInboundEmail(req: Request, res: Response): Promise<v
       payload.data.to,
       bodyText,
       payload.data.email_id || null,
+      orgId,
     ]
   );
 

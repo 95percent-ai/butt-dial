@@ -1,4 +1,4 @@
-<!-- version: 3.0 | updated: 2026-02-16 -->
+<!-- version: 3.1 | updated: 2026-02-16 -->
 
 # Project Structure
 
@@ -20,7 +20,8 @@ agentos-comms-mcp/
 │   │   ├── agent-registry.ts     # Maps agentId → MCP server session (for voice routing)
 │   │   ├── voicemail-dispatcher.ts # Dispatches pending voicemails when agent reconnects via SSE
 │   │   ├── billing.ts            # Billing module: markup, tiers, spending alerts
-│   │   └── audio-converter.ts    # PCM ↔ mu-law 8kHz converter + WAV headers
+│   │   ├── audio-converter.ts    # PCM ↔ mu-law 8kHz converter + WAV headers
+│   │   └── org-manager.ts        # Organization CRUD + token management (multi-tenant)
 │   │
 │   ├── providers/                # Pluggable provider adapters
 │   │   ├── interfaces.ts         # All 8 provider interfaces
@@ -56,7 +57,9 @@ agentos-comms-mcp/
 │   │   ├── schema-call-logs.sql # Call logs table (duration, cost, recording, transfer)
 │   │   ├── schema-compliance.sql # DNC list + GDPR erasure requests tables
 │   │   ├── schema-billing.sql   # Billing config table
-│   │   ├── migrate.ts            # Migration runner (runs all schema files)
+│   │   ├── schema-org.sql       # Organization + org_tokens tables (multi-tenant)
+│   │   ├── schema-otp.sql       # OTP verification codes table
+│   │   ├── migrate.ts            # Migration runner (runs all schema files + org_id migration)
 │   │   └── seed.ts               # Test agent seeder (npm run seed)
 │   │
 │   ├── webhooks/                 # Inbound webhook handlers
@@ -82,12 +85,15 @@ agentos-comms-mcp/
 │   │   ├── onboard-customer.ts  # comms_onboard_customer (unified onboarding: provision + DNS + instructions)
 │   │   ├── transfer-call.ts     # comms_transfer_call (transfer live call to human/agent)
 │   │   ├── get-billing-summary.ts # comms_get_billing_summary + comms_set_billing_config
-│   │   └── expand-agent-pool.ts # comms_expand_agent_pool (resize pool)
+│   │   ├── expand-agent-pool.ts # comms_expand_agent_pool (resize pool)
+│   │   ├── otp-tools.ts         # OTP verification tools (send, verify)
+│   │   └── org-tools.ts         # comms_create_organization + comms_list_organizations (super-admin)
 │   ├── channels/                 # Channel implementations (empty — Phase 2+)
 │   ├── security/                 # Auth, rate limiting, input validation
 │   │   ├── token-manager.ts      # Bearer token generate/store/verify/revoke (SHA-256 hashed)
 │   │   ├── auth-middleware.ts    # Express middleware on POST /messages (validates bearer tokens)
-│   │   ├── auth-guard.ts        # requireAgent() + requireAdmin() helpers for tool callbacks
+│   │   ├── auth-guard.ts        # 3-tier auth guards: requireAgent/Admin/OrgAdmin/SuperAdmin + getOrgId/isSuperAdmin
+│   │   ├── org-scope.ts         # Org-scoped query helpers: orgFilter, orgWhere, requireAgentInOrg
 │   │   ├── sanitizer.ts         # Input validation (XSS, SQLi, CRLF, path traversal, command injection)
 │   │   ├── crypto.ts            # AES-256-GCM encrypt/decrypt for credential storage
 │   │   ├── webhook-signature.ts # Twilio HMAC-SHA1 + Resend/Svix signature verification + replay nonce cache
@@ -147,7 +153,8 @@ agentos-comms-mcp/
 │   ├── compliance.test.ts     # Dry test for compliance (content filter, DNC, TCPA, GDPR) — 27 assertions
 │   ├── billing.test.ts        # Dry test for billing & markup — 36 assertions
 │   ├── documentation.test.ts  # Dry test for documentation completeness — 52 assertions
-│   └── end-to-end.test.ts     # Comprehensive end-to-end test — 49 assertions
+│   ├── end-to-end.test.ts     # Comprehensive end-to-end test — 49 assertions
+│   └── multi-tenant.test.ts   # Multi-tenant organization isolation test — 50 assertions
 │
 └── docs/
     ├── SPEC.md                   # Project specification (source of truth)

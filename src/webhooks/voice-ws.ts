@@ -148,14 +148,21 @@ function storeVoicemail(conv: VoiceConversation): void {
     const db = getProvider("database");
     const id = randomUUID();
 
+    // Look up org_id for multi-tenant scoping
+    let orgId = "default";
+    try {
+      const orgRows = db.query<{ org_id: string }>("SELECT org_id FROM agent_channels WHERE agent_id = ?", [conv.agentId]);
+      if (orgRows.length > 0 && orgRows[0].org_id) orgId = orgRows[0].org_id;
+    } catch {}
+
     // Build transcript from full history
     const transcript = conv.history
       .map((m) => `${m.role}: ${m.content}`)
       .join("\n");
 
     db.run(
-      `INSERT INTO voicemail_messages (id, agent_id, call_sid, caller_from, caller_to, transcript, caller_message, caller_preferences, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      `INSERT INTO voicemail_messages (id, agent_id, call_sid, caller_from, caller_to, transcript, caller_message, caller_preferences, status, org_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
       [
         id,
         conv.agentId,
@@ -165,6 +172,7 @@ function storeVoicemail(conv: VoiceConversation): void {
         transcript,
         conv.voicemailCollected.callerMessage,
         conv.voicemailCollected.callerPreferences || null,
+        orgId,
       ]
     );
 
@@ -227,11 +235,19 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
         try {
           const callDb = getProvider("database");
           const logId = randomUUID();
+
+          // Look up org_id for multi-tenant scoping
+          let callOrgId = "default";
+          try {
+            const orgRows = callDb.query<{ org_id: string }>("SELECT org_id FROM agent_channels WHERE agent_id = ?", [agentId || "unknown"]);
+            if (orgRows.length > 0 && orgRows[0].org_id) callOrgId = orgRows[0].org_id;
+          } catch {}
+
           callDb.run(
-            `INSERT INTO call_logs (id, agent_id, call_sid, direction, from_address, to_address, status)
-             VALUES (?, ?, ?, ?, ?, ?, 'in-progress')`,
+            `INSERT INTO call_logs (id, agent_id, call_sid, direction, from_address, to_address, status, org_id)
+             VALUES (?, ?, ?, ?, ?, ?, 'in-progress', ?)`,
             [logId, agentId || "unknown", callSid || "unknown",
-             callConfig ? "outbound" : "inbound", from, to]
+             callConfig ? "outbound" : "inbound", from, to, callOrgId]
           );
         } catch {
           // Best-effort logging — call_logs table might not exist yet

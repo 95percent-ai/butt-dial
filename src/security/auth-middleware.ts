@@ -2,12 +2,15 @@
  * Auth middleware for POST /messages.
  * Validates bearer tokens and sets req.auth for the MCP SDK.
  * The SDK reads req.auth and passes it as extra.authInfo to tool callbacks.
+ *
+ * 3-tier auth: master token → org token → agent token
  */
 
 import type { Request, Response, NextFunction } from "express";
 import { config } from "../lib/config.js";
 import { getProvider } from "../providers/factory.js";
 import { verifyToken } from "./token-manager.js";
+import { verifyOrgToken } from "../lib/org-manager.js";
 import { logger } from "../lib/logger.js";
 import { sendAlert } from "../observability/alert-manager.js";
 import { recordFailedAuth } from "./anomaly-detector.js";
@@ -87,6 +90,7 @@ declare global {
         token: string;
         clientId: string;
         scopes: string[];
+        orgId?: string;
       };
     }
   }
@@ -98,7 +102,8 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     req.auth = {
       token: "demo",
       clientId: "demo",
-      scopes: ["admin"],
+      scopes: ["admin", "super-admin"],
+      orgId: "default",
     };
     next();
     return;
@@ -120,7 +125,8 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
       req.auth = {
         token: "unconfigured",
         clientId: "admin",
-        scopes: ["admin"],
+        scopes: ["admin", "super-admin"],
+        orgId: "default",
       };
       next();
       return;
@@ -134,20 +140,40 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
 
   const token = authHeader.slice(7); // Remove "Bearer "
 
-  // Check master token first
+  // 1. Check master token first → super-admin
   if (config.masterSecurityToken && token === config.masterSecurityToken) {
     resetBruteForce(ip);
     req.auth = {
       token,
-      clientId: "admin",
-      scopes: ["admin"],
+      clientId: "super-admin",
+      scopes: ["admin", "super-admin"],
+      orgId: undefined, // super-admin sees all orgs
     };
     next();
     return;
   }
 
-  // Check agent token
   const db = getProvider("database");
+
+  // 2. Check org token → org-admin
+  try {
+    const orgVerified = verifyOrgToken(db, token);
+    if (orgVerified) {
+      resetBruteForce(ip);
+      req.auth = {
+        token,
+        clientId: orgVerified.orgId,
+        scopes: ["org-admin"],
+        orgId: orgVerified.orgId,
+      };
+      next();
+      return;
+    }
+  } catch {
+    // org_tokens table might not exist yet during first migration
+  }
+
+  // 3. Check agent token
   const verified = verifyToken(db, token);
 
   if (!verified) {
@@ -163,6 +189,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
     token,
     clientId: verified.agentId,
     scopes: ["agent"],
+    orgId: verified.orgId || "default",
   };
 
   next();

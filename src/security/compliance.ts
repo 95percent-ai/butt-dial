@@ -60,12 +60,14 @@ export function checkContentFilter(text: string): ComplianceResult {
 // DNC List — Do Not Contact
 // ------------------------------------------------------------------
 
-export function checkDnc(db: IDBProvider, address: string, type: "phone" | "email"): ComplianceResult {
+export function checkDnc(db: IDBProvider, address: string, type: "phone" | "email", orgId?: string): ComplianceResult {
   const column = type === "phone" ? "phone_number" : "email_address";
   try {
+    const orgClause = orgId ? " AND org_id = ?" : "";
+    const orgParams = orgId ? [orgId] : [];
     const rows = db.query<{ id: string }>(
-      `SELECT id FROM dnc_list WHERE ${column} = ?`,
-      [address]
+      `SELECT id FROM dnc_list WHERE ${column} = ?${orgClause}`,
+      [address, ...orgParams]
     );
     if (rows.length > 0) {
       logger.warn("compliance_dnc_blocked", { address, type });
@@ -82,10 +84,11 @@ export function addToDnc(db: IDBProvider, params: {
   emailAddress?: string;
   reason: string;
   addedBy: string;
+  orgId?: string;
 }): void {
   db.run(
-    "INSERT INTO dnc_list (id, phone_number, email_address, reason, added_by) VALUES (?, ?, ?, ?, ?)",
-    [randomUUID(), params.phoneNumber || null, params.emailAddress || null, params.reason, params.addedBy]
+    "INSERT INTO dnc_list (id, phone_number, email_address, reason, added_by, org_id) VALUES (?, ?, ?, ?, ?, ?)",
+    [randomUUID(), params.phoneNumber || null, params.emailAddress || null, params.reason, params.addedBy, params.orgId ?? "default"]
   );
 }
 
@@ -171,7 +174,7 @@ export function checkCanSpam(html: string | undefined, body: string): Compliance
 // GDPR Right to Erasure
 // ------------------------------------------------------------------
 
-export function processErasureRequest(db: IDBProvider, identifier: string, identifierType: "phone" | "email" | "agent_id"): {
+export function processErasureRequest(db: IDBProvider, identifier: string, identifierType: "phone" | "email" | "agent_id", orgId?: string): {
   requestId: string;
   tablesAffected: string[];
   rowsDeleted: number;
@@ -204,12 +207,14 @@ export function processErasureRequest(db: IDBProvider, identifier: string, ident
   };
 
   const targets = columnMap[identifierType] || [];
+  const orgClause = orgId ? " AND org_id = ?" : "";
+  const orgParams = orgId ? [orgId] : [];
 
   for (const { table, column } of targets) {
     try {
       const result = db.run(
-        `DELETE FROM ${table} WHERE ${column} = ?`,
-        [identifier]
+        `DELETE FROM ${table} WHERE ${column} = ?${orgClause}`,
+        [identifier, ...orgParams]
       );
       if (result.changes > 0) {
         totalDeleted += result.changes;

@@ -67,11 +67,18 @@ export async function handleInboundSms(req: Request, res: Response): Promise<voi
     return;
   }
 
+  // Look up org_id for multi-tenant scoping
+  let orgId = "default";
+  try {
+    const orgRows = db.query<{ org_id: string }>("SELECT org_id FROM agent_channels WHERE agent_id = ?", [agentId]);
+    if (orgRows.length > 0 && orgRows[0].org_id) orgId = orgRows[0].org_id;
+  } catch {}
+
   // Store message in database
   const messageId = randomUUID();
   db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, media_url, media_type, external_id, status)
-     VALUES (?, ?, 'sms', 'inbound', ?, ?, ?, ?, ?, ?, 'received')`,
+    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, media_url, media_type, external_id, status, org_id)
+     VALUES (?, ?, 'sms', 'inbound', ?, ?, ?, ?, ?, ?, 'received', ?)`,
     [
       messageId,
       agentId,
@@ -81,6 +88,7 @@ export async function handleInboundSms(req: Request, res: Response): Promise<voi
       body.MediaUrl0 || null,
       body.MediaContentType0 || null,
       body.MessageSid || null,
+      orgId,
     ]
   );
 

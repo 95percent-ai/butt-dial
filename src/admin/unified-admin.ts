@@ -101,7 +101,34 @@ export function renderAdminPage(specJson: string): string {
 
     .login-box input:focus { border-color: var(--border-focus); }
 
-    .login-box button {
+    .login-token-wrapper {
+      position: relative;
+      margin-bottom: 1rem;
+    }
+
+    .login-token-wrapper input {
+      padding-right: 2.75rem;
+      margin-bottom: 0;
+    }
+
+    .login-eye-btn {
+      position: absolute;
+      right: 0.75rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      padding: 0.25rem;
+      display: flex;
+      align-items: center;
+      transition: color 0.15s;
+    }
+
+    .login-eye-btn:hover { color: var(--text); }
+
+    .login-box button[type="submit"] {
       width: 100%;
       padding: 0.75rem;
       background: var(--accent);
@@ -114,7 +141,7 @@ export function renderAdminPage(specJson: string): string {
       transition: background 0.2s;
     }
 
-    .login-box button:hover { background: var(--accent-hover); }
+    .login-box button[type="submit"]:hover { background: var(--accent-hover); }
 
     .login-error {
       color: var(--error);
@@ -701,7 +728,19 @@ export function renderAdminPage(specJson: string): string {
       <h1>Butt-Dial Admin</h1>
       <p>Enter your master security token to continue.</p>
       <form id="login-form" autocomplete="off">
-        <input type="password" id="login-token" placeholder="Master Token" autofocus>
+        <div class="login-token-wrapper">
+          <input type="password" id="login-token" placeholder="Master Token" autofocus>
+          <button type="button" class="login-eye-btn" id="login-eye-btn" onclick="toggleTokenVisibility()" tabindex="-1">
+            <svg id="eye-icon-show" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+            <svg id="eye-icon-hide" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
+              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+          </button>
+        </div>
         <button type="submit">Sign In</button>
       </form>
       <div class="login-error" id="login-error"></div>
@@ -1072,6 +1111,22 @@ export function renderAdminPage(specJson: string): string {
     let dashboardTimer = null;
     let swaggerLoaded = false;
     let tierPresets = {};
+
+    /* ── Token visibility toggle ─────────────────────────────── */
+    function toggleTokenVisibility() {
+      const input = document.getElementById('login-token');
+      const showIcon = document.getElementById('eye-icon-show');
+      const hideIcon = document.getElementById('eye-icon-hide');
+      if (input.type === 'password') {
+        input.type = 'text';
+        showIcon.style.display = 'none';
+        hideIcon.style.display = 'block';
+      } else {
+        input.type = 'password';
+        showIcon.style.display = 'block';
+        hideIcon.style.display = 'none';
+      }
+    }
 
     /* ── Auth helpers ─────────────────────────────────────────── */
     function getToken() {
@@ -1780,7 +1835,7 @@ export function renderAdminPage(specJson: string): string {
           '<div class="field"><label>Spend / Day ($)</label><input type="number" step="0.01" id="spend-day-' + idx + '" value="' + (limits.max_spend_per_day || 10) + '"></div>' +
           '<div class="field"><label>Spend / Month ($)</label><input type="number" step="0.01" id="spend-month-' + idx + '" value="' + (limits.max_spend_per_month || 100) + '"></div>' +
           '</div>' +
-          '<div style="margin-top:0.75rem;"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();saveLimits(\'' + escAttr(agentId) + '\',' + idx + ')">Save Limits</button></div>' +
+          '<div style="margin-top:0.75rem;"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();saveLimits(\\'' + escAttr(agentId) + '\\',' + idx + ')">Save Limits</button></div>' +
           '</div>' +
           /* Right: Billing */
           '<div class="edit-section">' +
@@ -1796,7 +1851,7 @@ export function renderAdminPage(specJson: string): string {
           '<div class="field"><label>Markup %</label><input type="number" step="0.1" id="markup-' + idx + '" value="' + (billing.markupPercent || 0) + '"></div>' +
           '<div class="field"><label>Billing Email</label><input type="email" id="billing-email-' + idx + '" value="' + escAttr(billing.billingEmail || '') + '"></div>' +
           '</div>' +
-          '<div style="margin-top:0.75rem;"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();saveBilling(\'' + escAttr(agentId) + '\',' + idx + ')">Save Billing</button></div>' +
+          '<div style="margin-top:0.75rem;"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();saveBilling(\\'' + escAttr(agentId) + '\\',' + idx + ')">Save Billing</button></div>' +
           /* Mini progress bars */
           '<div class="mini-progress">' +
           buildMiniProgress('Actions/day', limits.max_actions_per_day || 500, 0) +

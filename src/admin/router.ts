@@ -15,23 +15,40 @@ import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 import { getAgentBillingConfig, setAgentBillingConfig, getTierLimits, getAvailableTiers } from "../lib/billing.js";
+import { verifyOrgToken } from "../lib/org-manager.js";
+import { orgFilter } from "../security/org-scope.js";
+import type { AuthInfo } from "../security/auth-guard.js";
 
 export const adminRouter = Router();
 
+/** Extract AuthInfo from Express request for org-scope helpers. */
+function getAuthInfo(req: Request): AuthInfo | undefined {
+  if (!req.auth) return undefined;
+  return {
+    token: req.auth.token,
+    clientId: req.auth.clientId,
+    scopes: req.auth.scopes,
+    orgId: req.auth.orgId,
+  };
+}
+
 /**
  * Admin auth middleware for POST routes.
- * Checks Authorization: Bearer <masterToken>.
- * No master token configured = allow (graceful degradation).
+ * 3-tier: master token (super-admin) → org token (org-admin) → reject.
+ * Agent tokens are NOT allowed on admin routes.
+ * No master token configured = allow (graceful degradation for dev).
  */
 function adminAuth(req: Request, res: Response, next: NextFunction): void {
-  // No master token = allow (dev mode / not configured yet)
-  if (!config.masterSecurityToken) {
+  // Demo mode = allow with super-admin scope
+  if (config.demoMode) {
+    req.auth = { token: "demo", clientId: "demo", scopes: ["admin", "super-admin"], orgId: "default" };
     next();
     return;
   }
 
-  // Demo mode = allow
-  if (config.demoMode) {
+  // No master token = allow (dev mode / not configured yet)
+  if (!config.masterSecurityToken) {
+    req.auth = { token: "unconfigured", clientId: "admin", scopes: ["admin", "super-admin"], orgId: "default" };
     next();
     return;
   }
@@ -39,18 +56,34 @@ function adminAuth(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     logger.warn("admin_auth_failed", { reason: "missing_header", path: req.path });
-    res.status(401).json({ error: "Missing Authorization header. Use: Bearer <masterToken>" });
+    res.status(401).json({ error: "Missing Authorization header. Use: Bearer <token>" });
     return;
   }
 
   const token = authHeader.slice(7);
-  if (token !== config.masterSecurityToken) {
-    logger.warn("admin_auth_failed", { reason: "invalid_token", path: req.path });
-    res.status(401).json({ error: "Invalid admin token" });
+
+  // 1. Master token → super-admin
+  if (token === config.masterSecurityToken) {
+    req.auth = { token, clientId: "super-admin", scopes: ["admin", "super-admin"], orgId: undefined };
+    next();
     return;
   }
 
-  next();
+  // 2. Org token → org-admin
+  try {
+    const db = getProvider("database");
+    const orgVerified = verifyOrgToken(db, token);
+    if (orgVerified) {
+      req.auth = { token, clientId: orgVerified.orgId, scopes: ["org-admin"], orgId: orgVerified.orgId };
+      next();
+      return;
+    }
+  } catch {
+    // org_tokens table might not exist yet
+  }
+
+  logger.warn("admin_auth_failed", { reason: "invalid_token", path: req.path });
+  res.status(401).json({ error: "Invalid admin token" });
 }
 
 // ── Unified Admin Page ────────────────────────────────────────────
@@ -77,38 +110,49 @@ adminRouter.get("/admin/api-docs/spec.json", (_req: Request, res: Response) => {
   res.json(generateOpenApiSpec());
 });
 
-/** Dashboard data API */
-adminRouter.get("/admin/api/dashboard", (_req: Request, res: Response) => {
+/** Dashboard data API — org-scoped */
+adminRouter.get("/admin/api/dashboard", adminAuth, (req: Request, res: Response) => {
   try {
     const db = getProvider("database");
+    const authInfo = getAuthInfo(req);
+    const of = orgFilter(authInfo);
 
-    // Active agents
+    // Active agents (org-scoped)
     const agents = db.query<Record<string, unknown>>(
-      "SELECT agent_id, display_name, phone_number, email_address, status FROM agent_channels ORDER BY provisioned_at DESC LIMIT 50"
+      `SELECT agent_id, display_name, phone_number, email_address, status FROM agent_channels WHERE 1=1${of.clause} ORDER BY provisioned_at DESC LIMIT 50`,
+      of.params
     );
 
-    // Usage summary
+    // Usage summary (org-scoped)
     const totalMessages = db.query<{ cnt: number }>(
-      "SELECT COUNT(*) as cnt FROM messages"
+      `SELECT COUNT(*) as cnt FROM messages WHERE 1=1${of.clause}`,
+      of.params
     );
 
     let _todayActions = 0;
     try {
-      const ta = db.query<{ cnt: number }>("SELECT COUNT(*) as cnt FROM usage_logs WHERE created_at >= datetime('now', '-1 day')");
+      const ta = db.query<{ cnt: number }>(
+        `SELECT COUNT(*) as cnt FROM usage_logs WHERE created_at >= datetime('now', '-1 day')${of.clause}`,
+        of.params
+      );
       _todayActions = ta[0]?.cnt || 0;
     } catch {}
 
     let _totalCost = 0;
     try {
-      const tc2 = db.query<{ total: number }>("SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs");
+      const tc2 = db.query<{ total: number }>(
+        `SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE 1=1${of.clause}`,
+        of.params
+      );
       _totalCost = tc2[0]?.total || 0;
     } catch {}
 
-    // Recent audit log entries as "alerts"
+    // Recent audit log entries as "alerts" (org-scoped)
     let alerts: Array<Record<string, unknown>> = [];
     try {
       alerts = db.query<Record<string, unknown>>(
-        "SELECT event_type as severity, action as message, created_at as timestamp FROM audit_log ORDER BY created_at DESC LIMIT 10"
+        `SELECT event_type as severity, action as message, created_at as timestamp FROM audit_log WHERE 1=1${of.clause} ORDER BY created_at DESC LIMIT 10`,
+        of.params
       );
     } catch {
       // audit_log might not have data
@@ -132,28 +176,31 @@ adminRouter.get("/admin/api/dashboard", (_req: Request, res: Response) => {
   }
 });
 
-/** Usage history — time-series data for charts */
-adminRouter.get("/admin/api/usage-history", adminAuth, (_req: Request, res: Response) => {
+/** Usage history — time-series data for charts (org-scoped) */
+adminRouter.get("/admin/api/usage-history", adminAuth, (req: Request, res: Response) => {
   try {
     const db = getProvider("database");
+    const of = orgFilter(getAuthInfo(req));
 
-    // Messages by day and channel (last 30 days)
+    // Messages by day and channel (last 30 days, org-scoped)
     let messagesByDay: Array<Record<string, unknown>> = [];
     try {
       messagesByDay = db.query<Record<string, unknown>>(
         `SELECT date(created_at) as day, channel, COUNT(*) as count
-         FROM messages WHERE created_at >= date('now', '-30 days')
-         GROUP BY day, channel ORDER BY day`
+         FROM messages WHERE created_at >= date('now', '-30 days')${of.clause}
+         GROUP BY day, channel ORDER BY day`,
+        of.params
       );
     } catch {}
 
-    // Cost by channel (last 30 days)
+    // Cost by channel (last 30 days, org-scoped)
     let costByChannel: Array<Record<string, unknown>> = [];
     try {
       costByChannel = db.query<Record<string, unknown>>(
         `SELECT channel, COALESCE(SUM(cost), 0) as total_cost, COUNT(*) as count
-         FROM usage_logs WHERE created_at >= date('now', '-30 days')
-         GROUP BY channel`
+         FROM usage_logs WHERE created_at >= date('now', '-30 days')${of.clause}
+         GROUP BY channel`,
+        of.params
       );
     } catch {}
 
@@ -174,14 +221,16 @@ adminRouter.get("/admin/api/voices", adminAuth, async (_req: Request, res: Respo
   }
 });
 
-/** List agents with limits + billing config */
-adminRouter.get("/admin/api/agents", adminAuth, (_req: Request, res: Response) => {
+/** List agents with limits + billing config (org-scoped) */
+adminRouter.get("/admin/api/agents", adminAuth, (req: Request, res: Response) => {
   try {
     const db = getProvider("database");
+    const of = orgFilter(getAuthInfo(req));
 
     const agents = db.query<Record<string, unknown>>(
       `SELECT agent_id, display_name, phone_number, email_address, whatsapp_sender_sid, status
-       FROM agent_channels ORDER BY provisioned_at DESC LIMIT 100`
+       FROM agent_channels WHERE 1=1${of.clause} ORDER BY provisioned_at DESC LIMIT 100`,
+      of.params
     );
 
     const result = agents.map((a) => {

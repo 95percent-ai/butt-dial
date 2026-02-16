@@ -7,7 +7,7 @@ const configSchema = z.object({
   // Server
   port: z.coerce.number().default(3100),
   webhookBaseUrl: z.string().default("http://localhost:3100"),
-  mcpServerName: z.string().default("agentos-comms"),
+  mcpServerName: z.string().default("butt-dial-mcp"),
   nodeEnv: z.enum(["development", "production", "test"]).default("development"),
 
   // Security

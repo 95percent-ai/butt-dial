@@ -110,7 +110,15 @@ export interface TTSSynthesizeResult {
 
 export interface ITTSProvider {
   synthesize(params: TTSSynthesizeParams): Promise<TTSSynthesizeResult>;
-  listVoices(): Promise<Array<{ id: string; name: string; language: string }>>;
+  listVoices(): Promise<Array<{
+    id: string;
+    name: string;
+    language: string;
+    gender?: string;
+    accent?: string;
+    description?: string;
+    useCase?: string;
+  }>>;
 }
 
 export interface ISTTProvider {

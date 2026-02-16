@@ -9,7 +9,8 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
-import { requireAgent, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, authErrorResponse, getOrgId, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgentInOrg } from "../security/org-scope.js";
 import { sanitize, SanitizationError, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 import { metrics } from "../observability/metrics.js";
@@ -54,6 +55,15 @@ export function registerSendMessageTool(server: McpServer): void {
       }
 
       const db = getProvider("database");
+      const authInfo = extra.authInfo as AuthInfo | undefined;
+      const orgId = getOrgId(authInfo);
+
+      // Org boundary check
+      try {
+        requireAgentInOrg(db, agentId, authInfo);
+      } catch (err) {
+        return authErrorResponse(err);
+      }
 
       // Look up the agent
       const rows = db.query<AgentRow>(
@@ -100,11 +110,11 @@ export function registerSendMessageTool(server: McpServer): void {
 
       // Route based on channel
       if (channel === "email") {
-        return await sendEmail(db, agent, agentId, to, body, subject, html);
+        return await sendEmail(db, agent, agentId, to, body, orgId, subject, html);
       } else if (channel === "whatsapp") {
-        return await sendWhatsApp(db, agent, agentId, to, body, templateId, templateVars);
+        return await sendWhatsApp(db, agent, agentId, to, body, orgId, templateId, templateVars);
       } else {
-        return await sendSms(db, agent, agentId, to, body);
+        return await sendSms(db, agent, agentId, to, body, orgId);
       }
     }
   );
@@ -118,6 +128,7 @@ async function sendSms(
   agentId: string,
   to: string,
   body: string,
+  orgId: string,
 ) {
   if (!agent.phone_number) {
     logger.warn("send_message_no_phone", { agentId });
@@ -147,9 +158,9 @@ async function sendSms(
 
   const messageId = randomUUID();
   db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost)
-     VALUES (?, ?, 'sms', 'outbound', ?, ?, ?, ?, ?, ?)`,
-    [messageId, agentId, agent.phone_number, to, body, result.messageId, result.status, result.cost ?? null]
+    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost, org_id)
+     VALUES (?, ?, 'sms', 'outbound', ?, ?, ?, ?, ?, ?, ?)`,
+    [messageId, agentId, agent.phone_number, to, body, result.messageId, result.status, result.cost ?? null, orgId]
   );
 
   logUsage(db, { agentId, actionType: "sms", channel: "sms", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
@@ -178,6 +189,7 @@ async function sendEmail(
   agentId: string,
   to: string,
   body: string,
+  orgId: string,
   subject?: string,
   html?: string,
 ) {
@@ -218,9 +230,9 @@ async function sendEmail(
 
   const messageId = randomUUID();
   db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost)
-     VALUES (?, ?, 'email', 'outbound', ?, ?, ?, ?, ?, ?)`,
-    [messageId, agentId, agent.email_address, to, `[${subject}] ${body}`, result.messageId, result.status, result.cost ?? null]
+    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost, org_id)
+     VALUES (?, ?, 'email', 'outbound', ?, ?, ?, ?, ?, ?, ?)`,
+    [messageId, agentId, agent.email_address, to, `[${subject}] ${body}`, result.messageId, result.status, result.cost ?? null, orgId]
   );
 
   logUsage(db, { agentId, actionType: "email", channel: "email", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
@@ -249,6 +261,7 @@ async function sendWhatsApp(
   agentId: string,
   to: string,
   body: string,
+  orgId: string,
   templateId?: string,
   templateVars?: Record<string, string>,
 ) {
@@ -282,9 +295,9 @@ async function sendWhatsApp(
 
   const messageId = randomUUID();
   db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost)
-     VALUES (?, ?, 'whatsapp', 'outbound', ?, ?, ?, ?, ?, ?)`,
-    [messageId, agentId, agent.whatsapp_sender_sid, to, body, result.messageId, result.status, result.cost ?? null]
+    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost, org_id)
+     VALUES (?, ?, 'whatsapp', 'outbound', ?, ?, ?, ?, ?, ?, ?)`,
+    [messageId, agentId, agent.whatsapp_sender_sid, to, body, result.messageId, result.status, result.cost ?? null, orgId]
   );
 
   logUsage(db, { agentId, actionType: "whatsapp", channel: "whatsapp", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });

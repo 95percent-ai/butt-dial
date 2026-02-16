@@ -1,4 +1,4 @@
-<!-- version: 4.0 | updated: 2026-02-16 -->
+<!-- version: 4.1 | updated: 2026-02-16 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -283,3 +283,19 @@ Final refinements.
 - [x] Expanded demo scenarios (8 total: health, readiness, metrics, swagger, spec, dashboard data, security headers, dashboard page)
 - [x] Comprehensive end-to-end test suite (49 assertions covering all tools, endpoints, compliance, billing, admin)
 - [x] **Verify (dry):** 49/49 end-to-end assertions pass
+
+## Phase 21 — Multi-Tenant Organization Isolation
+Hard security boundaries between organizations. No data leaks across tenants.
+
+- [x] **Organization model** — `organizations` + `org_tokens` tables, org-manager.ts CRUD + token management
+- [x] **Org → Agent association** — every table gets `org_id` column (15 tables), all existing data migrated to 'default' org
+- [x] **Tenant-scoped auth** — 3-tier auth: super-admin (master token) → org-admin (org token) → agent (agent token)
+- [x] **Data isolation** — all queries scoped by org_id via org-scope.ts helpers (orgFilter, orgWhere, requireAgentInOrg)
+- [x] **Impersonation guard** — org boundary enforced at middleware + tool level. Agent tokens include orgId
+- [x] **Credential isolation** — provider_credentials table has org_id column, queries scoped
+- [x] **Rate limiting per org** — usage_logs scoped by org_id
+- [x] **Admin scoping** — admin dashboard + API queries filter by org_id. Super-admin sees all orgs
+- [x] **MCP tools** — `comms_create_organization` + `comms_list_organizations` (super-admin only)
+- [x] **Tool scoping** — all 16 tool files + 5 webhook files + 4 lib files updated with org_id
+- [x] **Login bug fix** — CSS specificity fix for eye toggle button overlap
+- [x] **Tests** — 50/50 multi-tenant assertions pass (schema, org CRUD, data isolation, admin API, tokens, duplicate protection)

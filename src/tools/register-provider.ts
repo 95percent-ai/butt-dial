@@ -10,7 +10,8 @@ import { saveCredentials } from "../admin/env-writer.js";
 import { logger } from "../lib/logger.js";
 import { config } from "../lib/config.js";
 import { getProvider } from "../providers/factory.js";
-import { requireAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAdmin, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgentInOrg } from "../security/org-scope.js";
 import { encrypt } from "../security/crypto.js";
 
 const PROVIDER_CONFIGS: Record<string, {
@@ -211,6 +212,9 @@ export function registerRegisterProviderTool(server: McpServer): void {
         return authErrorResponse(err);
       }
 
+      const authInfo = extra.authInfo as AuthInfo | undefined;
+      const orgId = getOrgId(authInfo);
+
       const providerConfig = PROVIDER_CONFIGS[provider];
 
       if (!providerConfig) {
@@ -270,14 +274,14 @@ export function registerRegisterProviderTool(server: McpServer): void {
           if (!envKey) continue;
           const encrypted = encrypt(value, config.credentialsEncryptionKey);
           db.run(
-            `INSERT INTO provider_credentials (id, provider, credential_key, encrypted_value, iv, auth_tag)
-             VALUES (?, ?, ?, ?, ?, ?)
+            `INSERT INTO provider_credentials (id, provider, credential_key, encrypted_value, iv, auth_tag, org_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
              ON CONFLICT(provider, credential_key) DO UPDATE SET
                encrypted_value = excluded.encrypted_value,
                iv = excluded.iv,
                auth_tag = excluded.auth_tag,
                updated_at = datetime('now')`,
-            [randomUUID(), provider, envKey, encrypted.encrypted, encrypted.iv, encrypted.authTag]
+            [randomUUID(), provider, envKey, encrypted.encrypted, encrypted.iv, encrypted.authTag, orgId]
           );
         }
       }

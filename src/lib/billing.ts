@@ -222,6 +222,7 @@ export function getBillingSummary(
   db: DBProvider,
   agentId: string,
   timeFilter: string,
+  orgId?: string,
 ): {
   providerCost: number;
   billingCost: number;
@@ -232,10 +233,13 @@ export function getBillingSummary(
   const billingConfig = getAgentBillingConfig(db, agentId);
   const markup = billingConfig.markupPercent;
 
+  const orgClause = orgId ? " AND org_id = ?" : "";
+  const orgParams = orgId ? [orgId] : [];
+
   const rows = db.query<CostRow>(
     `SELECT channel, COALESCE(SUM(cost), 0) as provider_cost, COUNT(*) as action_count
-     FROM usage_logs WHERE agent_id = ? AND ${timeFilter} GROUP BY channel`,
-    [agentId]
+     FROM usage_logs WHERE agent_id = ? AND ${timeFilter}${orgClause} GROUP BY channel`,
+    [agentId, ...orgParams]
   );
 
   let totalProviderCost = 0;

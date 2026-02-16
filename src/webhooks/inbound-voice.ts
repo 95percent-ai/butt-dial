@@ -78,12 +78,19 @@ export async function handleInboundVoice(req: Request, res: Response): Promise<v
     return;
   }
 
+  // Look up org_id for multi-tenant scoping
+  let orgId = "default";
+  try {
+    const orgRows = db.query<{ org_id: string }>("SELECT org_id FROM agent_channels WHERE agent_id = ?", [agentId]);
+    if (orgRows.length > 0 && orgRows[0].org_id) orgId = orgRows[0].org_id;
+  } catch {}
+
   // Store inbound call in messages table
   const messageId = randomUUID();
   db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status)
-     VALUES (?, ?, 'voice', 'inbound', ?, ?, ?, ?, 'received')`,
-    [messageId, agentId, body.From, body.To, null, body.CallSid || null]
+    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id)
+     VALUES (?, ?, 'voice', 'inbound', ?, ?, ?, ?, 'received', ?)`,
+    [messageId, agentId, body.From, body.To, null, body.CallSid || null, orgId]
   );
 
   // Build TwiML via voice orchestrator
