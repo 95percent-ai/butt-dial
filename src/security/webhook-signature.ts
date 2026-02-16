@@ -67,17 +67,14 @@ export function verifyTwilioSignature(req: Request, res: Response, next: NextFun
     const host = req.headers["x-forwarded-host"] || req.headers.host;
     const fullUrl = `${protocol}://${host}${req.originalUrl}`;
 
-    // Get raw body string from urlencoded form data
-    const rawBody = Object.entries(req.body as Record<string, string>)
-      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-      .join("&");
-
     const headers: Record<string, string> = {};
     for (const [key, value] of Object.entries(req.headers)) {
       if (typeof value === "string") headers[key] = value;
     }
 
-    const valid = telephony.verifyWebhookSignature(headers, rawBody, fullUrl);
+    // Pass parsed body object directly — avoids re-encoding issues with special chars
+    const bodyParams = req.body as Record<string, string>;
+    const valid = telephony.verifyWebhookSignature(headers, bodyParams, fullUrl);
 
     if (!valid) {
       logger.warn("twilio_sig_invalid", { url: fullUrl });

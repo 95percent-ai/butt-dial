@@ -25,8 +25,8 @@ async function main() {
     name: "comms_send_message",
     arguments: {
       agentId: "test-agent-001",
-      to: "+18777804236",
-      body: "Hello from AgentOS — Phase 2 live test!",
+      to: "+972526557547",
+      body: "Hello from Butt-Dial MCP — live SMS test!",
     },
   });
 

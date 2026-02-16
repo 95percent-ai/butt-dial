@@ -53,7 +53,7 @@ export interface ITelephonyProvider {
   buyNumber(params: BuyNumberParams): Promise<BuyNumberResult>;
   releaseNumber(phoneNumber: string): Promise<void>;
   configureWebhooks(phoneNumber: string, webhooks: { voiceUrl?: string; smsUrl?: string }): Promise<void>;
-  verifyWebhookSignature(headers: Record<string, string>, body: string, url: string): boolean;
+  verifyWebhookSignature(headers: Record<string, string>, body: string | Record<string, string>, url: string): boolean;
 }
 
 export interface SendEmailParams {

@@ -215,15 +215,16 @@ export function createVonageTelephonyProvider(cfg: VonageConfig): ITelephonyProv
 
     verifyWebhookSignature(
       headers: Record<string, string>,
-      body: string,
+      body: string | Record<string, string>,
       _url: string
     ): boolean {
       // Vonage uses HMAC-SHA256 with the signing secret
       const signature = headers["x-vonage-signature"];
       if (!signature || !cfg.apiSecret) return false;
 
+      const bodyStr = typeof body === "string" ? body : JSON.stringify(body);
       const expected = createHmac("sha256", cfg.apiSecret)
-        .update(body)
+        .update(bodyStr)
         .digest("hex");
 
       return signature === expected;

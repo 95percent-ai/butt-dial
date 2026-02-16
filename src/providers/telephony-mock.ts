@@ -97,7 +97,7 @@ export function createMockTelephonyProvider(): ITelephonyProvider {
 
     verifyWebhookSignature(
       _headers: Record<string, string>,
-      _body: string,
+      _body: string | Record<string, string>,
       _url: string
     ): boolean {
       return true;

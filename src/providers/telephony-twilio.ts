@@ -324,18 +324,24 @@ export function createTwilioTelephonyProvider(cfg: TwilioConfig): ITelephonyProv
 
     verifyWebhookSignature(
       headers: Record<string, string>,
-      body: string,
+      body: string | Record<string, string>,
       url: string
     ): boolean {
       const signature = headers["x-twilio-signature"];
       if (!signature) return false;
 
-      // Build the data string: URL + sorted POST params
+      // Build the data string: URL + sorted POST params (decoded values)
       let data = url;
       if (body) {
-        const params = new URLSearchParams(body);
-        const sorted = Array.from(params.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-        for (const [key, value] of sorted) {
+        let entries: [string, string][];
+        if (typeof body === "object") {
+          entries = Object.entries(body);
+        } else {
+          const params = new URLSearchParams(body);
+          entries = Array.from(params.entries());
+        }
+        entries.sort((a, b) => a[0].localeCompare(b[0]));
+        for (const [key, value] of entries) {
           data += key + value;
         }
       }
