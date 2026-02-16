@@ -51,7 +51,7 @@ export function renderSwaggerPage(specJson: string): string {
 <body>
   ${demoBanner}
   <div class="header-banner">
-    <h1>AgentOS Communication API</h1>
+    <h1>Butt-Dial Communication API</h1>
     <p>This server exposes both <strong>REST endpoints</strong> (documented below via Swagger) and <strong>MCP tools</strong> (accessed via SSE transport).</p>
     <p><a href="/admin/setup">Setup Wizard</a> | <a href="/health">Health Check</a> | <a href="/metrics">Metrics</a></p>
   </div>

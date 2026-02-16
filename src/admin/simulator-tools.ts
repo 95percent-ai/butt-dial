@@ -85,7 +85,7 @@ export const TOOL_REGISTRY: ToolDef[] = [
       { name: "systemPrompt", type: "string", required: false, description: "System prompt for the AI conversation" },
       { name: "greeting", type: "string", required: false, description: "Initial greeting text" },
     ],
-    demoValues: { agentId: "agent-001", to: "+15551234567", greeting: "Hi! I'm calling from AgentOS." },
+    demoValues: { agentId: "agent-001", to: "+15551234567", greeting: "Hi! I'm calling from Butt-Dial." },
   },
   {
     name: "comms_transfer_call",

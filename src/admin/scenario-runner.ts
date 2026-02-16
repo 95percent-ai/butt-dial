@@ -44,13 +44,13 @@ export async function runDemoScenarios(serverUrl: string): Promise<ScenarioResul
     return `Metrics OK (${text.split("\n").length} lines)`;
   }));
 
-  // Scenario 4: Swagger UI loads
+  // Scenario 4: Swagger UI loads (unified admin page includes Swagger)
   results.push(await runScenario("Swagger UI loads", async () => {
-    const resp = await fetch(`${serverUrl}/admin/api-docs`);
+    const resp = await fetch(`${serverUrl}/admin`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const html = await resp.text();
     if (!html.includes("swagger-ui")) throw new Error("Swagger UI not found in HTML");
-    return `Swagger UI page loaded (${html.length} bytes)`;
+    return `Swagger UI embedded in admin page (${html.length} bytes)`;
   }));
 
   // Scenario 5: OpenAPI spec valid
@@ -85,13 +85,13 @@ export async function runDemoScenarios(serverUrl: string): Promise<ScenarioResul
     return `X-Frame-Options: ${xfo}, X-Content-Type-Options: ${xcto}`;
   }));
 
-  // Scenario 8: Admin dashboard page loads
-  results.push(await runScenario("Dashboard page loads", async () => {
-    const resp = await fetch(`${serverUrl}/admin/dashboard`);
+  // Scenario 8: Admin page loads (unified UI)
+  results.push(await runScenario("Admin page loads", async () => {
+    const resp = await fetch(`${serverUrl}/admin`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const html = await resp.text();
-    if (!html.includes("Admin Dashboard")) throw new Error("Dashboard title not found");
-    return `Dashboard page loaded (${html.length} bytes)`;
+    if (!html.includes("Butt-Dial Admin")) throw new Error("Admin page title not found");
+    return `Admin page loaded (${html.length} bytes)`;
   }));
 
   return results;

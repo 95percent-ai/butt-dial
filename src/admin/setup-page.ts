@@ -5,7 +5,7 @@ export function renderSetupPage(): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AgentOS Comms — Setup</title>
+  <title>Butt-Dial — Setup</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -199,7 +199,7 @@ export function renderSetupPage(): string {
 </head>
 <body>
   <div class="container">
-    <h1>AgentOS Comms Setup</h1>
+    <h1>Butt-Dial Setup</h1>
     <p class="subtitle">Configure your communication providers</p>
 
     <!-- Twilio Card -->

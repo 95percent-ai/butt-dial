@@ -145,7 +145,7 @@ export async function handleChat(req: Request, res: Response): Promise<void> {
     const toolCalls: ToolCallRecord[] = [];
     const MAX_ITERATIONS = 10;
 
-    const systemPrompt = `You are a helpful assistant demonstrating the AgentOS Communication MCP Server.
+    const systemPrompt = `You are a helpful assistant demonstrating the Butt-Dial Communication MCP Server.
 You have access to ${TOOL_REGISTRY.length} tools covering messaging (SMS, email, WhatsApp), voice calls, OTP verification, provisioning, billing, and system health.
 When the user asks you to perform an action, use the appropriate tool. Explain what you're doing and show the results.
 The server is running in ${config.demoMode ? "DEMO mode (mock providers, no real messages sent)" : "LIVE mode"}.

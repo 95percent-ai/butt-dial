@@ -12,7 +12,7 @@ export function renderAdminPage(specJson: string): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AgentOS Admin</title>
+  <title>Butt-Dial Admin</title>
   <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css">
   <style>
     /* ── CSS Variables ─────────────────────────────────────────── */
@@ -698,7 +698,7 @@ export function renderAdminPage(specJson: string): string {
   <!-- ── Login Overlay ──────────────────────────────────────── -->
   <div id="login-overlay">
     <div class="login-box">
-      <h1>AgentOS Admin</h1>
+      <h1>Butt-Dial Admin</h1>
       <p>Enter your master security token to continue.</p>
       <form id="login-form" autocomplete="off">
         <input type="password" id="login-token" placeholder="Master Token" autofocus>
@@ -716,7 +716,7 @@ export function renderAdminPage(specJson: string): string {
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="sidebar-logo">
-        <h2>AgentOS</h2>
+        <h2>Butt-Dial</h2>
         <span>Communication Server</span>
       </div>
       <nav class="sidebar-nav">

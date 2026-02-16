@@ -9,10 +9,10 @@ export function generateOpenApiSpec(): Record<string, unknown> {
   return {
     openapi: "3.1.0",
     info: {
-      title: "AgentOS Communication MCP Server",
+      title: "Butt-Dial Communication MCP Server",
       version: "0.1.0",
       description: "MCP-based communication server for AI agents. Provides SMS, email, WhatsApp, and voice capabilities through a unified tool interface.",
-      contact: { name: "AgentOS" },
+      contact: { name: "Butt-Dial" },
     },
     servers: [
       { url: config.webhookBaseUrl, description: "Current server" },
