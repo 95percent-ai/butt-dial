@@ -17,6 +17,7 @@ import { registerOnboardCustomerTool } from "./tools/onboard-customer.js";
 import { registerTransferCallTool } from "./tools/transfer-call.js";
 import { registerBillingTools } from "./tools/get-billing-summary.js";
 import { registerExpandAgentPoolTool } from "./tools/expand-agent-pool.js";
+import { registerOtpTools } from "./tools/otp-tools.js";
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -104,6 +105,9 @@ export function createMcpServer(): McpServer {
 
   // Phase 20: Pool expansion
   registerExpandAgentPoolTool(server);
+
+  // OTP verification tools
+  registerOtpTools(server);
 
   logger.info("mcp_server_created", { name: config.mcpServerName });
 

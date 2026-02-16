@@ -1,16 +1,20 @@
 import { Router } from "express";
 import type { Request, Response, NextFunction } from "express";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { getProviderStatus, saveCredentials } from "./env-writer.js";
 import { testTwilioCredentials, testElevenLabsCredentials, testResendCredentials } from "./credential-testers.js";
 import { renderSetupPage } from "./setup-page.js";
 import { renderSwaggerPage } from "./swagger-page.js";
 import { renderDashboardPage } from "./dashboard-page.js";
+import { renderAdminPage } from "./unified-admin.js";
 import { generateOpenApiSpec } from "./openapi-spec.js";
 import { runDemoScenarios } from "./scenario-runner.js";
+import { handleGetTools, handleExecuteTool, handleChat } from "./simulator-api.js";
 import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
+import { getAgentBillingConfig, setAgentBillingConfig, getTierLimits, getAvailableTiers } from "../lib/billing.js";
 
 export const adminRouter = Router();
 
@@ -49,25 +53,28 @@ function adminAuth(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
-/** Serve the setup page (GET — no auth required) */
-adminRouter.get("/admin/setup", (_req: Request, res: Response) => {
-  res.type("html").send(renderSetupPage());
+// ── Unified Admin Page ────────────────────────────────────────────
+adminRouter.get("/admin", (_req: Request, res: Response) => {
+  const spec = generateOpenApiSpec();
+  res.type("html").send(renderAdminPage(JSON.stringify(spec)));
 });
 
-/** Serve Swagger UI (GET — no auth required) */
+// ── Redirects from old pages to unified UI ────────────────────────
+adminRouter.get("/admin/setup", (_req: Request, res: Response) => {
+  res.redirect("/admin#settings");
+});
+
+adminRouter.get("/admin/dashboard", (_req: Request, res: Response) => {
+  res.redirect("/admin#dashboard");
+});
+
 adminRouter.get("/admin/api-docs", (_req: Request, res: Response) => {
-  const spec = generateOpenApiSpec();
-  res.type("html").send(renderSwaggerPage(JSON.stringify(spec)));
+  res.redirect("/admin#docs");
 });
 
 /** Serve raw OpenAPI spec as JSON */
 adminRouter.get("/admin/api-docs/spec.json", (_req: Request, res: Response) => {
   res.json(generateOpenApiSpec());
-});
-
-/** Serve admin dashboard (GET — no auth required) */
-adminRouter.get("/admin/dashboard", (_req: Request, res: Response) => {
-  res.type("html").send(renderDashboardPage());
 });
 
 /** Dashboard data API */
@@ -122,6 +129,137 @@ adminRouter.get("/admin/api/dashboard", (_req: Request, res: Response) => {
     });
   } catch (err) {
     res.json({ agents: [], usage: { totalMessages: 0, todayActions: 0, totalCost: 0 }, alerts: [] });
+  }
+});
+
+/** Usage history — time-series data for charts */
+adminRouter.get("/admin/api/usage-history", adminAuth, (_req: Request, res: Response) => {
+  try {
+    const db = getProvider("database");
+
+    // Messages by day and channel (last 30 days)
+    let messagesByDay: Array<Record<string, unknown>> = [];
+    try {
+      messagesByDay = db.query<Record<string, unknown>>(
+        `SELECT date(created_at) as day, channel, COUNT(*) as count
+         FROM messages WHERE created_at >= date('now', '-30 days')
+         GROUP BY day, channel ORDER BY day`
+      );
+    } catch {}
+
+    // Cost by channel (last 30 days)
+    let costByChannel: Array<Record<string, unknown>> = [];
+    try {
+      costByChannel = db.query<Record<string, unknown>>(
+        `SELECT channel, COALESCE(SUM(cost), 0) as total_cost, COUNT(*) as count
+         FROM usage_logs WHERE created_at >= date('now', '-30 days')
+         GROUP BY channel`
+      );
+    } catch {}
+
+    res.json({ messagesByDay, costByChannel });
+  } catch {
+    res.json({ messagesByDay: [], costByChannel: [] });
+  }
+});
+
+/** Voice list from current TTS provider */
+adminRouter.get("/admin/api/voices", adminAuth, async (_req: Request, res: Response) => {
+  try {
+    const tts = getProvider("tts");
+    const voices = await tts.listVoices();
+    res.json({ voices });
+  } catch (err) {
+    res.json({ voices: [], error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
+/** List agents with limits + billing config */
+adminRouter.get("/admin/api/agents", adminAuth, (_req: Request, res: Response) => {
+  try {
+    const db = getProvider("database");
+
+    const agents = db.query<Record<string, unknown>>(
+      `SELECT agent_id, display_name, phone_number, email_address, whatsapp_sender_sid, status
+       FROM agent_channels ORDER BY provisioned_at DESC LIMIT 100`
+    );
+
+    const result = agents.map((a) => {
+      const agentId = String(a.agent_id);
+      const billing = getAgentBillingConfig(db, agentId);
+
+      // Get spending limits
+      let limits: Record<string, unknown> = {};
+      try {
+        const rows = db.query<Record<string, unknown>>(
+          "SELECT max_actions_per_minute, max_actions_per_hour, max_actions_per_day, max_spend_per_day, max_spend_per_month FROM spending_limits WHERE agent_id = ?",
+          [agentId]
+        );
+        if (rows.length > 0) limits = rows[0];
+      } catch {}
+
+      return { ...a, billing, limits };
+    });
+
+    res.json({ agents: result, tiers: getAvailableTiers() });
+  } catch (err) {
+    res.json({ agents: [], tiers: [], error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
+/** Update agent rate/spending limits */
+adminRouter.post("/admin/api/agents/:agentId/limits", adminAuth, (req: Request, res: Response) => {
+  try {
+    const agentId = String(req.params.agentId);
+    const { maxActionsPerMinute, maxActionsPerHour, maxActionsPerDay, maxSpendPerDay, maxSpendPerMonth } = req.body ?? {};
+    const db = getProvider("database");
+
+    // Upsert spending_limits
+    const existing = db.query<{ agent_id: string }>(
+      "SELECT agent_id FROM spending_limits WHERE agent_id = ?",
+      [agentId]
+    );
+
+    if (existing.length === 0) {
+      db.run(
+        `INSERT INTO spending_limits (id, agent_id, max_actions_per_minute, max_actions_per_hour, max_actions_per_day, max_spend_per_day, max_spend_per_month)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [randomUUID(), agentId, maxActionsPerMinute || 10, maxActionsPerHour || 100, maxActionsPerDay || 500, maxSpendPerDay || 10, maxSpendPerMonth || 100]
+      );
+    } else {
+      const sets: string[] = [];
+      const params: unknown[] = [];
+      if (maxActionsPerMinute !== undefined) { sets.push("max_actions_per_minute = ?"); params.push(maxActionsPerMinute); }
+      if (maxActionsPerHour !== undefined) { sets.push("max_actions_per_hour = ?"); params.push(maxActionsPerHour); }
+      if (maxActionsPerDay !== undefined) { sets.push("max_actions_per_day = ?"); params.push(maxActionsPerDay); }
+      if (maxSpendPerDay !== undefined) { sets.push("max_spend_per_day = ?"); params.push(maxSpendPerDay); }
+      if (maxSpendPerMonth !== undefined) { sets.push("max_spend_per_month = ?"); params.push(maxSpendPerMonth); }
+      if (sets.length > 0) {
+        params.push(agentId);
+        db.run(`UPDATE spending_limits SET ${sets.join(", ")} WHERE agent_id = ?`, params);
+      }
+    }
+
+    res.json({ success: true, agentId });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
+/** Update agent billing tier/markup */
+adminRouter.post("/admin/api/agents/:agentId/billing", adminAuth, (req: Request, res: Response) => {
+  try {
+    const agentId = String(req.params.agentId);
+    const { tier, markupPercent, billingEmail } = req.body ?? {};
+    const db = getProvider("database");
+
+    setAgentBillingConfig(db, agentId, { tier, markupPercent, billingEmail });
+    const updated = getAgentBillingConfig(db, agentId);
+    const tierLimits = getTierLimits(updated.tier);
+
+    res.json({ success: true, agentId, billingConfig: updated, tierLimits });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err instanceof Error ? err.message : err) });
   }
 });
 
@@ -199,6 +337,9 @@ adminRouter.post("/admin/api/save", adminAuth, (req: Request, res: Response) => 
     "VOICE_DEFAULT_GREETING",
     "VOICE_DEFAULT_VOICE",
     "VOICE_DEFAULT_LANGUAGE",
+    "VOICE_DEFAULT_SYSTEM_PROMPT",
+    "PROVIDER_TTS",
+    "OPENAI_API_KEY",
     "IDENTITY_MODE",
     "ISOLATION_MODE",
   ]);
@@ -222,6 +363,11 @@ adminRouter.post("/admin/api/save", adminAuth, (req: Request, res: Response) => 
     res.status(500).json({ success: false, message: `Failed to save: ${String(err)}` });
   }
 });
+
+// ── Simulator API ─────────────────────────────────────────────
+adminRouter.get("/admin/api/simulator/tools", adminAuth, handleGetTools);
+adminRouter.post("/admin/api/simulator/execute", adminAuth, handleExecuteTool);
+adminRouter.post("/admin/api/simulator/chat", adminAuth, handleChat);
 
 /** Deploy — restart the server so new .env values take effect */
 adminRouter.post("/admin/api/deploy", adminAuth, (_req: Request, res: Response) => {
