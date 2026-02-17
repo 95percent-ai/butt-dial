@@ -9,7 +9,7 @@ export function renderLandingPage(): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Butt-Dial — Give Your AI Agents a Phone Number</title>
+  <title>Butt-Dial — Communication Infrastructure for AI Agents</title>
   <style>
     :root {
       --bg-body: #0f1117;
@@ -21,6 +21,7 @@ export function renderLandingPage(): string {
       --accent: #58a6ff;
       --accent-hover: #79c0ff;
       --success: #3fb950;
+      --warning: #d29922;
       --radius: 12px;
       --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
     }
@@ -81,7 +82,7 @@ export function renderLandingPage(): string {
       font-weight: 800;
       color: var(--text-heading);
       line-height: 1.1;
-      max-width: 800px;
+      max-width: 900px;
       margin-bottom: 24px;
     }
     .hero h1 .gradient {
@@ -96,11 +97,12 @@ export function renderLandingPage(): string {
       0%, 100% { background-position: 0% 50%; }
       50% { background-position: 100% 50%; }
     }
-    .hero p {
+    .hero p.hero-sub {
       font-size: clamp(16px, 2vw, 20px);
       color: var(--text-muted);
-      max-width: 560px;
+      max-width: 680px;
       margin-bottom: 40px;
+      line-height: 1.7;
     }
     .hero-cta {
       display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;
@@ -126,31 +128,116 @@ export function renderLandingPage(): string {
     }
     .section-subtitle {
       font-size: 16px; color: var(--text-muted); text-align: center;
-      margin-bottom: 48px; max-width: 560px; margin-left: auto; margin-right: auto;
+      margin-bottom: 48px; max-width: 620px; margin-left: auto; margin-right: auto;
     }
 
-    /* ── Feature cards ────────────────────────── */
-    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; }
-    .feature-card {
+    /* ── Problem cards ────────────────────────── */
+    .problem-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+    .problem-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--warning);
+      border-radius: var(--radius);
+      padding: 24px;
+      transition: all 0.3s;
+    }
+    .problem-card:hover {
+      border-color: var(--warning);
+      border-left-color: var(--warning);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .problem-card h3 {
+      font-size: 16px; font-weight: 600; color: var(--text-heading); margin-bottom: 6px;
+    }
+    .problem-card p {
+      font-size: 14px; color: var(--text-muted); line-height: 1.5;
+    }
+
+    /* ── Architecture diagram ─────────────────── */
+    .arch-diagram {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0; flex-wrap: wrap;
+      margin-bottom: 48px;
+    }
+    .arch-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 28px;
+      text-align: center;
+      min-width: 160px;
+    }
+    .arch-box.arch-highlight {
+      border-color: var(--accent);
+      box-shadow: 0 0 24px rgba(88,166,255,0.15);
+    }
+    .arch-box .arch-icon { font-size: 28px; display: block; margin-bottom: 8px; }
+    .arch-box .arch-label { font-size: 14px; font-weight: 600; color: var(--text-heading); }
+    .arch-box .arch-desc { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .arch-arrow {
+      font-size: 24px; color: var(--text-muted); padding: 0 12px;
+      display: flex; align-items: center;
+    }
+    .arch-points { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+    .arch-point h3 { font-size: 16px; font-weight: 600; color: var(--text-heading); margin-bottom: 6px; }
+    .arch-point p { font-size: 14px; color: var(--text-muted); }
+
+    /* ── Feature detail cards ─────────────────── */
+    .feature-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+    .feature-detail-card {
       background: var(--bg-card);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 32px 24px;
       transition: all 0.3s;
     }
-    .feature-card:hover {
+    .feature-detail-card:hover {
       border-color: var(--accent);
       transform: translateY(-4px);
       box-shadow: 0 12px 32px rgba(0,0,0,0.3);
     }
-    .feature-icon {
+    .feature-detail-card .feature-icon {
       font-size: 36px; margin-bottom: 16px; display: block;
     }
-    .feature-card h3 {
+    .feature-detail-card h3 {
       font-size: 18px; font-weight: 600; color: var(--text-heading); margin-bottom: 8px;
     }
-    .feature-card p {
-      font-size: 14px; color: var(--text-muted); line-height: 1.5;
+    .feature-detail-card .feature-desc {
+      font-size: 14px; color: var(--text-muted); line-height: 1.6; margin-bottom: 16px;
+    }
+    .feature-detail-card ul {
+      list-style: none; padding: 0;
+    }
+    .feature-detail-card ul li {
+      font-size: 13px; color: var(--text-muted); padding: 4px 0;
+      padding-left: 20px; position: relative;
+    }
+    .feature-detail-card ul li::before {
+      content: '\\2713';
+      position: absolute; left: 0; color: var(--success); font-weight: 700;
+    }
+
+    /* ── Security / Compliance two-column ──────── */
+    .sec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+    .sec-column {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+    }
+    .sec-column h3 {
+      font-size: 18px; font-weight: 600; color: var(--text-heading); margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .check-list { list-style: none; padding: 0; }
+    .check-list li {
+      font-size: 14px; color: var(--text-muted); padding: 6px 0;
+      padding-left: 24px; position: relative; line-height: 1.5;
+    }
+    .check-list li::before {
+      content: '\\2713';
+      position: absolute; left: 0; color: var(--success); font-weight: 700;
     }
 
     /* ── Steps ────────────────────────────────── */
@@ -169,14 +256,25 @@ export function renderLandingPage(): string {
     }
     .step p { font-size: 14px; color: var(--text-muted); }
 
-    /* ── Why section ──────────────────────────── */
-    .why-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
-    .why-item {
-      padding: 20px;
-      border-left: 3px solid var(--accent);
+    /* ── Compact row (observability) ──────────── */
+    .compact-row {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;
     }
-    .why-item h3 { font-size: 16px; font-weight: 600; color: var(--text-heading); margin-bottom: 6px; }
-    .why-item p { font-size: 14px; color: var(--text-muted); }
+    .compact-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 20px;
+      text-align: center;
+      transition: all 0.3s;
+    }
+    .compact-item:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+    .compact-item .compact-icon { font-size: 28px; display: block; margin-bottom: 10px; }
+    .compact-item h3 { font-size: 15px; font-weight: 600; color: var(--text-heading); margin-bottom: 4px; }
+    .compact-item p { font-size: 13px; color: var(--text-muted); }
 
     /* ── Open source ─────────────────────────── */
     .open-source {
@@ -189,7 +287,7 @@ export function renderLandingPage(): string {
       margin: 0 auto;
     }
     .open-source h2 { font-size: 28px; color: var(--text-heading); margin-bottom: 12px; }
-    .open-source p { color: var(--text-muted); margin-bottom: 24px; }
+    .open-source p { color: var(--text-muted); margin-bottom: 24px; max-width: 520px; margin-left: auto; margin-right: auto; }
     .open-source-links { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
 
     /* ── Footer ───────────────────────────────── */
@@ -207,61 +305,232 @@ export function renderLandingPage(): string {
       .nav { padding: 12px 16px; }
       .nav-links a:not(.btn-nav) { display: none; }
       section { padding: 48px 16px; }
+      .sec-grid { grid-template-columns: 1fr; }
+      .arch-diagram { flex-direction: column; }
+      .arch-arrow { transform: rotate(90deg); padding: 8px 0; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Nav -->
+  <!-- 1. Nav -->
   <nav class="nav">
     <div class="nav-logo"><span>&#128222;</span> Butt-Dial</div>
     <div class="nav-links">
       <a href="#features">Features</a>
-      <a href="#how-it-works">How It Works</a>
-      <a href="https://github.com/95percent-ai/butt-dial/wiki" target="_blank">Docs</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#security">Security</a>
+      <a href="/docs">Docs</a>
       <a href="/auth/login" class="btn-nav">Get Started</a>
     </div>
   </nav>
 
-  <!-- Hero -->
+  <!-- 2. Hero -->
   <section class="hero">
-    <h1>Give Your AI Agents a <span class="gradient">Phone Number</span></h1>
-    <p>Calls, SMS, email, and WhatsApp for your AI agents. One MCP server, all channels. Self-hosted and open source.</p>
+    <h1>Communication <span class="gradient">Infrastructure</span> for AI Agents</h1>
+    <p class="hero-sub">Phone calls, SMS, email, WhatsApp. Not a wrapper around Twilio &mdash; a production-grade communication layer with pluggable providers, real-time translation, compliance, billing, and zero vendor lock-in. Self-hosted. Open source.</p>
     <div class="hero-cta">
       <a href="/auth/login" class="btn-primary">Get Started Free</a>
-      <a href="https://github.com/95percent-ai/butt-dial" target="_blank" class="btn-secondary">View on GitHub</a>
+      <a href="https://github.com/elrad/butt-dial-mcp" target="_blank" class="btn-secondary">View on GitHub</a>
     </div>
   </section>
 
-  <!-- Features -->
+  <!-- 3. The Problem -->
+  <section>
+    <h2 class="section-title">Anyone Can Make an API Call</h2>
+    <p class="section-subtitle">But production AI communication needs more than a wrapper.</p>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <h3>Vendor Lock-in</h3>
+        <p>Hard-coded to one provider. Switching means rewriting your entire integration from scratch.</p>
+      </div>
+      <div class="problem-card">
+        <h3>No Fallback</h3>
+        <p>Agent disconnects mid-call and the caller hears silence. No voicemail, no transfer, no recovery.</p>
+      </div>
+      <div class="problem-card">
+        <h3>No Compliance</h3>
+        <p>TCPA time-of-day rules, DNC lists, CAN-SPAM, GDPR consent &mdash; gaps that become lawsuits.</p>
+      </div>
+      <div class="problem-card">
+        <h3>No Billing</h3>
+        <p>No per-agent cost tracking, no spending caps, no way to monetize when you deploy for clients.</p>
+      </div>
+      <div class="problem-card">
+        <h3>No Security</h3>
+        <p>Unsigned webhooks, no rate limiting, no replay prevention. Open doors for abuse.</p>
+      </div>
+      <div class="problem-card">
+        <h3>Single Language</h3>
+        <p>Caller speaks Spanish, your agent only works in English. No translation, no reach.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Architecture Overview -->
+  <section id="architecture">
+    <h2 class="section-title">Infrastructure, Not Intelligence</h2>
+    <p class="section-subtitle">Your AI agent is the brain. Butt-Dial is the telephone system.</p>
+
+    <div class="arch-diagram">
+      <div class="arch-box">
+        <span class="arch-icon">&#129302;</span>
+        <span class="arch-label">AI Agent</span>
+        <span class="arch-desc">Your LLM decides what to say</span>
+      </div>
+      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-box arch-highlight">
+        <span class="arch-icon">&#128222;</span>
+        <span class="arch-label">Butt-Dial Server</span>
+        <span class="arch-desc">MCP communication layer</span>
+      </div>
+      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-box">
+        <span class="arch-icon">&#128268;</span>
+        <span class="arch-label">Providers</span>
+        <span class="arch-desc">Twilio, Vonage, Resend&hellip;</span>
+      </div>
+      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-box">
+        <span class="arch-icon">&#128100;</span>
+        <span class="arch-label">Human</span>
+        <span class="arch-desc">Calls, texts, emails</span>
+      </div>
+    </div>
+
+    <div class="arch-points">
+      <div class="arch-point">
+        <h3>Your agent decides what to say</h3>
+        <p>The server never generates AI responses. It handles transport, compliance, and delivery. Your agent stays in control.</p>
+      </div>
+      <div class="arch-point">
+        <h3>Swap providers at config time</h3>
+        <p>Twilio, Vonage, Resend, ElevenLabs, OpenAI TTS &mdash; all pluggable. Switch in config, not in code.</p>
+      </div>
+      <div class="arch-point">
+        <h3>Provision in seconds</h3>
+        <p>One API call, under 10 seconds. Phone number, SMS, email, WhatsApp &mdash; all channels ready.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. Killer Features -->
   <section id="features">
-    <h2 class="section-title">Everything Your Agents Need</h2>
-    <p class="section-subtitle">Four communication channels, one unified API. Your AI agents can talk to the world.</p>
-    <div class="features">
-      <div class="feature-card">
-        <span class="feature-icon">&#128222;</span>
-        <h3>Phone Calls</h3>
-        <p>Real-time AI voice conversations. Your agent answers calls, makes outbound calls, and transfers to humans when needed.</p>
+    <h2 class="section-title">What Makes It Different</h2>
+    <p class="section-subtitle">Features that take months to build. Included.</p>
+    <div class="feature-detail-grid">
+
+      <div class="feature-detail-card">
+        <span class="feature-icon">&#128374;</span>
+        <h3>Frontdesk: AI Receptionist</h3>
+        <p class="feature-desc">An always-on fallback for when your agent goes offline. Activate it when you want it &mdash; requires an LLM key (Anthropic). Optional, your choice.</p>
+        <ul>
+          <li>Agent offline? Frontdesk takes the call</li>
+          <li>Collects voicemail with callback preferences</li>
+          <li>Can send SMS, email, or transfer mid-call</li>
+          <li>Dispatches everything when agent reconnects</li>
+        </ul>
       </div>
-      <div class="feature-card">
-        <span class="feature-icon">&#128172;</span>
-        <h3>SMS</h3>
-        <p>Send and receive text messages. Two-way conversations with full message history and threading.</p>
+
+      <div class="feature-detail-card">
+        <span class="feature-icon">&#127760;</span>
+        <h3>Real-Time Translation</h3>
+        <p class="feature-desc">Per-agent language settings. Caller speaks one language, agent works in another. Translated in both directions.</p>
+        <ul>
+          <li>Works on voice, SMS, WhatsApp, and email</li>
+          <li>Original text preserved for audit</li>
+          <li>Set per agent, not per account</li>
+          <li>No extra API &mdash; built into the pipeline</li>
+        </ul>
       </div>
-      <div class="feature-card">
-        <span class="feature-icon">&#9993;</span>
-        <h3>Email</h3>
-        <p>Transactional and conversational email. HTML templates, attachments, and inbound webhook processing.</p>
+
+      <div class="feature-detail-card">
+        <span class="feature-icon">&#9889;</span>
+        <h3>Voice Tool Use</h3>
+        <p class="feature-desc">Your AI agent takes real actions during a live phone call. Not after &mdash; during.</p>
+        <ul>
+          <li>Send an SMS while on a call</li>
+          <li>Fire off a confirmation email</li>
+          <li>Transfer to a human when needed</li>
+          <li>Any MCP tool, triggered by voice</li>
+        </ul>
       </div>
-      <div class="feature-card">
+
+      <div class="feature-detail-card">
+        <span class="feature-icon">&#128256;</span>
+        <h3>Zero Vendor Lock-in</h3>
+        <p class="feature-desc">Pluggable provider architecture. Swap telephony, email, TTS, or STT providers without touching application code.</p>
+        <ul>
+          <li>Twilio &#8596; Vonage for calls/SMS</li>
+          <li>Resend &#8596; SendGrid for email</li>
+          <li>ElevenLabs &#8596; OpenAI for TTS</li>
+          <li>Change in config, deploy, done</li>
+        </ul>
+      </div>
+
+      <div class="feature-detail-card">
         <span class="feature-icon">&#128279;</span>
-        <h3>WhatsApp</h3>
-        <p>Rich messaging via WhatsApp Business. Templates, media, and real-time notifications.</p>
+        <h3>Unified Conversation Threading</h3>
+        <p class="feature-desc">All channels merge into one thread per contact. Customer texts, then calls, then emails &mdash; your agent sees the full history.</p>
+        <ul>
+          <li>Cross-channel context continuity</li>
+          <li>Single thread per phone/email contact</li>
+          <li>Agent sees previous interactions</li>
+          <li>No fragmented conversations</li>
+        </ul>
+      </div>
+
+      <div class="feature-detail-card">
+        <span class="feature-icon">&#128176;</span>
+        <h3>Built-in Billing Engine</h3>
+        <p class="feature-desc">Per-agent cost tracking with tiered plans. Deploy for clients and monetize from day one.</p>
+        <ul>
+          <li>4 tiers: Free, Starter, Pro, Enterprise</li>
+          <li>Configurable markup for deployers</li>
+          <li>Per-agent and per-org spending caps</li>
+          <li>Usage dashboards with cost breakdown</li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- 6. Security & Compliance -->
+  <section id="security">
+    <h2 class="section-title">Production Security. Zero Dependencies.</h2>
+    <p class="section-subtitle">No helmet. No cors package. Every security layer built from scratch.</p>
+    <div class="sec-grid">
+      <div class="sec-column">
+        <h3>&#128274; Security</h3>
+        <ul class="check-list">
+          <li>Bearer token authentication on all admin routes</li>
+          <li>Webhook signature verification (Twilio, Vonage)</li>
+          <li>Replay attack prevention with nonce cache</li>
+          <li>AES-256-GCM encryption for sensitive data</li>
+          <li>Brute-force lockout (10 failures &#8594; 15-min ban)</li>
+          <li>Anomaly detection running every 60 seconds</li>
+          <li>Per-IP and per-route rate limiting</li>
+          <li>Input sanitization on all endpoints</li>
+          <li>IP-based admin access filtering</li>
+        </ul>
+      </div>
+      <div class="sec-column">
+        <h3>&#128220; Compliance</h3>
+        <ul class="check-list">
+          <li>TCPA time-of-day calling restrictions</li>
+          <li>Do Not Call (DNC) list enforcement</li>
+          <li>GDPR consent tracking and erasure</li>
+          <li>CAN-SPAM compliant email handling</li>
+          <li>Content filtering and guardrails</li>
+          <li>Recording consent management</li>
+          <li>SHA-256 tamper-proof audit trail</li>
+          <li>Per-agent compliance configuration</li>
+        </ul>
       </div>
     </div>
   </section>
 
-  <!-- How It Works -->
+  <!-- 7. How It Works -->
   <section id="how-it-works">
     <h2 class="section-title">Up and Running in Minutes</h2>
     <p class="section-subtitle">Three steps from zero to a fully connected AI agent.</p>
@@ -273,58 +542,62 @@ export function renderLandingPage(): string {
       </div>
       <div class="step">
         <div class="step-number">2</div>
-        <h3>Connect API Keys</h3>
-        <p>Add your Twilio, Resend, or other provider credentials in the admin panel.</p>
+        <h3>Configure Providers</h3>
+        <p>Add your Twilio, Vonage, or Resend credentials in the admin panel. Test with one click.</p>
       </div>
       <div class="step">
         <div class="step-number">3</div>
-        <h3>Start Communicating</h3>
-        <p>Your AI agent connects via MCP and can immediately make calls, send messages, and more.</p>
+        <h3>Connect Your Agent</h3>
+        <p>Point Claude Desktop, Cursor, or any MCP client at the server. Your agent can communicate instantly.</p>
       </div>
     </div>
   </section>
 
-  <!-- Why -->
+  <!-- 8. Observability -->
   <section>
-    <h2 class="section-title">Why Butt-Dial?</h2>
-    <p class="section-subtitle">Built for developers who want full control over their AI communication stack.</p>
-    <div class="why-grid">
-      <div class="why-item">
-        <h3>Self-Hosted</h3>
-        <p>Your data, your servers, your rules. Deploy anywhere — cloud, VPS, or on-prem.</p>
+    <h2 class="section-title">Built to Operate</h2>
+    <p class="section-subtitle">Everything you need to monitor, debug, and run in production.</p>
+    <div class="compact-row">
+      <div class="compact-item">
+        <span class="compact-icon">&#128202;</span>
+        <h3>Admin Dashboard</h3>
+        <p>Real-time view of agents, calls, messages, and system health.</p>
       </div>
-      <div class="why-item">
-        <h3>Zero Vendor Lock-in</h3>
-        <p>Swap Twilio for Vonage, ElevenLabs for OpenAI TTS. Pluggable provider architecture.</p>
+      <div class="compact-item">
+        <span class="compact-icon">&#128200;</span>
+        <h3>Prometheus Metrics</h3>
+        <p>Export to Grafana, Datadog, or any metrics backend.</p>
       </div>
-      <div class="why-item">
-        <h3>MCP-Native</h3>
-        <p>Built on the Model Context Protocol. Works with Claude, GPT, and any MCP-compatible agent.</p>
+      <div class="compact-item">
+        <span class="compact-icon">&#128203;</span>
+        <h3>Structured Logging</h3>
+        <p>JSON logs with correlation IDs across every request.</p>
       </div>
-      <div class="why-item">
-        <h3>Multi-Tenant</h3>
-        <p>Organization isolation, per-agent billing, rate limiting, and compliance built in.</p>
+      <div class="compact-item">
+        <span class="compact-icon">&#128260;</span>
+        <h3>Demo Mode</h3>
+        <p>Test everything without live API calls. Safe for development.</p>
       </div>
     </div>
   </section>
 
-  <!-- Open Source -->
+  <!-- 9. Open Source CTA -->
   <section>
     <div class="open-source">
-      <h2>Open Source</h2>
-      <p>Butt-Dial is free and open source. Star us on GitHub, contribute, or read the docs.</p>
+      <h2>Self-Hosted. Open Source. Your Data.</h2>
+      <p>Deploy anywhere. No usage fees, no vendor dashboards, no data leaving your network.</p>
       <div class="open-source-links">
-        <a href="https://github.com/95percent-ai/butt-dial" target="_blank" class="btn-primary">GitHub</a>
-        <a href="https://github.com/95percent-ai/butt-dial/wiki" target="_blank" class="btn-secondary">Wiki &amp; Docs</a>
+        <a href="https://github.com/elrad/butt-dial-mcp" target="_blank" class="btn-primary">View on GitHub</a>
+        <a href="/docs" class="btn-secondary">Read the Docs</a>
       </div>
     </div>
   </section>
 
-  <!-- Footer -->
+  <!-- 10. Footer -->
   <footer>
     <div class="footer-links">
-      <a href="https://github.com/95percent-ai/butt-dial" target="_blank">GitHub</a>
-      <a href="https://github.com/95percent-ai/butt-dial/wiki" target="_blank">Wiki</a>
+      <a href="https://github.com/elrad/butt-dial-mcp" target="_blank">GitHub</a>
+      <a href="/docs">Docs</a>
       <a href="/admin">Admin</a>
       <a href="/auth/login">Login</a>
     </div>

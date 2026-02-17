@@ -219,18 +219,19 @@ async function testResendTestEndpoint() {
 async function testSetupPageHTML() {
   console.log("\n--- GET /admin/setup ---");
 
-  const res = await fetch(`${SERVER_URL}/admin/setup`);
+  // /admin/setup redirects to unified admin (/admin#settings)
+  const res = await fetch(`${SERVER_URL}/admin/setup`, { redirect: "follow" });
   const html = await res.text();
 
   // 18. Returns HTML
   assert(res.status === 200 && html.includes("<!DOCTYPE html>"), "18. GET /admin/setup returns HTML");
 
-  // 19-23. All 5 cards present
-  assert(html.includes('id="twilio-card"'), "19. HTML contains Twilio card");
-  assert(html.includes('id="elevenlabs-card"'), "20. HTML contains ElevenLabs card");
-  assert(html.includes('id="resend-card"'), "21. HTML contains Resend card");
-  assert(html.includes('id="server-card"'), "22. HTML contains Server Settings card");
-  assert(html.includes('id="voice-card"'), "23. HTML contains Voice Defaults card");
+  // 19-23. All provider sections present in unified admin settings
+  assert(html.toLowerCase().includes("twilio"), "19. HTML contains Twilio section");
+  assert(html.toLowerCase().includes("elevenlabs"), "20. HTML contains ElevenLabs section");
+  assert(html.toLowerCase().includes("resend"), "21. HTML contains Resend section");
+  assert(html.toLowerCase().includes("server") || html.toLowerCase().includes("settings"), "22. HTML contains Server Settings section");
+  assert(html.toLowerCase().includes("voice"), "23. HTML contains Voice section");
 
   // 24. No step indicator
   assert(!html.includes('class="steps"'), "24. HTML does NOT contain step indicator");

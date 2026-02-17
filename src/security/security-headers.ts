@@ -19,9 +19,16 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
     res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
 
-  // CSP: admin paths need unsafe-inline for setup page's inline CSS/JS
+  // CSP: pages with inline CSS/JS need unsafe-inline (admin, landing, auth)
   const isAdmin = req.path.startsWith("/admin");
+  const isPublicPage = req.path === "/" || req.path.startsWith("/auth") || req.path.startsWith("/docs");
   if (isAdmin) {
+    // Admin pages need CDN access for Chart.js and Swagger UI
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data:; connect-src 'self'"
+    );
+  } else if (isPublicPage) {
     res.setHeader(
       "Content-Security-Policy",
       "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"

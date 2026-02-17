@@ -24,6 +24,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_URL = "http://localhost:3100";
 const DB_PATH = path.join(__dirname, "..", "data", "comms.db");
 
+// Read actual agent phone from DB (may differ from seed default)
+function getAgentPhone(): string {
+  const db = new Database(DB_PATH, { readonly: true });
+  const row = db.prepare(
+    "SELECT phone_number FROM agent_channels WHERE agent_id = 'test-agent-001'"
+  ).get() as { phone_number: string } | undefined;
+  db.close();
+  return row?.phone_number ?? "+1234567890";
+}
+
 let passed = 0;
 let failed = 0;
 
@@ -74,7 +84,8 @@ async function main() {
   assert(parsed.externalId.startsWith("mock-msg-"), "externalId starts with mock-msg-");
   assert(parsed.status === "sent", "status is 'sent'");
   assert(parsed.cost === 0.0075, "cost is 0.0075 (mock)");
-  assert(parsed.from === "+1234567890", "from is test agent's phone number");
+  const agentPhone = getAgentPhone();
+  assert(parsed.from === agentPhone, "from is test agent's phone number");
   assert(parsed.to === "+972526557547", "to is the recipient number");
 
   // 4. Verify database record
@@ -90,7 +101,7 @@ async function main() {
     assert(row.agent_id === "test-agent-001", "agent_id matches");
     assert(row.channel === "sms", "channel is 'sms'");
     assert(row.direction === "outbound", "direction is 'outbound'");
-    assert(row.from_address === "+1234567890", "from_address matches");
+    assert(row.from_address === agentPhone, "from_address matches");
     assert(row.to_address === "+972526557547", "to_address matches");
     assert(row.body === "Hello from dry test", "body matches");
     assert(row.external_id === parsed.externalId, "external_id matches mock ID");

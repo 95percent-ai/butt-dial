@@ -175,6 +175,26 @@ export function createTwilioTelephonyProvider(cfg: TwilioConfig): ITelephonyProv
       return { status: "transferred" };
     },
 
+    async endCall(callSid: string): Promise<void> {
+      const body = new URLSearchParams({ Status: "completed" });
+
+      const response = await fetch(`${baseUrl}/Calls/${callSid}.json`, {
+        method: "POST",
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: body.toString(),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Twilio endCall failed (HTTP ${response.status}): ${errText}`);
+      }
+
+      logger.info("twilio_call_ended", { callSid });
+    },
+
     async buyNumber(params: BuyNumberParams): Promise<BuyNumberResult> {
       // Step 1: Search for available numbers
       const capFilters: string[] = [];

@@ -65,6 +65,10 @@ export function createMockTelephonyProvider(): ITelephonyProvider {
       return { status: "transferred" };
     },
 
+    async endCall(callSid: string): Promise<void> {
+      logger.info("mock_call_ended", { callSid });
+    },
+
     async buyNumber(params: BuyNumberParams): Promise<BuyNumberResult> {
       const areaCode = params.areaCode || "200";
       const phoneNumber = `+1555${areaCode}${String(++counter).padStart(4, "0")}`;

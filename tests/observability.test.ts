@@ -400,6 +400,13 @@ async function testRegressionChannels() {
 
   const testAgentId = "test-agent-reg-" + randomUUID().slice(0, 8);
 
+  // Seed a WhatsApp pool entry for provisioning
+  const regDb = new Database(DB_PATH);
+  regDb.prepare(
+    "INSERT OR IGNORE INTO whatsapp_pool (id, phone_number, sender_sid, status) VALUES (?, ?, ?, 'available')"
+  ).run("wa-pool-obs-001", "+15559990001", "WA_OBS_TEST_001");
+  regDb.close();
+
   // Provision with all channels
   await mcpCall("comms_provision_channels", {
     agentId: testAgentId,
@@ -446,6 +453,11 @@ async function testRegressionChannels() {
     agentId: testAgentId,
     releaseNumber: false,
   });
+
+  // Remove WA pool entry
+  const cleanRegDb = new Database(DB_PATH);
+  cleanRegDb.prepare("DELETE FROM whatsapp_pool WHERE id = 'wa-pool-obs-001'").run();
+  cleanRegDb.close();
 }
 
 // =======================================================================

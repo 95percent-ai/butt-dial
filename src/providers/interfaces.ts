@@ -50,6 +50,7 @@ export interface ITelephonyProvider {
   sendSms(params: SendSmsParams): Promise<SendSmsResult>;
   makeCall(params: MakeCallParams): Promise<MakeCallResult>;
   transferCall(params: TransferCallParams): Promise<{ status: string }>;
+  endCall?(callSid: string): Promise<void>;
   buyNumber(params: BuyNumberParams): Promise<BuyNumberResult>;
   releaseNumber(phoneNumber: string): Promise<void>;
   configureWebhooks(phoneNumber: string, webhooks: { voiceUrl?: string; smsUrl?: string }): Promise<void>;

@@ -169,6 +169,10 @@ async function testCheckRateLimits() {
   console.log("\n--- checkRateLimits ---");
 
   const { checkRateLimits, logUsage, RateLimitError } = await import("../src/security/rate-limiter.js");
+  // Override demoMode so rate limits actually fire (server runs in DEMO_MODE=true)
+  const { config } = await import("../src/lib/config.js");
+  const originalDemoMode = config.demoMode;
+  (config as any).demoMode = false;
 
   const db = new Database(DB_PATH);
   const projectRoot = path.join(__dirname, "..");
@@ -349,6 +353,8 @@ async function testCheckRateLimits() {
   }
   assert(adminPassed, "admin (master token) skips rate limits");
 
+  // Restore demoMode
+  (config as any).demoMode = originalDemoMode;
   db.close();
 }
 

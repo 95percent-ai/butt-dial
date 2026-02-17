@@ -1,6 +1,24 @@
-<!-- version: 3.4 | updated: 2026-02-16 -->
+<!-- version: 3.5 | updated: 2026-02-17 -->
 
 # Decisions Log
+
+## DEC-050: TCPA Timezone Auto-Detection
+**Date:** 2026-02-17
+**What:** `comms_make_call` now accepts optional `recipientTimezone` and auto-detects timezone from phone prefix (e.g. +972→Asia/Jerusalem). Demo mode skips TCPA entirely.
+**Why:** TCPA defaulted to America/New_York, blocking valid calls to international numbers during their local business hours. Auto-detection from E.164 prefix covers common cases; explicit param handles edge cases.
+**Alternatives considered:** Always skip TCPA for international numbers (too permissive), require timezone on every call (too verbose).
+
+## DEC-051: Protect .env from Test Suite
+**Date:** 2026-02-17
+**What:** Provisioning test now backs up `.env` before `comms_register_provider` and restores it in a `finally` block.
+**Why:** The test was writing placeholder Twilio credentials (`ACtest123456789`) to `.env`, silently wiping real production credentials. This caused repeated credential loss across sessions.
+**Alternatives considered:** Using a separate `.env.test` file (larger refactor), skipping the register_provider test (reduces coverage).
+
+## DEC-052: CSP CDN Allowlist for Admin Pages
+**Date:** 2026-02-17
+**What:** Admin routes CSP now allows `cdn.jsdelivr.net` (Chart.js) and `unpkg.com` (Swagger UI) in script-src and style-src. Public pages keep the stricter policy.
+**Why:** Charts and API docs were silently failing — blank cards with "No data yet" despite demo data being served correctly.
+**Alternatives considered:** Self-hosting Chart.js (adds maintenance), removing charts (loses value).
 
 ## DEC-001: Identity Model — Configurable, Dedicated as Default
 **Date:** 2026-02-12

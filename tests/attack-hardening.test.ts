@@ -72,12 +72,16 @@ async function main() {
   // 2. CORS: allowed origin
   // ------------------------------------------------------------------
   console.log("\nTest: CORS with allowed origin");
-  // The server's webhookBaseUrl is likely http://localhost:3100 — which is the default allowed origin
+  // Get the server's actual allowed origin (webhookBaseUrl or CORS_ALLOWED_ORIGINS)
+  const { config: appConfig } = await import("../src/lib/config.js");
+  const allowedOrigin = appConfig.corsAllowedOrigins
+    ? appConfig.corsAllowedOrigins.split(",")[0].trim()
+    : (appConfig.webhookBaseUrl || "http://localhost:3100");
   const corsRes = await fetch(`${SERVER_URL}/health`, {
-    headers: { "Origin": "http://localhost:3100" },
+    headers: { "Origin": allowedOrigin },
   });
-  const allowOrigin = corsRes.headers.get("access-control-allow-origin");
-  assert(allowOrigin === "http://localhost:3100", "Allowed origin gets CORS headers");
+  const allowOriginHeader = corsRes.headers.get("access-control-allow-origin");
+  assert(allowOriginHeader === allowedOrigin, "Allowed origin gets CORS headers");
 
   // ------------------------------------------------------------------
   // 3. CORS: disallowed origin

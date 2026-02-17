@@ -125,6 +125,24 @@ export function createVonageTelephonyProvider(cfg: VonageConfig): ITelephonyProv
       return { status: "transferred" };
     },
 
+    async endCall(callSid: string): Promise<void> {
+      const response = await fetch(`https://api.nexmo.com/v1/calls/${callSid}`, {
+        method: "PUT",
+        headers: {
+          Authorization: authHeader,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action: "hangup" }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Vonage endCall failed (HTTP ${response.status}): ${errText}`);
+      }
+
+      logger.info("vonage_call_ended", { callSid });
+    },
+
     async buyNumber(params: BuyNumberParams): Promise<BuyNumberResult> {
       // Search for available numbers
       const searchResp = await fetch(

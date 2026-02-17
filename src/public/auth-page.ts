@@ -135,6 +135,19 @@ export function renderAuthPage(): string {
       display: block; text-align: center; margin-top: 24px;
       font-size: 14px; color: var(--text-muted);
     }
+
+    /* Password eye toggle */
+    .pw-wrap {
+      position: relative;
+    }
+    .pw-wrap input { padding-right: 40px; }
+    .pw-toggle {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer;
+      color: var(--text-muted); font-size: 16px; padding: 4px;
+      line-height: 1; display: flex; align-items: center;
+    }
+    .pw-toggle:hover { color: var(--text); }
   </style>
 </head>
 <body>
@@ -153,7 +166,10 @@ export function renderAuthPage(): string {
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input type="password" id="login-password" required autocomplete="current-password">
+          <div class="pw-wrap">
+            <input type="password" id="login-password" required autocomplete="current-password">
+            <button type="button" class="pw-toggle" onclick="togglePw(this)" aria-label="Show password">&#128065;</button>
+          </div>
         </div>
         <button type="submit" class="btn" id="login-btn">Sign In</button>
       </form>
@@ -176,11 +192,10 @@ export function renderAuthPage(): string {
         </div>
         <div class="form-group">
           <label>Password (min 8 characters)</label>
-          <input type="password" id="reg-password" required minlength="8" autocomplete="new-password">
-        </div>
-        <div class="form-group">
-          <label>Confirm Password</label>
-          <input type="password" id="reg-password-confirm" required minlength="8" autocomplete="new-password">
+          <div class="pw-wrap">
+            <input type="password" id="reg-password" required minlength="8" autocomplete="new-password">
+            <button type="button" class="pw-toggle" onclick="togglePw(this)" aria-label="Show password">&#128065;</button>
+          </div>
         </div>
         <div class="form-group">
           <label>Organization Name</label>
@@ -252,7 +267,10 @@ export function renderAuthPage(): string {
           </div>
           <div class="form-group">
             <label>New Password (min 8 characters)</label>
-            <input type="password" id="reset-password" required minlength="8" autocomplete="new-password">
+            <div class="pw-wrap">
+              <input type="password" id="reset-password" required minlength="8" autocomplete="new-password">
+              <button type="button" class="pw-toggle" onclick="togglePw(this)" aria-label="Show password">&#128065;</button>
+            </div>
           </div>
           <button type="submit" class="btn">Reset Password</button>
         </form>
@@ -291,14 +309,7 @@ export function renderAuthPage(): string {
 
     const email = document.getElementById('reg-email').value;
     const password = document.getElementById('reg-password').value;
-    const confirm = document.getElementById('reg-password-confirm').value;
     const orgName = document.getElementById('reg-org').value;
-
-    if (password !== confirm) {
-      showError('register', 'Passwords do not match');
-      btn.disabled = false; btn.textContent = 'Create Account';
-      return;
-    }
 
     try {
       const res = await fetch('/auth/api/register', {
@@ -434,6 +445,18 @@ export function renderAuthPage(): string {
       showError('forgot', 'Network error. Try again.');
     }
   });
+
+  // ── Toggle password visibility ─────────────
+  function togglePw(btn) {
+    const input = btn.parentElement.querySelector('input');
+    if (input.type === 'password') {
+      input.type = 'text';
+      btn.innerHTML = '&#128064;';
+    } else {
+      input.type = 'password';
+      btn.innerHTML = '&#128065;';
+    }
+  }
 
   // ── Copy token ─────────────────────────────
   function copyToken() {

@@ -25,6 +25,7 @@ import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import Database from "better-sqlite3";
 import path from "path";
 import { fileURLToPath } from "url";
+import { readFileSync, writeFileSync, existsSync } from "fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_URL = "http://localhost:3100";
@@ -54,6 +55,8 @@ async function main() {
   // Clean up any leftovers from previous runs
   const setupDb = new Database(DB_PATH);
   setupDb.prepare("DELETE FROM messages WHERE agent_id IN ('test-provision-001', 'test-fill-pool', 'test-after-space')").run();
+  setupDb.prepare("DELETE FROM agent_tokens WHERE agent_id IN ('test-provision-001', 'test-fill-pool', 'test-after-space')").run();
+  setupDb.prepare("DELETE FROM spending_limits WHERE agent_id IN ('test-provision-001', 'test-fill-pool', 'test-after-space')").run();
   setupDb.prepare("DELETE FROM whatsapp_pool WHERE assigned_to_agent IN ('test-provision-001', 'test-fill-pool', 'test-after-space')").run();
   setupDb.prepare("DELETE FROM agent_channels WHERE agent_id IN ('test-provision-001', 'test-fill-pool', 'test-after-space')").run();
   setupDb.prepare("DELETE FROM whatsapp_pool WHERE id = 'wa-pool-test-001'").run();
@@ -342,37 +345,52 @@ async function main() {
 
   // ------------------------------------------------------------------
   // 9. Register provider (exercise the flow — skipping live verify)
+  //    Back up .env so real credentials are never lost.
   // ------------------------------------------------------------------
   console.log("\nTest: register provider");
 
-  const regResult = await client.callTool({
-    name: "comms_register_provider",
-    arguments: {
-      provider: "twilio",
-      credentials: {
-        accountSid: "ACtest123456789",
-        authToken: "test_auth_token_value",
-      },
-      autoVerify: false,
-    },
-  });
-  const regParsed = callToolParsed(regResult);
-  assert(regParsed.success === true, "register provider returned success");
-  assert((regParsed.capabilities as string[]).includes("sms"), "capabilities include sms");
-  assert((regParsed.envKeysWritten as string[]).includes("TWILIO_ACCOUNT_SID"), "TWILIO_ACCOUNT_SID written");
-  assert((regParsed.note as string).includes("Restart"), "note mentions restart");
+  const envPath = path.join(__dirname, "..", ".env");
+  let envBackup: string | null = null;
+  if (existsSync(envPath)) {
+    envBackup = readFileSync(envPath, "utf-8");
+  }
 
-  // Test unknown credential keys
-  const badKeysResult = await client.callTool({
-    name: "comms_register_provider",
-    arguments: {
-      provider: "twilio",
-      credentials: { unknownKey: "value" },
-      autoVerify: false,
-    },
-  });
-  const badKeysParsed = callToolParsed(badKeysResult);
-  assert(badKeysParsed.error !== undefined, "unknown credential keys return error");
+  try {
+    const regResult = await client.callTool({
+      name: "comms_register_provider",
+      arguments: {
+        provider: "twilio",
+        credentials: {
+          accountSid: "ACtest123456789",
+          authToken: "test_auth_token_value",
+        },
+        autoVerify: false,
+      },
+    });
+    const regParsed = callToolParsed(regResult);
+    assert(regParsed.success === true, "register provider returned success");
+    assert((regParsed.capabilities as string[]).includes("sms"), "capabilities include sms");
+    assert((regParsed.envKeysWritten as string[]).includes("TWILIO_ACCOUNT_SID"), "TWILIO_ACCOUNT_SID written");
+    assert((regParsed.note as string).includes("Restart"), "note mentions restart");
+
+    // Test unknown credential keys
+    const badKeysResult = await client.callTool({
+      name: "comms_register_provider",
+      arguments: {
+        provider: "twilio",
+        credentials: { unknownKey: "value" },
+        autoVerify: false,
+      },
+    });
+    const badKeysParsed = callToolParsed(badKeysResult);
+    assert(badKeysParsed.error !== undefined, "unknown credential keys return error");
+  } finally {
+    // Restore .env so real credentials are preserved
+    if (envBackup !== null) {
+      writeFileSync(envPath, envBackup, "utf-8");
+      console.log("  (restored .env after register_provider test)");
+    }
+  }
 
   // ------------------------------------------------------------------
   // 10. Regression: SMS + email + WhatsApp still work for test-agent-001
@@ -425,8 +443,14 @@ async function main() {
   await client.close();
 
   const cleanDb = new Database(DB_PATH);
-  // Remove messages for test agents first (FK constraint)
+  // Remove FK dependents for test agents first
   cleanDb.prepare("DELETE FROM messages WHERE agent_id IN (?, ?, ?)").run(
+    "test-provision-001", "test-fill-pool", "test-after-space"
+  );
+  cleanDb.prepare("DELETE FROM agent_tokens WHERE agent_id IN (?, ?, ?)").run(
+    "test-provision-001", "test-fill-pool", "test-after-space"
+  );
+  cleanDb.prepare("DELETE FROM spending_limits WHERE agent_id IN (?, ?, ?)").run(
     "test-provision-001", "test-fill-pool", "test-after-space"
   );
   // Remove test agents

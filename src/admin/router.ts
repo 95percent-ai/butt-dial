@@ -18,6 +18,7 @@ import { getAgentBillingConfig, setAgentBillingConfig, getTierLimits, getAvailab
 import { verifyOrgToken } from "../lib/org-manager.js";
 import { orgFilter } from "../security/org-scope.js";
 import type { AuthInfo } from "../security/auth-guard.js";
+import { getDemoDashboard, getDemoUsageHistory, getDemoTopContacts, getDemoAnalytics } from "./demo-data.js";
 
 export const adminRouter = Router();
 
@@ -112,6 +113,7 @@ adminRouter.get("/admin/api-docs/spec.json", (_req: Request, res: Response) => {
 
 /** Dashboard data API — org-scoped */
 adminRouter.get("/admin/api/dashboard", adminAuth, (req: Request, res: Response) => {
+  if (config.demoMode) { res.json(getDemoDashboard()); return; }
   try {
     const db = getProvider("database");
     const authInfo = getAuthInfo(req);
@@ -228,6 +230,7 @@ adminRouter.get("/admin/api/dashboard", adminAuth, (req: Request, res: Response)
       email: providerStatus.resend?.configured ? "ok" : "not_configured",
       whatsapp: providerStatus.twilio?.configured ? "ok" : "not_configured",
       voice: (providerStatus.elevenlabs?.configured || providerStatus.voice?.configured) ? "ok" : "not_configured",
+      assistant: config.anthropicApiKey ? "ok" : "not_configured",
       translation: (config.translationEnabled && config.anthropicApiKey) ? "ok" : config.translationEnabled ? "no_api_key" : "disabled",
     };
 
@@ -281,6 +284,7 @@ adminRouter.get("/admin/api/dashboard", adminAuth, (req: Request, res: Response)
 
 /** Usage history — time-series data for charts (org-scoped) */
 adminRouter.get("/admin/api/usage-history", adminAuth, (req: Request, res: Response) => {
+  if (config.demoMode) { res.json(getDemoUsageHistory()); return; }
   try {
     const db = getProvider("database");
     const of = orgFilter(getAuthInfo(req));
@@ -310,6 +314,103 @@ adminRouter.get("/admin/api/usage-history", adminAuth, (req: Request, res: Respo
     res.json({ messagesByDay, costByChannel });
   } catch {
     res.json({ messagesByDay: [], costByChannel: [] });
+  }
+});
+
+/** Top contacts by activity — org-scoped */
+adminRouter.get("/admin/api/top-contacts", adminAuth, (req: Request, res: Response) => {
+  if (config.demoMode) { res.json(getDemoTopContacts()); return; }
+  try {
+    const db = getProvider("database");
+    const of = orgFilter(getAuthInfo(req));
+
+    let contacts: Array<Record<string, unknown>> = [];
+    try {
+      contacts = db.query<Record<string, unknown>>(
+        `SELECT target_address, channel, COUNT(*) as action_count, COALESCE(SUM(cost), 0) as total_cost, MAX(created_at) as last_activity
+         FROM usage_logs WHERE target_address IS NOT NULL AND target_address != ''${of.clause}
+         GROUP BY target_address, channel
+         ORDER BY action_count DESC LIMIT 10`,
+        of.params
+      );
+    } catch {}
+
+    res.json({ contacts });
+  } catch {
+    res.json({ contacts: [] });
+  }
+});
+
+/** Extended analytics — org-scoped */
+adminRouter.get("/admin/api/analytics", adminAuth, (req: Request, res: Response) => {
+  if (config.demoMode) { res.json(getDemoAnalytics()); return; }
+  try {
+    const db = getProvider("database");
+    const of = orgFilter(getAuthInfo(req));
+
+    // Delivery rate (30d)
+    let deliveryRate: Record<string, unknown> = {};
+    try {
+      const dr = db.query<{ total: number; success: number; failed: number }>(
+        `SELECT
+           COUNT(*) as total,
+           SUM(CASE WHEN status IN ('ok','success','delivered','sent') THEN 1 ELSE 0 END) as success,
+           SUM(CASE WHEN status NOT IN ('ok','success','delivered','sent') THEN 1 ELSE 0 END) as failed
+         FROM usage_logs WHERE created_at >= date('now', '-30 days')${of.clause}`,
+        of.params
+      );
+      if (dr[0]) deliveryRate = { total: dr[0].total || 0, success: dr[0].success || 0, failed: dr[0].failed || 0 };
+    } catch {}
+
+    // Channel distribution (30d)
+    let channelDistribution: Array<Record<string, unknown>> = [];
+    try {
+      channelDistribution = db.query<Record<string, unknown>>(
+        `SELECT channel, COUNT(*) as count
+         FROM usage_logs WHERE created_at >= date('now', '-30 days')${of.clause}
+         GROUP BY channel ORDER BY count DESC`,
+        of.params
+      );
+    } catch {}
+
+    // Peak hours (30d)
+    let peakHours: Array<Record<string, unknown>> = [];
+    try {
+      peakHours = db.query<Record<string, unknown>>(
+        `SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as count
+         FROM usage_logs WHERE created_at >= date('now', '-30 days')${of.clause}
+         GROUP BY hour ORDER BY hour`,
+        of.params
+      );
+    } catch {}
+
+    // Cost trend (14d)
+    let costTrend: Array<Record<string, unknown>> = [];
+    try {
+      costTrend = db.query<Record<string, unknown>>(
+        `SELECT date(created_at) as day, COALESCE(SUM(cost), 0) as cost
+         FROM usage_logs WHERE created_at >= date('now', '-14 days')${of.clause}
+         GROUP BY day ORDER BY day`,
+        of.params
+      );
+    } catch {}
+
+    // Error rate (7d)
+    let errorRate: Array<Record<string, unknown>> = [];
+    try {
+      errorRate = db.query<Record<string, unknown>>(
+        `SELECT date(created_at) as day,
+                COUNT(*) as total,
+                SUM(CASE WHEN status NOT IN ('ok','success','delivered','sent') THEN 1 ELSE 0 END) as errors
+         FROM usage_logs WHERE created_at >= date('now', '-7 days')${of.clause}
+         GROUP BY day ORDER BY day`,
+        of.params
+      );
+    } catch {}
+
+    res.json({ deliveryRate, channelDistribution, peakHours, costTrend, errorRate });
+  } catch {
+    res.json({ deliveryRate: {}, channelDistribution: [], peakHours: [], costTrend: [], errorRate: [] });
   }
 });
 

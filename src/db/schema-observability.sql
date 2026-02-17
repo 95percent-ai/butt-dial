@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
   target TEXT,
   details TEXT,                        -- JSON string
   prev_hash TEXT,
-  row_hash TEXT NOT NULL
+  row_hash TEXT NOT NULL,
+  org_id TEXT DEFAULT 'default'
 );
 
 -- Indexes for common queries

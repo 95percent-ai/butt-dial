@@ -45,7 +45,7 @@ async function main() {
   console.log("Test: README");
   checkFile("README.md", "README.md");
   const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf-8");
-  assert(readme.includes("AgentOS"), "README mentions AgentOS");
+  assert(readme.includes("Butt-Dial") || readme.includes("Communication MCP"), "README mentions project name");
   assert(readme.includes("Quick Start"), "README has Quick Start section");
   assert(readme.includes("MCP Tools"), "README has MCP Tools section");
 

@@ -90,6 +90,7 @@ const configSchema = z.object({
   voiceDefaultSystemPrompt: z.string().default("You are a helpful AI assistant. Keep your responses concise and conversational."),
   voiceDefaultVoice: z.string().default("cgSgspJ2msm6clMCkdW9"),
   voiceDefaultLanguage: z.string().default("en-US"),
+  voiceMaxCallDurationMinutes: z.coerce.number().default(30),
 
   // Callback
   agentosCallbackUrl: z.string().default("http://localhost:3100/callback/{agentId}/inbound"),
@@ -199,6 +200,7 @@ function loadConfig() {
     voiceDefaultSystemPrompt: process.env.VOICE_DEFAULT_SYSTEM_PROMPT,
     voiceDefaultVoice: process.env.VOICE_DEFAULT_VOICE,
     voiceDefaultLanguage: process.env.VOICE_DEFAULT_LANGUAGE,
+    voiceMaxCallDurationMinutes: process.env.VOICE_MAX_CALL_DURATION_MINUTES,
     agentosCallbackUrl: process.env.AGENTOS_CALLBACK_URL,
     defaultMaxActionsPerMinute: process.env.DEFAULT_MAX_ACTIONS_PER_MINUTE,
     defaultMaxActionsPerHour: process.env.DEFAULT_MAX_ACTIONS_PER_HOUR,

@@ -27,6 +27,20 @@ interface AgentRow {
   status: string;
 }
 
+/** Best-effort timezone from E.164 phone prefix. */
+function inferTimezoneFromPhone(phone: string): string {
+  if (phone.startsWith("+972")) return "Asia/Jerusalem";
+  if (phone.startsWith("+852")) return "Asia/Hong_Kong";
+  if (phone.startsWith("+86"))  return "Asia/Shanghai";
+  if (phone.startsWith("+81"))  return "Asia/Tokyo";
+  if (phone.startsWith("+44"))  return "Europe/London";
+  if (phone.startsWith("+49"))  return "Europe/Berlin";
+  if (phone.startsWith("+33"))  return "Europe/Paris";
+  if (phone.startsWith("+61"))  return "Australia/Sydney";
+  if (phone.startsWith("+91"))  return "Asia/Kolkata";
+  return "America/New_York"; // default US
+}
+
 export function registerMakeCallTool(server: McpServer): void {
   server.tool(
     "comms_make_call",
@@ -54,8 +68,12 @@ export function registerMakeCallTool(server: McpServer): void {
         .string()
         .optional()
         .describe("Language spoken by the person being called (e.g. he-IL, es-MX). When different from agent's language, real-time translation is applied."),
+      recipientTimezone: z
+        .string()
+        .optional()
+        .describe("Recipient's IANA timezone (e.g. Asia/Jerusalem, Europe/London). Auto-detected from phone prefix if omitted."),
     },
-    async ({ agentId, to, systemPrompt, greeting, voice, language, targetLanguage }, extra) => {
+    async ({ agentId, to, systemPrompt, greeting, voice, language, targetLanguage, recipientTimezone }, extra) => {
       // Auth: agent can only call as themselves
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
@@ -118,14 +136,17 @@ export function registerMakeCallTool(server: McpServer): void {
         throw err;
       }
 
-      // Compliance: TCPA time-of-day check
-      const tcpaCheck = checkTcpaTimeOfDay();
-      if (!tcpaCheck.allowed) {
-        logger.warn("make_call_tcpa_blocked", { agentId, to, reason: tcpaCheck.reason });
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify({ error: `Compliance: ${tcpaCheck.reason}` }) }],
-          isError: true,
-        };
+      // Compliance: TCPA time-of-day check (skip in demo mode — mock calls)
+      if (!config.demoMode) {
+        const tz = recipientTimezone || inferTimezoneFromPhone(to);
+        const tcpaCheck = checkTcpaTimeOfDay(tz);
+        if (!tcpaCheck.allowed) {
+          logger.warn("make_call_tcpa_blocked", { agentId, to, timezone: tz, reason: tcpaCheck.reason });
+          return {
+            content: [{ type: "text" as const, text: JSON.stringify({ error: `Compliance: ${tcpaCheck.reason}` }) }],
+            isError: true,
+          };
+        }
       }
 
       // Compliance: DNC check

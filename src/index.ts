@@ -23,6 +23,7 @@ import { ipFilter } from "./security/ip-filter.js";
 import { startAnomalyDetector } from "./security/anomaly-detector.js";
 import { cleanupExpiredOtps } from "./security/otp.js";
 import { renderLandingPage } from "./public/landing-page.js";
+import { renderDocsPage } from "./public/docs.js";
 import { renderAuthPage } from "./public/auth-page.js";
 import { authApiRouter } from "./public/auth-api.js";
 
@@ -106,6 +107,14 @@ async function main() {
 
   // Landing page
   app.get("/", (_req, res) => { res.type("html").send(renderLandingPage()); });
+
+  // Documentation pages
+  app.get("/docs", (_req, res) => { res.type("html").send(renderDocsPage()); });
+  app.get("/docs/:page", (req, res) => {
+    const html = renderDocsPage(req.params.page);
+    if (!html) return res.status(404).type("html").send(renderDocsPage("home")!);
+    res.type("html").send(html);
+  });
 
   // Auth pages + API
   app.get("/auth/login", (_req, res) => { res.type("html").send(renderAuthPage()); });

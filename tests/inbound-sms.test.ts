@@ -18,6 +18,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import Database from "better-sqlite3";
+import { randomUUID } from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -56,8 +57,9 @@ async function main() {
   // ------------------------------------------------------------------
   console.log("Test: inbound SMS webhook (valid agent)");
 
+  const testMessageSid = `SM_test_inbound_${randomUUID().slice(0, 8)}`;
   const twilioBody = new URLSearchParams({
-    MessageSid: "SM_test_inbound_001",
+    MessageSid: testMessageSid,
     From: "+972526557547",
     To: agentPhone,
     Body: "Hello from dry test — inbound",
@@ -83,7 +85,7 @@ async function main() {
   const db = new Database(DB_PATH, { readonly: true });
   const row = db.prepare(
     "SELECT * FROM messages WHERE external_id = ? AND direction = 'inbound'"
-  ).get("SM_test_inbound_001") as Record<string, unknown> | undefined;
+  ).get(testMessageSid) as Record<string, unknown> | undefined;
 
   assert(row !== undefined, "inbound message row exists in database");
   if (row) {

@@ -1,6 +1,17 @@
-<!-- version: 3.2 | updated: 2026-02-16 -->
+<!-- version: 3.3 | updated: 2026-02-17 -->
 
 # Changelog
+
+## Session 18 — 2026-02-17
+
+### Live Call Testing & Bug Fixes
+- **CSP fix:** Admin page Content-Security-Policy was blocking Chart.js and Swagger UI CDNs — added `cdn.jsdelivr.net` and `unpkg.com` to allowed sources for admin routes
+- **TCPA timezone:** Added `recipientTimezone` parameter to `comms_make_call` + auto-detection from phone prefix (+972→Asia/Jerusalem, +852→Asia/Hong_Kong, +81→Asia/Tokyo, etc.). Demo mode skips TCPA entirely (mock calls don't ring)
+- **Credential protection:** Provisioning test now backs up and restores `.env` around `comms_register_provider` calls — real Twilio credentials no longer wiped by test suite
+- **Demo data:** Added Snir (+972502629999, sz@aidg.com) as top contact in demo dashboard data
+- **Agents seeded:** snir-agent (+972502629999→+18452514056), kelvin-agent (+85291511443), test-agent-001
+- **Live calls verified:** Successfully called Snir (Israel), Kelvin (Hong Kong), Igor (Japan) via real Twilio. WebSocket voice conversation confirmed working. Live TwiML injection (say message on active call) confirmed working
+- **Twilio credentials:** Real SID/token restored in `.env`, US number +18452514056 and IL number +97243760273 configured
 
 ## Session 17 — 2026-02-16
 
