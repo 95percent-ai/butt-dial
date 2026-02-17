@@ -29,6 +29,7 @@ import {
   type VoiceConversation,
 } from "./voice-sessions.js";
 import { translate, needsTranslation, getAgentLanguage } from "../lib/translator.js";
+import { applyGuardrails, checkResponseContent } from "../security/communication-guardrails.js";
 
 /** Extract agentId from the WebSocket URL path: /webhooks/:agentId/voice-ws */
 function extractAgentId(url: string | undefined): string | null {
@@ -45,6 +46,11 @@ function extractQueryParams(url: string | undefined): URLSearchParams {
 }
 
 const SAMPLING_TIMEOUT_MS = 8000;
+const FIRST_RESPONSE_DELAY_MS = 2000;
+const END_SIGNAL_DELAY_MS = 500;
+
+/** Keywords that signal the AI is ending the conversation */
+const GOODBYE_PATTERNS = /\b(goodbye|bye|take care|have a good|have a great|talk to you later|end of call)\b/i;
 
 const ANSWERING_MACHINE_SYSTEM_PROMPT = `You are a voicemail assistant. The person you're speaking for is not available right now.
 Your job:
@@ -257,8 +263,10 @@ async function tryAnsweringMachine(
 
     // Use custom system prompt if one was provided (outbound call config),
     // otherwise fall back to the default answering machine prompt
-    const isCustomPrompt = conv.systemPrompt && conv.systemPrompt !== config.voiceDefaultSystemPrompt;
-    const systemPrompt = isCustomPrompt ? conv.systemPrompt : ANSWERING_MACHINE_SYSTEM_PROMPT;
+    // Use the conversation's system prompt (already guardrailed from setup) if custom,
+    // otherwise apply guardrails to the answering machine default prompt
+    const isCustomPrompt = conv.systemPrompt && conv.systemPrompt !== applyGuardrails(config.voiceDefaultSystemPrompt);
+    const systemPrompt = isCustomPrompt ? conv.systemPrompt : applyGuardrails(ANSWERING_MACHINE_SYSTEM_PROMPT);
 
     // Build messages array for the tool-use loop (copy so we don't pollute conv.history)
     const messages: Array<{ role: string; content: unknown }> = conv.history.map((m) => ({
@@ -380,6 +388,8 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
   logger.info("voice_ws_connected", { agentId, sessionId, url: req.url });
 
   let callSid: string | null = null;
+  let isFirstPrompt = true;
+  let callTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 
   ws.on("message", async (data) => {
     let msg: Record<string, unknown>;
@@ -400,7 +410,7 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
 
         // Read system prompt from call config (outbound) or use default
         const callConfig = sessionId ? getCallConfig(sessionId) : undefined;
-        const systemPrompt = callConfig?.systemPrompt || config.voiceDefaultSystemPrompt;
+        const systemPrompt = applyGuardrails(callConfig?.systemPrompt || config.voiceDefaultSystemPrompt);
 
         // Clean up the one-time session config now that we've read it
         if (sessionId) {
@@ -454,7 +464,25 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
           // Best-effort logging — call_logs table might not exist yet
         }
 
-        logger.info("voice_ws_setup", { agentId, callSid, from, to, mode });
+        // Start call timeout safety net
+        const maxMinutes = config.voiceMaxCallDurationMinutes;
+        callTimeoutTimer = setTimeout(() => {
+          logger.warn("voice_ws_call_timeout", { callSid, agentId, maxMinutes });
+          if (ws.readyState === ws.OPEN) {
+            ws.send(JSON.stringify({
+              type: "text",
+              token: "This call has reached the maximum duration. Goodbye.",
+              last: true,
+            }));
+            setTimeout(() => {
+              if (ws.readyState === ws.OPEN) {
+                ws.send(JSON.stringify({ type: "end" }));
+              }
+            }, END_SIGNAL_DELAY_MS);
+          }
+        }, maxMinutes * 60 * 1000);
+
+        logger.info("voice_ws_setup", { agentId, callSid, from, to, mode, maxMinutes });
         break;
       }
 
@@ -501,6 +529,12 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
           }
         }
 
+        // On the first prompt, add a small delay so the caller finishes saying hello
+        if (isFirstPrompt) {
+          isFirstPrompt = false;
+          await new Promise((resolve) => setTimeout(resolve, FIRST_RESPONSE_DELAY_MS));
+        }
+
         let responseText: string | null = null;
 
         // Path A: Agent connected — try MCP sampling
@@ -525,6 +559,18 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
           responseText = UNAVAILABLE_MESSAGE;
         }
 
+        // Content filter: catch inappropriate AI output before delivery
+        const contentCheck = checkResponseContent(responseText);
+        if (!contentCheck.allowed) {
+          logger.warn("voice_response_blocked", {
+            callSid,
+            agentId,
+            reason: contentCheck.blockedReason,
+            originalLength: responseText.length,
+          });
+          responseText = contentCheck.sanitized;
+        }
+
         // Translate outbound response: agent's language → caller's language
         let spokenText = responseText;
         if (conv.callerLanguage && conv.agentLanguage && needsTranslation(conv.agentLanguage, conv.callerLanguage)) {
@@ -545,6 +591,19 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
 
         // Store agent's original response in history (untranslated)
         conv.history.push({ role: "assistant", content: responseText });
+
+        // Detect end-of-conversation and send hangup signal
+        const isGoodbye = GOODBYE_PATTERNS.test(responseText);
+        const isFallback = responseText === UNAVAILABLE_MESSAGE;
+
+        if ((isGoodbye || isFallback) && ws.readyState === ws.OPEN) {
+          logger.info("voice_ws_ending_call", { callSid, agentId, isGoodbye, isFallback });
+          setTimeout(() => {
+            if (ws.readyState === ws.OPEN) {
+              ws.send(JSON.stringify({ type: "end" }));
+            }
+          }, END_SIGNAL_DELAY_MS);
+        }
 
         logger.info("voice_ws_response_complete", {
           callSid,
@@ -577,6 +636,7 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
   });
 
   ws.on("close", () => {
+    if (callTimeoutTimer) clearTimeout(callTimeoutTimer);
     logger.info("voice_ws_disconnected", { agentId, callSid });
 
     if (callSid) {

@@ -19,6 +19,7 @@ import { requireAgentInOrg } from "../security/org-scope.js";
 import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 import { checkTcpaTimeOfDay, checkDnc, checkContentFilter } from "../security/compliance.js";
+import { applyGuardrails } from "../security/communication-guardrails.js";
 
 interface AgentRow {
   agent_id: string;
@@ -155,7 +156,7 @@ export function registerMakeCallTool(server: McpServer): void {
       const callLang = targetLanguage || language || agentLang;
       storeCallConfig(sessionId, {
         agentId,
-        systemPrompt: systemPrompt || config.voiceDefaultSystemPrompt,
+        systemPrompt: applyGuardrails(systemPrompt || config.voiceDefaultSystemPrompt),
         greeting: greeting || config.voiceDefaultGreeting,
         voice: voice || config.voiceDefaultVoice,
         language: callLang,
