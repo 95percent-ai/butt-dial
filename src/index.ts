@@ -26,6 +26,7 @@ import { renderLandingPage } from "./public/landing-page.js";
 import { renderDocsPage } from "./public/docs.js";
 import { renderAuthPage } from "./public/auth-page.js";
 import { authApiRouter } from "./public/auth-api.js";
+import { restRouter } from "./api/rest-router.js";
 
 async function main() {
   // 1. Initialize providers (DB first)
@@ -119,6 +120,9 @@ async function main() {
   // Auth pages + API
   app.get("/auth/login", (_req, res) => { res.type("html").send(renderAuthPage()); });
   app.use("/auth/api", authApiRouter);
+
+  // REST API v1
+  app.use("/api/v1", restRouter);
 
   app.use(webhookRouter);
   app.use("/admin", ipFilter("admin"));
