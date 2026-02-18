@@ -10,6 +10,9 @@ const configSchema = z.object({
   mcpServerName: z.string().default("butt-dial-mcp"),
   nodeEnv: z.enum(["development", "production", "test"]).default("development"),
 
+  // Edition
+  edition: z.enum(["community", "enterprise", "saas"]).default("community"),
+
   // Security
   masterSecurityToken: z.string().optional(),
   credentialsEncryptionKey: z.string().optional(),
@@ -37,6 +40,7 @@ const configSchema = z.object({
   twilioAuthToken: z.string().optional(),
   twilioApiKey: z.string().optional(),
   twilioApiSecret: z.string().optional(),
+  twilioMessagingServiceSid: z.string().optional(),
 
   // ElevenLabs
   elevenlabsApiKey: z.string().optional(),
@@ -158,6 +162,7 @@ function loadConfig() {
     webhookBaseUrl: process.env.WEBHOOK_BASE_URL,
     mcpServerName: process.env.MCP_SERVER_NAME,
     nodeEnv: process.env.NODE_ENV,
+    edition: process.env.EDITION,
     identityMode: process.env.IDENTITY_MODE,
     isolationMode: process.env.ISOLATION_MODE,
     masterSecurityToken: process.env.MASTER_SECURITY_TOKEN,
@@ -176,6 +181,7 @@ function loadConfig() {
     twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
     twilioApiKey: process.env.TWILIO_API_KEY,
     twilioApiSecret: process.env.TWILIO_API_SECRET,
+    twilioMessagingServiceSid: process.env.TWILIO_MESSAGING_SERVICE_SID,
     elevenlabsApiKey: process.env.ELEVENLABS_API_KEY,
     elevenlabsDefaultVoice: process.env.ELEVENLABS_DEFAULT_VOICE,
     resendApiKey: process.env.RESEND_API_KEY,

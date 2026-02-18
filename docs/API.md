@@ -28,6 +28,17 @@ mcp_tool_calls_total{tool="comms_send_message"} 57
 mcp_active_voice_sessions 2
 ```
 
+## Legal Pages
+
+### GET /legal/terms
+Terms of Service page. Public, no auth required.
+
+### GET /legal/aup
+Acceptable Use Policy page. Public, no auth required.
+
+### GET /legal/privacy
+Privacy Policy page. Public, no auth required.
+
 ## MCP Transport
 
 ### GET /sse
@@ -112,4 +123,13 @@ Requires: `Authorization: Bearer <masterToken>`.
 
 ### POST /admin/api/run-scenarios
 Run demo test scenarios. Returns pass/fail results.
+Requires: `Authorization: Bearer <masterToken>`.
+
+### GET /admin/api/pending-accounts
+List accounts with `pending_review` status. Super-admin only.
+Requires: `Authorization: Bearer <masterToken>`.
+
+### POST /admin/api/pending-accounts/:userId/review
+Approve, reject, or suspend a user account. Body: `{"action":"approve"}`.
+Actions: `approve` (sets production mode), `reject`, `suspend`.
 Requires: `Authorization: Bearer <masterToken>`.

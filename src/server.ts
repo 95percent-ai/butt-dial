@@ -20,6 +20,7 @@ import { registerExpandAgentPoolTool } from "./tools/expand-agent-pool.js";
 import { registerOtpTools } from "./tools/otp-tools.js";
 import { registerOrgTools } from "./tools/org-tools.js";
 import { registerBridgeCallTool } from "./tools/bridge-call.js";
+import { registerConsentTools } from "./tools/consent-tools.js";
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -92,9 +93,6 @@ export function createMcpServer(): McpServer {
   registerGetChannelStatusTool(server);
   registerRegisterProviderTool(server);
 
-  // Phase 8: Onboarding tool
-  registerOnboardCustomerTool(server);
-
   // Phase 13: Advanced voice tools
   registerTransferCallTool(server);
 
@@ -102,20 +100,32 @@ export function createMcpServer(): McpServer {
   registerSetAgentLimitsTool(server);
   registerGetUsageDashboardTool(server);
 
-  // Phase 18: Billing tools
-  registerBillingTools(server);
-
   // Phase 20: Pool expansion
   registerExpandAgentPoolTool(server);
 
   // OTP verification tools
   registerOtpTools(server);
 
-  // Phase 21: Organization management tools
-  registerOrgTools(server);
-
   // Call bridging tool
   registerBridgeCallTool(server);
+
+  // Consent tracking tools
+  registerConsentTools(server);
+
+  // --- Enterprise / SaaS only tools ---
+  const edition = config.edition;
+  if (edition === "enterprise" || edition === "saas") {
+    // Customer onboarding (automated multi-channel setup)
+    registerOnboardCustomerTool(server);
+
+    // Billing tools (markup, tier management)
+    registerBillingTools(server);
+
+    // Organization management (multi-tenant)
+    registerOrgTools(server);
+
+    logger.info("edition_tools_registered", { edition, tools: ["onboard-customer", "billing", "org-management"] });
+  }
 
   logger.info("mcp_server_created", { name: config.mcpServerName });
 

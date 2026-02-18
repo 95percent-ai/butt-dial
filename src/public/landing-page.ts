@@ -600,6 +600,9 @@ export function renderLandingPage(): string {
       <a href="/docs">Docs</a>
       <a href="/admin">Admin</a>
       <a href="/auth/login">Login</a>
+      <a href="/legal/terms">Terms</a>
+      <a href="/legal/privacy">Privacy</a>
+      <a href="/legal/aup">Acceptable Use</a>
     </div>
     <p class="footer-credit">Powered by <a href="https://95percent.ai" target="_blank">95percent.ai</a></p>
   </footer>

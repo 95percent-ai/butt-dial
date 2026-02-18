@@ -27,6 +27,8 @@ import { renderDocsPage } from "./public/docs.js";
 import { renderAuthPage } from "./public/auth-page.js";
 import { authApiRouter } from "./public/auth-api.js";
 import { restRouter } from "./api/rest-router.js";
+import { renderTermsPage, renderAupPage, renderPrivacyPage } from "./public/legal-pages.js";
+import { runDataRetentionCleanup } from "./lib/data-retention.js";
 
 async function main() {
   // 1. Initialize providers (DB first)
@@ -117,6 +119,11 @@ async function main() {
     res.type("html").send(html);
   });
 
+  // Legal pages
+  app.get("/legal/terms", (_req, res) => { res.type("html").send(renderTermsPage()); });
+  app.get("/legal/aup", (_req, res) => { res.type("html").send(renderAupPage()); });
+  app.get("/legal/privacy", (_req, res) => { res.type("html").send(renderPrivacyPage()); });
+
   // Auth pages + API
   app.get("/auth/login", (_req, res) => { res.type("html").send(renderAuthPage()); });
   app.use("/auth/api", authApiRouter);
@@ -169,6 +176,16 @@ async function main() {
     setInterval(() => {
       try { cleanupExpiredOtps(db); } catch {}
     }, 5 * 60 * 1000);
+
+    // 12. Data retention cleanup — every 24 hours
+    setInterval(() => {
+      try { runDataRetentionCleanup(db); } catch {}
+    }, 24 * 60 * 60 * 1000);
+
+    // Run once at startup (non-blocking)
+    setTimeout(() => {
+      try { runDataRetentionCleanup(db); } catch {}
+    }, 30_000);
   });
 }
 

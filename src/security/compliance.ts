@@ -8,6 +8,7 @@
 import { randomUUID } from "crypto";
 import { logger } from "../lib/logger.js";
 import type { IDBProvider } from "../providers/interfaces.js";
+import { hasActiveConsent } from "../tools/consent-tools.js";
 
 export interface ComplianceResult {
   allowed: boolean;
@@ -256,6 +257,8 @@ export function preSendCheck(db: IDBProvider, params: {
   to: string;
   body: string;
   html?: string;
+  agentId?: string;
+  orgId?: string;
 }): ComplianceResult {
   // 1. Content filter
   const contentCheck = checkContentFilter(params.body);
@@ -266,13 +269,25 @@ export function preSendCheck(db: IDBProvider, params: {
   const dncCheck = checkDnc(db, params.to, dncType);
   if (!dncCheck.allowed) return dncCheck;
 
-  // 3. TCPA for voice/calls
+  // 3. Consent check (if agent context provided)
+  if (params.agentId) {
+    const consentOk = hasActiveConsent(db, params.agentId, params.to, params.channel, params.orgId);
+    if (!consentOk) {
+      logger.warn("compliance_consent_blocked", { agentId: params.agentId, to: params.to, channel: params.channel });
+      return {
+        allowed: false,
+        reason: `No active consent from ${params.to} for ${params.channel}. Record consent before sending.`,
+      };
+    }
+  }
+
+  // 4. TCPA for voice/calls
   if (params.channel === "voice") {
     const tcpaCheck = checkTcpaTimeOfDay();
     if (!tcpaCheck.allowed) return tcpaCheck;
   }
 
-  // 4. CAN-SPAM for email
+  // 5. CAN-SPAM for email
   if (params.channel === "email") {
     const canSpamCheck = checkCanSpam(params.html, params.body);
     if (!canSpamCheck.allowed) return canSpamCheck;

@@ -31,9 +31,13 @@ For real providers:
 PORT=3100
 DEMO_MODE=false
 
+# Distribution edition (community | enterprise | saas)
+EDITION=community
+
 # Required for SMS/voice
 TWILIO_ACCOUNT_SID=AC...
 TWILIO_AUTH_TOKEN=...
+TWILIO_MESSAGING_SERVICE_SID=MG...  # Optional: A2P 10DLC messaging service
 
 # Required for email
 RESEND_API_KEY=re_...
@@ -44,6 +48,12 @@ ELEVENLABS_API_KEY=sk_...
 # Security
 MASTER_SECURITY_TOKEN=your-secret-token
 WEBHOOK_BASE_URL=https://your-domain.com
+
+# Data retention (days, 0 = keep forever)
+DATA_RETENTION_ENABLED=true
+DATA_RETENTION_MESSAGES_DAYS=90
+DATA_RETENTION_VOICEMAIL_DAYS=30
+DATA_RETENTION_OTP_DAYS=1
 ```
 
 See `.env.example` for all available options.

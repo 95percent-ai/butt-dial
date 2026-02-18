@@ -126,6 +126,11 @@ ANOMALY_DETECTOR_ENABLED=true
 - **CAN-SPAM:** Warns if emails lack unsubscribe link
 - **GDPR:** Right to erasure — deletes all data for a given identifier
 - **Recording consent:** Two-party consent state detection
+- **Consent enforcement:** `preSendCheck()` blocks outbound messages when no active consent exists for the agent/contact/channel
+- **STOP keyword:** Inbound SMS containing "STOP", "UNSUBSCRIBE", "CANCEL", "END", or "QUIT" auto-revokes consent and adds sender to DNC list
+- **Country compliance:** 37 countries with per-country rules for A2P registration, DNC checks, calling hours, recording consent. Provisioning blocked if requirements not met.
+- **Data retention:** Configurable auto-purge (messages 90d, usage 365d, voicemail 30d, OTP 1d, revoked consent 730d)
+- **Sandbox gating:** New organizations start in sandbox mode (mock providers). Production requires admin approval after KYC review.
 
 ## Body Size Limits
 

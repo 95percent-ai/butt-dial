@@ -11,6 +11,8 @@ import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 import { detectLanguage, translate, needsTranslation, getAgentLanguage } from "../lib/translator.js";
+import { revokeConsentByAddress } from "../tools/consent-tools.js";
+import { addToDnc } from "../security/compliance.js";
 
 interface AgentRow {
   agent_id: string;
@@ -74,6 +76,30 @@ export async function handleInboundSms(req: Request, res: Response): Promise<voi
     const orgRows = db.query<{ org_id: string }>("SELECT org_id FROM agent_channels WHERE agent_id = ?", [agentId]);
     if (orgRows.length > 0 && orgRows[0].org_id) orgId = orgRows[0].org_id;
   } catch {}
+
+  // STOP keyword processing — revoke consent and add to DNC
+  const smsBody = (body.Body || "").trim();
+  const STOP_KEYWORDS = ["stop", "unsubscribe", "cancel", "end", "quit"];
+  if (STOP_KEYWORDS.includes(smsBody.toLowerCase())) {
+    logger.info("inbound_sms_stop_keyword", { agentId, from: body.From });
+
+    // Revoke all consent for this sender
+    const revoked = revokeConsentByAddress(db, body.From, "sms", orgId);
+
+    // Add to DNC list
+    addToDnc(db, {
+      phoneNumber: body.From,
+      reason: `STOP keyword received via SMS`,
+      addedBy: `system:inbound-sms:${agentId}`,
+      orgId,
+    });
+
+    // Return confirmation TwiML
+    res.status(200).type("text/xml").send(
+      `<Response><Message>You have been unsubscribed and will no longer receive messages. Reply START to re-subscribe.</Message></Response>`
+    );
+    return;
+  }
 
   // Detect language and translate if needed
   const originalBody = body.Body || "";

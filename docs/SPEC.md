@@ -1,4 +1,4 @@
-<!-- version: 1.8 | updated: 2026-02-17 -->
+<!-- version: 1.9 | updated: 2026-02-18 -->
 
 # AgentOS Communication MCP Server — Spec
 
@@ -150,6 +150,9 @@ All tool calls require a valid security token.
 | 9 | `comms_get_usage_dashboard` | Usage stats, costs, limits per agent |
 | 10 | `comms_set_agent_limits` | Configure rate limits and spending caps |
 | 11 | `comms_register_provider` | Register/update third-party provider credentials |
+| 12 | `comms_record_consent` | Record that a contact gave consent for a channel |
+| 13 | `comms_revoke_consent` | Record that a contact revoked consent |
+| 14 | `comms_check_consent` | Check current consent status for a contact/channel |
 
 Full input/output schemas are in `docs/references/PROJECT-SCOPE.md`.
 
@@ -263,6 +266,11 @@ Standard SQL schema (adapted per provider). Key tables:
 - `provider_credentials` — encrypted provider creds
 - `contact_frequency` — anti-harassment tracking
 - `audit_log` — immutable event trail (hash chain)
+- `contact_consent` — consent tracking per agent/contact/channel
+- `country_terms_accepted` — per-country terms acceptance
+- `number_pool` — shared phone numbers for smart routing
+- `organizations` — multi-tenant org management (with mode: sandbox/production)
+- `org_tokens` — organization-level auth tokens
 
 Full schema in `docs/references/PROJECT-SCOPE.md`.
 
@@ -325,6 +333,61 @@ Full schema in `docs/references/PROJECT-SCOPE.md`.
 
 ---
 
+## Distribution Model
+
+Three-tier distribution:
+
+| Edition | License | Features |
+|---------|---------|----------|
+| **Community** | MIT (free) | All core tools (SMS, voice, email, WhatsApp, provisioning, compliance) |
+| **Enterprise** | Commercial | Community + onboarding, billing, org management, priority support |
+| **SaaS** | Managed | Enterprise + hosted infrastructure, auto-scaling |
+
+Controlled via `EDITION` env var (`community` | `enterprise` | `saas`). Enterprise/SaaS-only tools are conditionally registered at startup.
+
+## Consent Tracking
+
+Prior consent is required before outbound contact in most jurisdictions (TCPA, GDPR, CASL).
+
+- **`comms_record_consent`** — records consent per agent/contact/channel (express, implied, or transactional)
+- **`comms_revoke_consent`** — revokes consent for a contact/channel
+- **`comms_check_consent`** — checks current consent status
+- **Pre-send enforcement** — `preSendCheck()` blocks messages when no active consent exists
+- **STOP keyword** — inbound SMS "STOP" auto-revokes consent and adds to DNC list
+- **Consent table** — `contact_consent` tracks grant/revoke lifecycle with timestamps, source, and audit trail
+
+## Country Compliance Rules
+
+Per-country regulatory rules engine (`country-compliance.ts`) covering 37 countries:
+
+- **Per-country rules:** consent requirements, A2P registration, DNC checks, calling hours, recording consent, applicable regulations
+- **Provisioning gating:** blocks provisioning in countries with unmet requirements (e.g., US without A2P 10DLC registration)
+- **Countries covered:** US (TCPA, A2P 10DLC), CA (CASL), GB (UK GDPR, TPS), DE/FR and 25 EU states (GDPR, ePrivacy), IL, AU, JP, BR, IN, SG, AE + default rules for unknown countries
+
+## Sandbox-to-Production Gating
+
+Organizations start in sandbox mode and must be approved for production:
+
+- `organizations.mode` — `sandbox` (mock providers, no real API calls) or `production` (real providers)
+- KYC fields required at registration: company_name, website, use_case_description
+- Account status workflow: `pending_review` → `approved` → `suspended`
+- Admin review endpoints for approving/rejecting accounts (auto-upgrades org to production on approval)
+
+## Data Retention
+
+Configurable auto-purge per table, runs daily:
+
+| Data | Default Retention |
+|------|-------------------|
+| Messages | 90 days |
+| Usage logs | 365 days |
+| Call logs | 365 days |
+| Voicemail | 30 days |
+| OTP codes | 1 day |
+| Revoked consent | 730 days |
+
+Controlled via `DATA_RETENTION_*` env vars. Can be disabled entirely with `DATA_RETENTION_ENABLED=false`.
+
 ## Compliance
 
 - Call recording consent announcements (two-party consent jurisdictions)
@@ -334,6 +397,9 @@ Full schema in `docs/references/PROJECT-SCOPE.md`.
 - Anti-harassment: hard limits on contact frequency
 - Content filtering: block hate speech, threats, abusive content
 - CAN-SPAM: physical address + unsubscribe in emails
+- Per-country compliance rules (37 countries)
+- Consent enforcement at send time
+- STOP keyword auto-processing
 
 ---
 
@@ -372,3 +438,8 @@ When complete, the server should:
 20. Comprehensive documentation
 21. Hardened against attacks
 22. Per-agent language with real-time translation across all channels
+23. Legal pages (Terms, AUP, Privacy) at /legal/*
+24. Per-country compliance rules enforced at provisioning
+25. Consent tracking with pre-send enforcement
+26. Sandbox-to-production gating with admin approval
+27. Data retention auto-purge

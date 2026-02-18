@@ -116,6 +116,39 @@ export function runMigrations(): void {
     // Column already exists
   }
 
+  // Consent tracking + country terms
+  const consentSchemaPath = path.join(projectRoot, "src", "db", "schema-consent.sql");
+  const consentSchema = fs.readFileSync(consentSchemaPath, "utf-8");
+  db.exec(consentSchema);
+
+  // Add tos_accepted_at to user_accounts
+  try {
+    db.run("ALTER TABLE user_accounts ADD COLUMN tos_accepted_at TEXT");
+  } catch {
+    // Column already exists
+  }
+
+  // Add mode column to organizations (sandbox | production)
+  try {
+    db.run("ALTER TABLE organizations ADD COLUMN mode TEXT DEFAULT 'sandbox'");
+  } catch {
+    // Column already exists
+  }
+
+  // Add KYC fields to user_accounts
+  try {
+    db.run("ALTER TABLE user_accounts ADD COLUMN company_name TEXT");
+  } catch {}
+  try {
+    db.run("ALTER TABLE user_accounts ADD COLUMN website TEXT");
+  } catch {}
+  try {
+    db.run("ALTER TABLE user_accounts ADD COLUMN use_case_description TEXT");
+  } catch {}
+  try {
+    db.run("ALTER TABLE user_accounts ADD COLUMN account_status TEXT DEFAULT 'pending_review'");
+  } catch {}
+
   // Ensure default organization exists
   try {
     const existing = db.query<{ id: string }>("SELECT id FROM organizations WHERE id = 'default'");

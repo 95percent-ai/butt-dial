@@ -19,6 +19,7 @@ import type {
 interface TwilioConfig {
   accountSid: string;
   authToken: string;
+  messagingServiceSid?: string;
 }
 
 interface TwilioMessageResponse {
@@ -40,10 +41,15 @@ export function createTwilioTelephonyProvider(cfg: TwilioConfig): ITelephonyProv
   return {
     async sendSms(params: SendSmsParams): Promise<SendSmsResult> {
       const body = new URLSearchParams({
-        From: params.from,
         To: params.to,
         Body: params.body,
       });
+      // Use Messaging Service SID when available (required for A2P 10DLC)
+      if (cfg.messagingServiceSid) {
+        body.set("MessagingServiceSid", cfg.messagingServiceSid);
+      } else {
+        body.set("From", params.from);
+      }
       if (params.mediaUrl) {
         body.set("MediaUrl", params.mediaUrl);
       }

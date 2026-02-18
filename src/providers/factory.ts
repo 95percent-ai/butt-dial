@@ -81,6 +81,7 @@ export function initProviders(): void {
     providers.telephony = createTwilioTelephonyProvider({
       accountSid: config.twilioAccountSid,
       authToken: config.twilioAuthToken,
+      messagingServiceSid: config.twilioMessagingServiceSid,
     });
     logger.info("provider_initialized", { slot: "telephony", provider: "twilio" });
   } else {
@@ -205,6 +206,7 @@ export function initProviders(): void {
   }
 
   logger.info("providers_init_complete", {
+    edition: config.edition,
     database: config.providerDatabase,
     telephony: config.demoMode ? "mock" : config.providerTelephony,
     email: config.providerEmail + " (pending)",
@@ -215,4 +217,50 @@ export function initProviders(): void {
     voiceOrchestration: config.providerVoiceOrchestration + " (pending)",
     storage: config.providerStorage + " (pending)",
   });
+}
+
+// Sandbox-mode mock providers (cached)
+let sandboxMockTelephony: ITelephonyProvider | null = null;
+let sandboxMockEmail: IEmailProvider | null = null;
+let sandboxMockWhatsApp: IWhatsAppProvider | null = null;
+let sandboxMockTts: ITTSProvider | null = null;
+
+/**
+ * Get the appropriate provider for an organization.
+ * Sandbox orgs get mock providers. Production orgs get real ones.
+ */
+export function getProviderForOrg<K extends keyof ProviderMap>(slot: K, orgMode: "sandbox" | "production" = "production"): ProviderMap[K] {
+  if (orgMode === "production" || slot === "database" || slot === "storage") {
+    return getProvider(slot);
+  }
+
+  // Sandbox mode — return mock providers for communication slots
+  switch (slot) {
+    case "telephony":
+      if (!sandboxMockTelephony) sandboxMockTelephony = createMockTelephonyProvider();
+      return sandboxMockTelephony as ProviderMap[K];
+    case "email":
+      if (!sandboxMockEmail) sandboxMockEmail = createMockEmailProvider();
+      return sandboxMockEmail as ProviderMap[K];
+    case "whatsapp":
+      if (!sandboxMockWhatsApp) sandboxMockWhatsApp = createMockWhatsAppProvider();
+      return sandboxMockWhatsApp as ProviderMap[K];
+    case "tts":
+      if (!sandboxMockTts) sandboxMockTts = createMockTTSProvider();
+      return sandboxMockTts as ProviderMap[K];
+    default:
+      return getProvider(slot);
+  }
+}
+
+/**
+ * Look up an organization's mode (sandbox or production).
+ */
+export function getOrgMode(orgId: string): "sandbox" | "production" {
+  try {
+    const db = getProvider("database");
+    const rows = db.query<{ mode: string }>("SELECT mode FROM organizations WHERE id = ?", [orgId]);
+    if (rows.length > 0 && rows[0].mode === "production") return "production";
+  } catch {}
+  return "sandbox";
 }

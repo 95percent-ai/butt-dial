@@ -81,7 +81,7 @@ authApiRouter.post("/register", (req: Request, res: Response) => {
       return;
     }
 
-    const { email, password, orgName } = req.body ?? {};
+    const { email, password, orgName, tosAccepted, companyName, website, useCaseDescription } = req.body ?? {};
 
     // Validate input
     if (!email || typeof email !== "string" || !email.includes("@")) {
@@ -94,6 +94,10 @@ authApiRouter.post("/register", (req: Request, res: Response) => {
     }
     if (!orgName || typeof orgName !== "string" || orgName.trim().length < 2) {
       res.status(400).json({ error: "Organization name is required (min 2 characters)" });
+      return;
+    }
+    if (!tosAccepted) {
+      res.status(400).json({ error: "You must accept the Terms of Service to register" });
       return;
     }
 
@@ -127,12 +131,13 @@ authApiRouter.post("/register", (req: Request, res: Response) => {
     // Encrypt the raw token for later reveal
     const pendingTokenEnc = encryptToken(rawToken);
 
-    // Insert user account
+    // Insert user account with ToS acceptance and KYC fields
     const userId = randomUUID();
     db.run(
-      `INSERT INTO user_accounts (id, email, password_hash, password_salt, org_id, pending_token_enc)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [userId, normalizedEmail, hash, salt, org.id, pendingTokenEnc],
+      `INSERT INTO user_accounts (id, email, password_hash, password_salt, org_id, pending_token_enc, tos_accepted_at, company_name, website, use_case_description, account_status)
+       VALUES (?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, 'pending_review')`,
+      [userId, normalizedEmail, hash, salt, org.id, pendingTokenEnc,
+       companyName || null, website || null, useCaseDescription || null],
     );
 
     // Generate OTP for email verification

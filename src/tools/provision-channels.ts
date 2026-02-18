@@ -16,6 +16,7 @@ import { generateEmailAddress } from "../provisioning/email-identity.js";
 import { requireAdmin, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { generateToken, storeToken, revokeAgentTokens } from "../security/token-manager.js";
 import { appendAuditLog } from "../observability/audit-log.js";
+import { validateCountryRequirements } from "../lib/country-compliance.js";
 
 interface PoolRow {
   max_agents: number;
@@ -70,7 +71,28 @@ export function registerProvisionChannelsTool(server: McpServer): void {
         };
       }
 
+      // Validate country compliance requirements
+      const countryCheck = validateCountryRequirements(country);
+      if (!countryCheck.passed) {
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              error: "Country compliance requirements not met",
+              blockers: countryCheck.blockers,
+              warnings: countryCheck.warnings,
+            }),
+          }],
+          isError: true,
+        };
+      }
+
       const db = getProvider("database");
+
+      // Log country compliance warnings (non-blocking)
+      if (countryCheck.warnings.length > 0) {
+        logger.info("provision_country_warnings", { agentId, country, warnings: countryCheck.warnings });
+      }
 
       // 1. Check agent doesn't already exist
       const existing = db.query<AgentRow>(

@@ -14,7 +14,7 @@
 │                                                       │
 │  ┌──────────┐  ┌──────────┐  ┌──────────────────┐   │
 │  │ MCP Tools │  │ Webhooks │  │ Admin UI         │   │
-│  │ (15 tools)│  │ (6 routes)│  │ Setup/Dashboard  │   │
+│  │ (18 tools)│  │ (6 routes)│  │ Setup/Dashboard  │   │
 │  └────┬─────┘  └────┬─────┘  └──────────────────┘   │
 │       │              │                                │
 │  ┌────┴──────────────┴────────────────────────────┐  │
@@ -80,7 +80,7 @@ Express app + MCP server. Middleware order:
 7. IP filter on /admin
 
 ### MCP Server (server.ts)
-Registers all 15 tools. Handles SSE transport for client connections.
+Registers all 18+ tools (core + edition-gated). Handles SSE transport for client connections.
 
 ### Provider Factory (factory.ts)
 Resolves config → adapter instances. Demo mode → mock adapters.
@@ -121,7 +121,12 @@ agent_channels ←── messages
      ├── dnc_list
      ├── erasure_requests
      ├── voicemail_messages
-     └── audit_log
+     ├── audit_log
+     ├── contact_consent
+     ├── country_terms_accepted
+     ├── number_pool
+     ├── organizations (mode: sandbox/production)
+     └── org_tokens
 ```
 
 ## Concurrency

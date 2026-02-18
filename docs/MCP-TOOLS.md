@@ -247,3 +247,61 @@ Set billing tier, markup percentage, and billing email for an agent. Admin only.
 | Starter | 10 | 500 | $100 |
 | Pro | 30 | 5,000 | $1,000 |
 | Enterprise | 100 | 50,000 | $50,000 |
+
+## comms_record_consent
+
+Record that a contact has given consent to be contacted on a specific channel.
+
+**Input:**
+- `agentId` (string) — Agent ID this consent applies to
+- `contactAddress` (string) — Phone number or email
+- `channel` (enum: sms/voice/email/whatsapp) — Channel
+- `consentType` (enum: express/implied/transactional, default: express) — Type of consent
+- `source` (string, optional) — How consent was obtained (web_form, verbal, sms_optin, api)
+- `notes` (string, optional) — Additional context
+
+**Output:**
+```json
+{
+  "success": true,
+  "consentId": "uuid",
+  "status": "granted"
+}
+```
+
+## comms_revoke_consent
+
+Record that a contact has revoked consent for a channel.
+
+**Input:**
+- `agentId` (string) — Agent ID
+- `contactAddress` (string) — Phone number or email
+- `channel` (enum: sms/voice/email/whatsapp) — Channel
+
+**Output:**
+```json
+{
+  "success": true,
+  "status": "revoked"
+}
+```
+
+## comms_check_consent
+
+Check current consent status for a contact/channel.
+
+**Input:**
+- `agentId` (string) — Agent ID
+- `contactAddress` (string) — Phone number or email
+- `channel` (enum: sms/voice/email/whatsapp) — Channel
+
+**Output:**
+```json
+{
+  "hasConsent": true,
+  "status": "granted",
+  "consentType": "express",
+  "grantedAt": "2026-02-18T12:00:00Z",
+  "source": "web_form"
+}
+```

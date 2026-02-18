@@ -1,6 +1,36 @@
-<!-- version: 3.6 | updated: 2026-02-17 -->
+<!-- version: 3.7 | updated: 2026-02-18 -->
 
 # Decisions Log
+
+## DEC-060: 3-Tier Distribution Model (Community, Enterprise, SaaS)
+**Date:** 2026-02-18
+**What:** Added `EDITION` env var (`community` | `enterprise` | `saas`). Tools like onboard-customer, billing, and org-management are gated behind enterprise/saas editions. Community edition is MIT-licensed, free, fully functional for core comms.
+**Why:** Different customers need different packaging. Open-source community builds trust and adoption. Enterprise adds support + advanced tools. SaaS is hosted managed service.
+**Alternatives considered:** Single edition with feature flags (too granular), paid-only (kills adoption).
+
+## DEC-061: Country Compliance Rules Engine
+**Date:** 2026-02-18
+**What:** Created `country-compliance.ts` with per-country rules for 37 countries. Each rule specifies consent requirements, A2P registration, DNC checks, calling hours, recording consent, and applicable regulations. Integrated into provisioning to block provisioning in countries with unmet requirements (e.g. US without A2P registration).
+**Why:** Global reach requires per-country guardrails. TCPA (US), GDPR (EU), CASL (Canada), PDPA (Singapore) etc. all have different requirements. Blocking at provisioning prevents legal exposure.
+**Alternatives considered:** Per-region rules only (too coarse), no blocking (legal risk).
+
+## DEC-062: Consent Tracking with Pre-Send Enforcement
+**Date:** 2026-02-18
+**What:** Added `contact_consent` table and three MCP tools (record/revoke/check consent). `preSendCheck()` in compliance.ts now blocks outbound messages when no active consent exists for the agent+contact+channel combination. STOP keyword in inbound SMS auto-revokes consent and adds to DNC.
+**Why:** TCPA and GDPR require prior consent before outbound contact. Enforcement at the send layer (not just advisory) prevents accidental violations. STOP keyword auto-processing is legally required for SMS in the US.
+**Alternatives considered:** Advisory-only consent (legal risk), consent per-org instead of per-agent (too broad).
+
+## DEC-063: Sandbox-to-Production Organization Gating
+**Date:** 2026-02-18
+**What:** Added `mode` column to `organizations` table (`sandbox` | `production`). Sandbox orgs get mock providers (no real API calls). Production mode requires approval. Admin review endpoint flips mode on account approval.
+**Why:** New integrators need a safe testing environment. Sandbox prevents accidental charges and real messages during development. Manual approval before production ensures KYC review.
+**Alternatives considered:** No sandbox (risky for new users), automatic production after N days (no review).
+
+## DEC-064: Data Retention Auto-Purge
+**Date:** 2026-02-18
+**What:** Created `data-retention.ts` with configurable per-table retention periods. Runs daily via setInterval (24h) + startup cleanup (30s delay). Defaults: messages 90d, usage_logs 365d, call_logs 365d, voicemail 30d, OTP 1d, revoked consent 730d. Disabled retention = no-op.
+**Why:** GDPR requires data minimization. Storing data indefinitely is a liability. Per-table periods reflect different retention needs (OTP expires fast, consent records need long retention for audit).
+**Alternatives considered:** Single global retention period (inflexible), external cron job (adds deployment complexity).
 
 ## DEC-059: Number Pool + Smart Routing
 **Date:** 2026-02-17
