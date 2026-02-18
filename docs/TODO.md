@@ -1,4 +1,4 @@
-<!-- version: 4.3 | updated: 2026-02-17 -->
+<!-- version: 4.6 | updated: 2026-02-18 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -329,3 +329,57 @@ Shared phone number pool with automatic country-based outbound routing. Same-cou
 - [x] **Integration: send-voice-message** — voice message routing uses `resolveFromNumber()` from pool
 - [x] **Tests** — 21/21 assertions pass (12 unit + 2 DB + 4 integration + 2 regression + 1 channel filter)
 - [x] **Backward compatible** — empty pool = same behavior as before (agent's own number)
+
+## Phase 24 — Third-Party MCP Onboarding
+Complete onboarding experience: register → sandbox → provision agents → test → get approved → go production.
+
+- [x] **24.1** Registration form KYC fields (Company Name, Website, Use Case, ToS checkbox) + privacy explanation
+- [x] **24.2** Org Status API (`GET /admin/api/my-org`) — returns role, mode, status, agent count, pool info
+- [x] **24.3** Sandbox/production banner in admin dashboard (yellow=pending, blue=approved, red=suspended)
+- [x] **24.4** Agent provisioning UI — New Agent button, provision form, token reveal modal, deprovision button, pool capacity
+- [x] **24.5** Post-registration "What's Next" guide (7-step numbered walkthrough)
+- [x] **24.6** Channel setup documentation (`docs/CHANNEL-SETUP.md`) — SMS, Voice, Email, WhatsApp, LINE with inbound/outbound/two-way
+- [x] **24.7** Integration guide page (`/docs/integration`) + channel setup page (`/docs/channel-setup`) on docs site
+- [x] **24.8** Tests — 44/44 assertions pass (KYC fields, ToS, my-org API, admin banner, provisioning UI, integration guide, channel setup, regression)
+
+## Phase 25 — Regulatory Compliance & Distribution Model
+Global compliance guardrails, distribution tiers, consent tracking, and data retention.
+
+### Distribution & Business Model
+- [x] **A1.** `LICENSE` file (MIT) for community edition
+- [x] **A2.** `ENTERPRISE.md` explaining community vs enterprise vs SaaS tiers
+- [x] **A3.** `EDITION` env var in `config.ts` (`community` | `enterprise` | `saas`)
+- [x] **A4.** Edition gating — enterprise/saas-only tools conditionally registered
+
+### Global Legal Framework
+- [x] **B1.** `/legal/terms` page (Terms of Service HTML)
+- [x] **B2.** `/legal/aup` page (Acceptable Use Policy HTML)
+- [x] **B3.** `/legal/privacy` page (Privacy Policy HTML)
+- [x] **B4.** Legal page routes added to Express
+- [x] **B5.** Footer links added to landing page
+- [x] **B6.** `country-compliance.ts` — per-country rules engine (US, CA, GB, DE, FR, IL, AU, JP, BR, IN, SG, AE + 27 EU states)
+- [x] **B7.** `tos_accepted_at` column on `user_accounts`, required at registration
+- [x] **B8.** `country_terms_accepted` table for per-country terms tracking
+- [x] **B9.** Country compliance rules integrated into provisioning
+
+### Consent & Liability Protection
+- [x] **C1.** `contact_consent` table (schema-consent.sql)
+- [x] **C2.** `comms_record_consent`, `comms_revoke_consent`, `comms_check_consent` MCP tools
+- [x] **C3.** Consent check integrated into `preSendCheck()` in compliance.ts
+- [x] **C4.** STOP keyword auto-processing in inbound SMS → revoke consent + add to DNC
+- [x] **C5.** `mode` column on `organizations` (sandbox | production)
+- [x] **C6.** Provider factory returns mock providers for sandbox orgs
+- [x] **C7.** KYC fields on registration (company_name, website, use_case_description)
+- [x] **C8.** `account_status` field (pending_review → approved → suspended)
+- [x] **C9.** Admin endpoints for pending account review (list + approve/reject)
+
+### Twilio/Provider Config
+- [x] **D4.** `TWILIO_MESSAGING_SERVICE_SID` config, sends SMS via Messaging Service when set
+
+### Data Retention
+- [x] **E1.** `data-retention.ts` — configurable auto-purge per table
+- [x] **E2.** Retention config vars added to `.env.example`
+- [x] **E3.** Daily cleanup job scheduled in `index.ts`
+
+### Tests & Verification
+- [x] **F1-F7.** 84/84 assertions pass (legal pages, country rules, consent tracking, sandbox gating, edition gating, data retention, regression)

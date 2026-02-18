@@ -1190,6 +1190,213 @@ GET /sse?token=<org-token>&agentId=<agent-id>
 `,
   },
 
+  integration: {
+    title: "Integration Guide",
+    content: `
+# Integration Guide
+
+Complete walkthrough for connecting your AI agent to Butt-Dial MCP — from registration to production.
+
+---
+
+## 1. Register and Get Your Token
+
+Visit the registration page and create an account:
+
+\`\`\`
+https://your-server/auth/login → Register
+\`\`\`
+
+After verifying your email, you'll receive an **organization token**. Save it — this is your API key.
+
+---
+
+## 2. Sign Into the Admin Panel
+
+Go to \`/admin\` and enter your organization token. You'll see:
+
+- **Dashboard** — usage stats, active agents, service health
+- **Settings** — provider configuration
+- **Agents** — provision and manage agents
+- **API Docs** — interactive Swagger explorer
+- **Simulator** — test tools without writing code
+
+---
+
+## 3. Provision an Agent
+
+From the **Agents** tab, click **+ New Agent** and fill in:
+
+- **Agent ID** — unique identifier (e.g. \`support-bot\`)
+- **Display Name** — human-readable name
+- **Capabilities** — SMS, Voice, Email, WhatsApp
+- **Country** — for phone number provisioning
+
+Or provision via REST API:
+
+\`\`\`bash
+curl -X POST https://your-server/api/v1/provision \\
+  -H "Authorization: Bearer <org-token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "agentId": "support-bot",
+    "displayName": "Support Bot",
+    "capabilities": ["sms", "voice", "email"]
+  }'
+\`\`\`
+
+**Save the security token** returned — it's shown once and cannot be recovered.
+
+---
+
+## 4. Connect via MCP (SSE)
+
+Your AI agent connects to the server using the MCP protocol over Server-Sent Events:
+
+\`\`\`
+GET https://your-server/sse?token=<agent-token>&agentId=<agent-id>
+\`\`\`
+
+### Node.js Example
+
+\`\`\`javascript
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+
+const transport = new SSEClientTransport(
+  new URL("https://your-server/sse?token=YOUR_TOKEN&agentId=support-bot")
+);
+
+const client = new Client({ name: "my-agent", version: "1.0.0" });
+await client.connect(transport);
+
+// List available tools
+const tools = await client.listTools();
+console.log(tools.tools.map(t => t.name));
+
+// Send an SMS
+const result = await client.callTool({
+  name: "comms_send_message",
+  arguments: {
+    agentId: "support-bot",
+    to: "+15559876543",
+    body: "Hello from my AI agent!",
+    channel: "sms"
+  }
+});
+\`\`\`
+
+### Claude Desktop / Cursor
+
+Add to your MCP config:
+
+\`\`\`json
+{
+  "mcpServers": {
+    "butt-dial": {
+      "url": "https://your-server/sse?token=YOUR_TOKEN&agentId=support-bot"
+    }
+  }
+}
+\`\`\`
+
+---
+
+## 5. Or Use the REST API
+
+Every MCP tool is also available as a REST endpoint:
+
+\`\`\`bash
+# Send SMS
+curl -X POST https://your-server/api/v1/send-message \\
+  -H "Authorization: Bearer <agent-token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"agentId":"support-bot","to":"+15559876543","body":"Hello!","channel":"sms"}'
+
+# Make a call
+curl -X POST https://your-server/api/v1/make-call \\
+  -H "Authorization: Bearer <agent-token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"agentId":"support-bot","to":"+15559876543","greeting":"Hello!"}'
+
+# Get messages
+curl https://your-server/api/v1/messages?agentId=support-bot \\
+  -H "Authorization: Bearer <agent-token>"
+\`\`\`
+
+Full API reference: [API Docs](/docs/api-reference) or interactive explorer at \`/admin#docs\`.
+
+---
+
+## 6. Test in Sandbox
+
+New accounts start in **sandbox mode**:
+
+- All API calls use mock providers — no real messages sent
+- No costs incurred
+- Full tool suite available for integration testing
+- Use the **Simulator** tab in the admin panel for quick tests
+
+---
+
+## 7. Go to Production
+
+Once your integration is tested:
+
+1. Your account is automatically queued for review
+2. Admin reviews your KYC information and use case
+3. Upon approval, your org switches to production mode
+4. Configure real provider credentials (Twilio, Resend, etc.) in the Settings tab
+5. Real messages start flowing
+
+---
+
+## Webhook Setup
+
+For inbound messages (SMS replies, incoming calls, etc.), your server needs a public URL:
+
+\`\`\`env
+WEBHOOK_BASE_URL=https://your-domain.com
+\`\`\`
+
+Webhook URLs are auto-configured during provisioning. See the [Channel Setup Guide](/docs/channel-setup) for per-channel details.
+
+---
+
+## Authentication Summary
+
+| Token Type | How to Get | What It Accesses |
+|------------|-----------|------------------|
+| Org Token | Registration or login | Admin panel, provisioning, org-level operations |
+| Agent Token | Returned by provision | MCP tools, REST API, scoped to one agent |
+| Master Token | \`.env\` config | Super-admin: all orgs, all agents |
+`,
+  },
+
+  "channel-setup": {
+    title: "Channel Setup",
+    content: `
+# Channel Setup
+
+Detailed setup instructions for each communication channel are in the [Channel Setup Guide](/docs/channel-setup).
+
+For a quick overview:
+
+| Channel | Provider | Outbound | Inbound | Two-Way |
+|---------|----------|----------|---------|---------|
+| SMS | Twilio | comms_send_message | Webhook auto-configured | Thread by phone number |
+| Voice | Twilio | comms_make_call | Webhook auto-configured | ConversationRelay WebSocket |
+| Email | Resend | comms_send_message | Webhook in Resend dashboard | Thread by email address |
+| WhatsApp | Twilio | comms_send_message + templates | Webhook auto-configured | 24-hour conversation window |
+| LINE | LINE Messaging API | comms_send_message | Webhook in LINE Console | User ID based |
+
+See also:
+- [MCP Tools Reference](/docs/mcp-tools) — full tool parameters
+- [API Reference](/docs/api-reference) — REST endpoints
+- [Voice Calls](/docs/voice-calls) — detailed voice architecture
+`,
+  },
+
   troubleshooting: {
     title: "Troubleshooting",
     content: `
@@ -1312,6 +1519,8 @@ const sidebar = [
     { slug: "providers", label: "Providers" },
   ]},
   { section: "Guides", items: [
+    { slug: "integration", label: "Integration Guide" },
+    { slug: "channel-setup", label: "Channel Setup" },
     { slug: "voice-calls", label: "Voice Calls" },
     { slug: "architecture", label: "Architecture" },
     { slug: "security", label: "Security" },

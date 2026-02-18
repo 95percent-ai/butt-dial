@@ -201,6 +201,28 @@ export function renderAuthPage(): string {
           <label>Organization Name</label>
           <input type="text" id="reg-org" required minlength="2" placeholder="My Company">
         </div>
+        <p style="font-size:12px;color:var(--text-muted);margin:12px 0 16px;border-top:1px solid var(--border);padding-top:12px;">
+          The following fields help us review your account for production access. They are optional but speed up approval. See our <a href="/legal/privacy" target="_blank">Privacy Policy</a>.
+        </p>
+        <div class="form-group">
+          <label>Company Name (optional)</label>
+          <input type="text" id="reg-company" placeholder="Legal company name">
+        </div>
+        <div class="form-group">
+          <label>Website (optional)</label>
+          <input type="url" id="reg-website" placeholder="https://example.com">
+        </div>
+        <div class="form-group">
+          <label>Use Case (optional)</label>
+          <textarea id="reg-usecase" rows="3" placeholder="Describe how you plan to use communication channels"
+            style="width:100%;padding:10px 12px;font-size:14px;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;outline:none;resize:vertical;font-family:var(--font);transition:border-color 0.2s;"></textarea>
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-start;gap:10px;">
+          <input type="checkbox" id="reg-tos" required style="margin-top:3px;width:auto;flex-shrink:0;">
+          <label for="reg-tos" style="font-size:13px;color:var(--text-muted);cursor:pointer;">
+            I agree to the <a href="/legal/terms" target="_blank">Terms of Service</a> and <a href="/legal/aup" target="_blank">Acceptable Use Policy</a>
+          </label>
+        </div>
         <button type="submit" class="btn" id="register-btn">Create Account</button>
       </form>
       <p class="toggle">
@@ -237,6 +259,41 @@ export function renderAuthPage(): string {
       <div class="actions">
         <button class="btn-copy" onclick="copyToken()">Copy Token</button>
         <a href="/admin" class="btn" style="text-align:center;text-decoration:none;flex:1;">Go to Admin Panel</a>
+      </div>
+
+      <!-- What's Next Guide -->
+      <div id="whats-next" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
+        <h3 style="font-size:16px;color:var(--text-heading);margin-bottom:12px;">What's Next?</h3>
+        <ol style="list-style:none;counter-reset:steps;padding:0;margin:0;">
+          <li style="counter-increment:steps;display:flex;gap:12px;margin-bottom:10px;font-size:13px;color:var(--text-muted);">
+            <span style="flex-shrink:0;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">1</span>
+            <span><strong style="color:var(--text);">Copy your token</strong> and keep it safe — you'll need it to sign in.</span>
+          </li>
+          <li style="counter-increment:steps;display:flex;gap:12px;margin-bottom:10px;font-size:13px;color:var(--text-muted);">
+            <span style="flex-shrink:0;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">2</span>
+            <span><strong style="color:var(--text);">Go to the <a href="/admin">Admin Panel</a></strong> and sign in with your token.</span>
+          </li>
+          <li style="counter-increment:steps;display:flex;gap:12px;margin-bottom:10px;font-size:13px;color:var(--text-muted);">
+            <span style="flex-shrink:0;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">3</span>
+            <span><strong style="color:var(--text);">You start in Sandbox Mode</strong> — mock providers, no real messages. Safe to experiment.</span>
+          </li>
+          <li style="counter-increment:steps;display:flex;gap:12px;margin-bottom:10px;font-size:13px;color:var(--text-muted);">
+            <span style="flex-shrink:0;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">4</span>
+            <span><strong style="color:var(--text);">Provision your first agent</strong> from the Agents tab in the admin panel.</span>
+          </li>
+          <li style="counter-increment:steps;display:flex;gap:12px;margin-bottom:10px;font-size:13px;color:var(--text-muted);">
+            <span style="flex-shrink:0;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">5</span>
+            <span><strong style="color:var(--text);">Test with the Simulator</strong> or <a href="/docs/api-reference">REST API</a>.</span>
+          </li>
+          <li style="counter-increment:steps;display:flex;gap:12px;margin-bottom:10px;font-size:13px;color:var(--text-muted);">
+            <span style="flex-shrink:0;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">6</span>
+            <span><strong style="color:var(--text);">Read the <a href="/docs/integration">Integration Guide</a></strong> for SSE and REST connection details.</span>
+          </li>
+          <li style="counter-increment:steps;display:flex;gap:12px;font-size:13px;color:var(--text-muted);">
+            <span style="flex-shrink:0;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">7</span>
+            <span><strong style="color:var(--text);">Your account will be reviewed</strong> for production access. We'll notify you once approved.</span>
+          </li>
+        </ol>
       </div>
     </div>
 
@@ -310,12 +367,22 @@ export function renderAuthPage(): string {
     const email = document.getElementById('reg-email').value;
     const password = document.getElementById('reg-password').value;
     const orgName = document.getElementById('reg-org').value;
+    const companyName = document.getElementById('reg-company').value.trim() || undefined;
+    const website = document.getElementById('reg-website').value.trim() || undefined;
+    const useCaseDescription = document.getElementById('reg-usecase').value.trim() || undefined;
+    const tosAccepted = document.getElementById('reg-tos').checked;
+
+    if (!tosAccepted) {
+      showError('register', 'You must accept the Terms of Service to register.');
+      btn.disabled = false; btn.textContent = 'Create Account';
+      return;
+    }
 
     try {
       const res = await fetch('/auth/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, orgName }),
+        body: JSON.stringify({ email, password, orgName, tosAccepted, companyName, website, useCaseDescription }),
       });
       const data = await res.json();
       if (!res.ok) {

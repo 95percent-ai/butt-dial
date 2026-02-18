@@ -1,6 +1,104 @@
-<!-- version: 3.4 | updated: 2026-02-17 -->
+<!-- version: 3.6 | updated: 2026-02-18 -->
 
 # Changelog
+
+## Session 21 — 2026-02-18
+
+### Phase 24 — Third-Party MCP Onboarding (44/44 tests pass)
+
+Completes the full onboarding story for external agent systems: register → sandbox → provision agents → test → get approved → go production.
+
+#### Registration Form — KYC Fields & ToS
+The registration form now includes Company Name, Website, Use Case description (all optional), and a required Terms of Service checkbox with links to `/legal/terms` and `/legal/aup`. A brief explanation tells users why the optional fields are collected and links to the Privacy Policy. The backend already accepted these fields — this connects the frontend.
+
+#### Org Status API
+New `GET /admin/api/my-org` endpoint returns the caller's organization info: role (super-admin or org-admin), org ID, name, mode (sandbox/production), account status (pending_review/approved/suspended), agent count, and pool capacity. Used by the dashboard to show banners and provisioning limits.
+
+#### Sandbox/Production Banner
+The admin dashboard now shows a status banner at the top based on org status: yellow for sandbox+pending review, blue for sandbox+approved, red for suspended. Super-admins and demo mode see no banner. Production orgs see no banner.
+
+#### Agent Provisioning UI
+The Agents tab now has a "+ New Agent" button that reveals a provision form (Agent ID, Display Name, country, capabilities checkboxes, system prompt, greeting). On success, a token reveal modal shows the security token once with a copy button and "cannot be recovered" warning. Each agent row has a deprovision button (X) with confirmation dialog. Pool capacity display shows "X of Y slots used".
+
+#### Post-Registration Guide
+After the token reveal on the auth page, a numbered "What's Next" guide walks users through 7 steps: copy token → sign into admin → understand sandbox → provision first agent → test with simulator → read integration guide → await review.
+
+#### Channel Setup Documentation
+New `docs/CHANNEL-SETUP.md` with comprehensive setup guides for all 5 channels (SMS, Voice, Email, WhatsApp, LINE) covering inbound, outbound, two-way messaging, webhook URLs, provider configuration, compliance checks, and number pool routing.
+
+#### Integration Guide & Channel Setup Pages
+Two new pages on the docs site: `/docs/integration` (full walkthrough from registration to production with Node.js and Claude Desktop code examples) and `/docs/channel-setup` (quick overview linking to the detailed doc).
+
+#### Files Changed
+- `src/public/auth-page.ts` — KYC fields, ToS checkbox, privacy explanation, What's Next guide
+- `src/admin/router.ts` — `GET /admin/api/my-org` endpoint
+- `src/admin/unified-admin.ts` — org-banner, provision form, token modal, deprovision button, pool capacity
+- `src/public/docs.ts` — integration guide and channel-setup pages added to docs site
+- `docs/CHANNEL-SETUP.md` — new file
+- `tests/onboarding-flow.test.ts` — new file, 44 assertions
+
+---
+
+## Session 20 — 2026-02-18
+
+### Phase 25 — Regulatory Compliance & Distribution Model (84/84 tests pass)
+
+Before this phase, the server had no distribution packaging, no legal pages, no consent tracking, no per-country compliance rules, and no data retention. This phase adds the full compliance and distribution layer needed before opening the platform to external users.
+
+#### Distribution Model — 3-Tier Packaging
+The server now ships in three editions: **Community** (MIT, free, all core tools), **Enterprise** (adds onboarding, billing, org management), and **SaaS** (hosted managed service). Controlled by the `EDITION` env var. At startup, `server.ts` checks the edition and only registers enterprise/saas tools (onboard-customer, billing, org-management) when the edition allows it. Community gets everything except those admin tools.
+
+New files: `LICENSE` (MIT), `ENTERPRISE.md` (tier comparison).
+
+#### Legal Pages — Terms, AUP, Privacy
+Three HTML pages served at `/legal/terms`, `/legal/aup`, `/legal/privacy`. Each covers the legal obligations for the platform — Terms of Service (TCPA, indemnification, liability limits), Acceptable Use Policy (prohibited uses like spam, harassment, fraud), and Privacy Policy (GDPR, CCPA, data handling). All pages use the same dark theme as the rest of the admin UI, and cross-link to each other. The landing page footer now links to all three.
+
+New file: `src/public/legal-pages.ts`.
+
+#### Country Compliance Rules — 37 Countries
+A rules engine (`src/lib/country-compliance.ts`) that maps ISO country codes to regulatory requirements. Each country rule specifies: whether consent is required, whether A2P SMS registration is needed, whether DNC list checking is required, calling hours restrictions (e.g., US: 8am-9pm), whether recording consent announcements are needed, and which regulations apply (TCPA, GDPR, CASL, etc.).
+
+Covers 12 countries with detailed rules (US, CA, GB, DE, FR, IL, AU, JP, BR, IN, SG, AE) plus 25 EU member states with shared GDPR/ePrivacy rules. Unknown countries get safe defaults (require consent, honor opt-out).
+
+**Provisioning now validates country rules** — if you try to provision in the US without A2P 10DLC registration, provisioning is blocked with a clear error. Warnings are returned for missing DNC access, consent tracking, calling hours, and recording consent.
+
+#### Consent Tracking — Record, Revoke, Check, Enforce
+Three new MCP tools let agents manage consent:
+- **`comms_record_consent`** — records that a contact gave consent for a specific channel (sms/voice/email/whatsapp). Stores consent type (express, implied, transactional), source (web_form, verbal, sms_optin), and notes. Supports upsert — re-recording over a revoked consent re-grants it.
+- **`comms_revoke_consent`** — marks consent as revoked. The contact can no longer be contacted on that channel.
+- **`comms_check_consent`** — returns current consent status, type, grant/revoke timestamps, and source.
+
+**Pre-send enforcement:** The existing `preSendCheck()` in `compliance.ts` now checks consent before every outbound message. If the agent has no active consent for the contact+channel, the send is blocked with a clear error message.
+
+**STOP keyword:** When an inbound SMS contains "STOP", "UNSUBSCRIBE", "CANCEL", "END", or "QUIT", the system automatically revokes consent for that sender on SMS and adds them to the DNC list. A confirmation TwiML response is sent back.
+
+New file: `src/tools/consent-tools.ts`. New table: `contact_consent` (tracks consent lifecycle per agent/contact/channel with timestamps).
+
+#### Sandbox-to-Production Gating
+Organizations now have a `mode` column: `sandbox` or `production`. Sandbox orgs get mock providers (no real API calls, no charges). Production mode requires admin approval.
+
+New users must accept Terms of Service at registration and provide KYC fields: company name, website, and use case description. Accounts start as `pending_review`. Admin endpoints (`GET /admin/api/pending-accounts` and `POST /admin/api/pending-accounts/:userId/review`) let super-admins approve, reject, or suspend accounts. Approving an account auto-upgrades the org to production mode.
+
+New table: `country_terms_accepted`. Modified: `organizations` table (added `mode`), `user_accounts` (added `tos_accepted_at`, `company_name`, `website`, `use_case_description`, `account_status`).
+
+#### Twilio Messaging Service SID
+Added `TWILIO_MESSAGING_SERVICE_SID` config. When set, outbound SMS sends through the Twilio Messaging Service (needed for A2P 10DLC compliance) instead of a raw From number.
+
+#### Data Retention — Auto-Purge
+A new module (`src/lib/data-retention.ts`) runs daily and deletes old data from the database based on configurable retention periods:
+- Messages: 90 days
+- Usage logs: 365 days
+- Call logs: 365 days
+- Voicemail: 30 days
+- OTP codes: 1 day
+- Revoked consent records: 730 days (2 years, kept for audit)
+
+Runs on a 24-hour interval with an initial 30-second delay after server start. Can be disabled entirely with `DATA_RETENTION_ENABLED=false`. Each table's retention is independently configurable via env vars.
+
+#### Tests
+84 assertions across 7 test sections: legal pages (render, links, cross-links), country compliance (US/CA/GB/IL rules, EU membership, validation), consent tracking (record/revoke/check lifecycle, DB verification), sandbox gating (org mode, provider factory), edition gating (tool availability), data retention (config defaults, cleanup execution, disabled mode), and full regression (ping, send message, get messages, health, metrics, KYC fields).
+
+New file: `tests/regulatory-compliance.test.ts`.
 
 ## Session 19 — 2026-02-17
 

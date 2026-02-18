@@ -1,4 +1,4 @@
-<!-- version: 3.3 | updated: 2026-02-17 -->
+<!-- version: 3.5 | updated: 2026-02-18 -->
 
 # Project Structure
 
@@ -23,7 +23,9 @@ agentos-comms-mcp/
 │   │   ├── audio-converter.ts    # PCM ↔ mu-law 8kHz converter + WAV headers
 │   │   ├── org-manager.ts        # Organization CRUD + token management (multi-tenant)
 │   │   ├── translator.ts         # Language detection + translation via Anthropic API (Claude Haiku)
-│   │   └── number-pool.ts       # Smart number routing: country detection + pool selection for outbound calls/SMS
+│   │   ├── number-pool.ts       # Smart number routing: country detection + pool selection for outbound calls/SMS
+│   │   ├── country-compliance.ts # Per-country regulatory rules engine (37 countries: TCPA, GDPR, CASL, etc.)
+│   │   └── data-retention.ts   # Configurable auto-purge for messages, logs, voicemail, OTP, consent
 │   │
 │   ├── providers/                # Pluggable provider adapters
 │   │   ├── interfaces.ts         # All 8 provider interfaces
@@ -62,6 +64,7 @@ agentos-comms-mcp/
 │   │   ├── schema-org.sql       # Organization + org_tokens tables (multi-tenant)
 │   │   ├── schema-otp.sql       # OTP verification codes table
 │   │   ├── schema-number-pool.sql # Number pool table (shared phone numbers for smart routing)
+│   │   ├── schema-consent.sql   # Consent tracking + country terms accepted tables
 │   │   ├── migrate.ts            # Migration runner (runs all schema files + org_id migration)
 │   │   └── seed.ts               # Test agent seeder + number pool seeder (npm run seed)
 │   │
@@ -90,7 +93,8 @@ agentos-comms-mcp/
 │   │   ├── get-billing-summary.ts # comms_get_billing_summary + comms_set_billing_config
 │   │   ├── expand-agent-pool.ts # comms_expand_agent_pool (resize pool)
 │   │   ├── otp-tools.ts         # OTP verification tools (send, verify)
-│   │   └── org-tools.ts         # comms_create_organization + comms_list_organizations (super-admin)
+│   │   ├── org-tools.ts         # comms_create_organization + comms_list_organizations (super-admin)
+│   │   └── consent-tools.ts    # comms_record/revoke/check_consent + hasActiveConsent + revokeConsentByAddress
 │   ├── channels/                 # Channel implementations (empty — Phase 2+)
 │   ├── security/                 # Auth, rate limiting, input validation
 │   │   ├── token-manager.ts      # Bearer token generate/store/verify/revoke (SHA-256 hashed)
@@ -119,6 +123,13 @@ agentos-comms-mcp/
 │   │   ├── audit-log.ts         # SHA-256 hash-chained immutable audit trail
 │   │   ├── alert-manager.ts     # Severity-routed alert dispatcher (CRITICAL→WhatsApp, etc.)
 │   │   └── whatsapp-alerter.ts  # Sends formatted alerts to admin WhatsApp number
+│   ├── public/                    # Public-facing pages
+│   │   ├── landing-page.ts       # Landing page HTML (hero, features, registration)
+│   │   ├── auth-page.ts          # Auth page HTML (login, register with KYC, verify, token reveal + What's Next guide)
+│   │   ├── auth-api.ts           # Registration/login API endpoints
+│   │   ├── docs.ts               # Documentation pages (/docs/*: home, getting-started, integration, channel-setup, etc.)
+│   │   └── legal-pages.ts       # Terms of Service, AUP, Privacy Policy HTML pages
+│   │
 │   └── admin/                    # Admin UI — setup wizard, credential management
 │       ├── env-writer.ts         # Read/write .env file (atomic, preserves comments)
 │       ├── credential-testers.ts # Test Twilio + ElevenLabs + Resend API credentials
@@ -162,7 +173,9 @@ agentos-comms-mcp/
 │   ├── end-to-end.test.ts     # Comprehensive end-to-end test — 49 assertions
 │   ├── multi-tenant.test.ts   # Multi-tenant organization isolation test — 50 assertions
 │   ├── translation.test.ts   # Translation feature test — 33 assertions
-│   └── number-pool.test.ts  # Number pool + smart routing test — 21 assertions
+│   ├── number-pool.test.ts  # Number pool + smart routing test — 21 assertions
+│   ├── regulatory-compliance.test.ts # Regulatory compliance & distribution model — 84 assertions
+│   └── onboarding-flow.test.ts # Third-party MCP onboarding — 44 assertions
 │
 └── docs/
     ├── SPEC.md                   # Project specification (source of truth)
@@ -180,6 +193,7 @@ agentos-comms-mcp/
     ├── OBSERVABILITY.md          # Monitoring and alerts guide
     ├── ARCHITECTURE.md           # System architecture
     ├── TROUBLESHOOTING.md        # Common issues and fixes
+    ├── CHANNEL-SETUP.md          # Channel setup guide — SMS, Voice, Email, WhatsApp, LINE (inbound/outbound/two-way)
     ├── MARKETING-OVERVIEW.md     # Investor/evangelist overview — capabilities, market case, architecture
     └── references/               # External reference documents
         ├── PROJECT-SCOPE.md

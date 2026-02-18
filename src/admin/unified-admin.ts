@@ -164,6 +164,29 @@ export function renderAdminPage(specJson: string): string {
 
     #demo-banner.visible { display: block; }
 
+    /* ── Org Status Banner ──────────────────────────────────────── */
+    #org-banner {
+      display: none;
+      text-align: center;
+      padding: 10px 16px;
+      font-weight: 600;
+      font-size: 0.8rem;
+      letter-spacing: 0.03em;
+    }
+    #org-banner.visible { display: block; }
+    #org-banner.sandbox-pending {
+      background: #d29922;
+      color: #000;
+    }
+    #org-banner.sandbox-approved {
+      background: var(--accent);
+      color: #fff;
+    }
+    #org-banner.suspended {
+      background: var(--error);
+      color: #fff;
+    }
+
     /* ── App Layout ─────────────────────────────────────────────── */
     .app-layout {
       display: flex;
@@ -954,6 +977,7 @@ export function renderAdminPage(specJson: string): string {
 
   <!-- ── Demo Banner ────────────────────────────────────────── -->
   <div id="demo-banner">DEMO MODE &mdash; All API calls use mock providers. No real messages are sent.</div>
+  <div id="org-banner"></div>
 
   <!-- ── App Layout ─────────────────────────────────────────── -->
   <div class="app-layout">
@@ -1399,7 +1423,59 @@ export function renderAdminPage(specJson: string): string {
 
       <!-- ── Agents Tab ───────────────────────────────────────── -->
       <div id="tab-agents" class="tab-content">
-        <h1 class="page-title">Agents</h1>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+          <h1 class="page-title" style="margin-bottom:0;">Agents</h1>
+          <div style="display:flex;align-items:center;gap:1rem;">
+            <span id="pool-capacity" style="font-size:0.8rem;color:var(--text-muted);"></span>
+            <button class="btn btn-sm btn-primary" onclick="toggleProvisionForm()" id="new-agent-btn" style="padding:8px 16px;font-size:0.8rem;font-weight:600;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;">+ New Agent</button>
+          </div>
+        </div>
+
+        <!-- Provision Form (hidden by default) -->
+        <div id="provision-form" class="card" style="display:none;margin-bottom:1rem;padding:1.5rem;">
+          <h3 style="color:var(--text-heading);margin-bottom:1rem;font-size:1rem;">Provision New Agent</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+            <div class="field"><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:4px;">Agent ID</label><input type="text" id="prov-agent-id" placeholder="my-agent-001" style="width:100%;padding:8px 10px;font-size:0.85rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;outline:none;"></div>
+            <div class="field"><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:4px;">Display Name</label><input type="text" id="prov-display-name" placeholder="My Agent" style="width:100%;padding:8px 10px;font-size:0.85rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;outline:none;"></div>
+            <div class="field"><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:4px;">Country</label><select id="prov-country" style="width:100%;padding:8px 10px;font-size:0.85rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;outline:none;">
+              <option value="US">United States</option><option value="GB">United Kingdom</option><option value="CA">Canada</option><option value="AU">Australia</option><option value="DE">Germany</option><option value="FR">France</option><option value="IL">Israel</option><option value="JP">Japan</option><option value="BR">Brazil</option><option value="IN">India</option>
+            </select></div>
+            <div class="field"><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:4px;">Capabilities</label>
+              <div style="display:flex;gap:1rem;flex-wrap:wrap;padding:8px 0;">
+                <label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="prov-cap-sms" checked> SMS</label>
+                <label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="prov-cap-voice"> Voice</label>
+                <label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="prov-cap-email"> Email</label>
+                <label style="font-size:0.8rem;color:var(--text);display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="prov-cap-whatsapp"> WhatsApp</label>
+              </div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:0.75rem;">
+            <div class="field"><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:4px;">System Prompt (optional)</label><textarea id="prov-system-prompt" rows="2" placeholder="AI agent instructions" style="width:100%;padding:8px 10px;font-size:0.85rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;outline:none;resize:vertical;font-family:inherit;"></textarea></div>
+            <div class="field"><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:4px;">Greeting (optional)</label><input type="text" id="prov-greeting" placeholder="Hello, how can I help?" style="width:100%;padding:8px 10px;font-size:0.85rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;outline:none;"></div>
+          </div>
+          <div style="margin-top:1rem;display:flex;gap:0.75rem;">
+            <button class="btn btn-sm btn-primary" onclick="provisionAgent()" id="prov-submit-btn" style="padding:8px 20px;font-size:0.85rem;font-weight:600;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;">Provision Agent</button>
+            <button class="btn btn-sm" onclick="toggleProvisionForm()" style="padding:8px 20px;font-size:0.85rem;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;cursor:pointer;">Cancel</button>
+            <span id="prov-result" style="font-size:0.8rem;align-self:center;"></span>
+          </div>
+        </div>
+
+        <!-- Token Reveal Modal (hidden) -->
+        <div id="token-reveal-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:2rem;max-width:500px;width:90%;">
+            <h3 style="color:var(--text-heading);margin-bottom:0.75rem;">Agent Provisioned Successfully</h3>
+            <div style="background:rgba(210,153,34,0.15);border:1px solid rgba(210,153,34,0.3);color:#d29922;padding:10px 14px;border-radius:6px;font-size:0.8rem;margin-bottom:1rem;">
+              Save this security token now! It cannot be recovered later.
+            </div>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:6px;">Agent Security Token:</p>
+            <div id="revealed-token" style="background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:12px;word-break:break-all;font-family:monospace;font-size:0.8rem;color:var(--accent);margin-bottom:1rem;"></div>
+            <div style="display:flex;gap:0.75rem;">
+              <button onclick="copyRevealedToken()" style="padding:8px 16px;font-size:0.8rem;background:transparent;color:var(--accent);border:1px solid var(--border);border-radius:6px;cursor:pointer;" id="copy-revealed-btn">Copy Token</button>
+              <button onclick="closeTokenModal()" style="padding:8px 16px;font-size:0.8rem;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;flex:1;">Done</button>
+            </div>
+          </div>
+        </div>
+
         <div class="card">
           <table class="agents-table" id="agents-table">
             <thead>
@@ -1410,10 +1486,11 @@ export function renderAdminPage(specJson: string): string {
                 <th>Email</th>
                 <th>Status</th>
                 <th>Tier</th>
+                <th style="width:40px;"></th>
               </tr>
             </thead>
             <tbody id="agents-body">
-              <tr><td colspan="6" style="color:var(--text-muted);text-align:center;padding:1.5rem;">Loading agents...</td></tr>
+              <tr><td colspan="7" style="color:var(--text-muted);text-align:center;padding:1.5rem;">Loading agents...</td></tr>
             </tbody>
           </table>
         </div>
@@ -1598,9 +1675,12 @@ export function renderAdminPage(specJson: string): string {
     });
 
     /* ── On Authenticated ─────────────────────────────────────── */
+    let orgInfo = null;
+
     async function onAuthenticated() {
       switchTab(getInitialTab());
       await checkDemoMode();
+      await loadOrgInfo();
       loadDashboard();
       loadAnalytics();
       loadSettingsStatus();
@@ -1623,6 +1703,36 @@ export function renderAdminPage(specJson: string): string {
         if (data.demoMode) {
           document.getElementById('demo-banner').classList.add('visible');
         }
+      } catch {}
+    }
+
+    /* ── Org Info + Banner ────────────────────────────────────── */
+    async function loadOrgInfo() {
+      try {
+        const res = await apiFetch('/admin/api/my-org');
+        if (!res.ok) return;
+        orgInfo = await res.json();
+
+        const banner = document.getElementById('org-banner');
+        if (!banner) return;
+
+        /* Super-admin and demo mode don't show org banner */
+        if (orgInfo.role === 'super-admin') return;
+
+        if (orgInfo.accountStatus === 'suspended') {
+          banner.textContent = 'ACCOUNT SUSPENDED — Contact support for assistance.';
+          banner.className = 'suspended visible';
+          banner.id = 'org-banner';
+        } else if (orgInfo.mode === 'sandbox' && orgInfo.accountStatus === 'pending_review') {
+          banner.textContent = 'SANDBOX MODE — Your account is under review. All API calls use mock providers.';
+          banner.className = 'sandbox-pending visible';
+          banner.id = 'org-banner';
+        } else if (orgInfo.mode === 'sandbox') {
+          banner.textContent = 'SANDBOX MODE — Account approved. Contact support to switch to production.';
+          banner.className = 'sandbox-approved visible';
+          banner.id = 'org-banner';
+        }
+        /* Production mode = no banner */
       } catch {}
     }
 
@@ -2542,10 +2652,136 @@ export function renderAdminPage(specJson: string): string {
         });
 
         renderAgentsTable();
+        updatePoolCapacity();
       } catch (err) {
         console.error('Agents load error:', err);
         document.getElementById('agents-body').innerHTML =
-          '<tr><td colspan="6" style="color:var(--error);text-align:center;padding:1.5rem;">Failed to load agents</td></tr>';
+          '<tr><td colspan="7" style="color:var(--error);text-align:center;padding:1.5rem;">Failed to load agents</td></tr>';
+      }
+    }
+
+    function updatePoolCapacity() {
+      const el = document.getElementById('pool-capacity');
+      if (!el) return;
+      if (orgInfo) {
+        el.textContent = agentsData.length + ' of ' + (orgInfo.poolMax || 5) + ' agent slots used';
+      } else {
+        el.textContent = agentsData.length + ' agent(s)';
+      }
+    }
+
+    function toggleProvisionForm() {
+      const form = document.getElementById('provision-form');
+      form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+
+    let lastRevealedToken = '';
+
+    async function provisionAgent() {
+      const btn = document.getElementById('prov-submit-btn');
+      const result = document.getElementById('prov-result');
+      btn.disabled = true;
+      result.textContent = 'Provisioning...';
+      result.style.color = 'var(--text-muted)';
+
+      const agentId = document.getElementById('prov-agent-id').value.trim();
+      const displayName = document.getElementById('prov-display-name').value.trim();
+
+      if (!agentId || !displayName) {
+        result.textContent = 'Agent ID and Display Name are required.';
+        result.style.color = 'var(--error)';
+        btn.disabled = false;
+        return;
+      }
+
+      const capabilities = [];
+      if (document.getElementById('prov-cap-sms').checked) capabilities.push('sms');
+      if (document.getElementById('prov-cap-voice').checked) capabilities.push('voice');
+      if (document.getElementById('prov-cap-email').checked) capabilities.push('email');
+      if (document.getElementById('prov-cap-whatsapp').checked) capabilities.push('whatsapp');
+
+      if (capabilities.length === 0) {
+        result.textContent = 'Select at least one capability.';
+        result.style.color = 'var(--error)';
+        btn.disabled = false;
+        return;
+      }
+
+      try {
+        const res = await apiFetch('/api/v1/provision', {
+          method: 'POST',
+          body: JSON.stringify({
+            agentId,
+            displayName,
+            capabilities,
+            country: document.getElementById('prov-country').value,
+            systemPrompt: document.getElementById('prov-system-prompt').value.trim() || undefined,
+            greeting: document.getElementById('prov-greeting').value.trim() || undefined,
+          })
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          result.textContent = data.error || 'Provisioning failed';
+          result.style.color = 'var(--error)';
+          btn.disabled = false;
+          return;
+        }
+
+        /* Show token reveal modal */
+        lastRevealedToken = data.securityToken || data.token || '';
+        if (lastRevealedToken) {
+          document.getElementById('revealed-token').textContent = lastRevealedToken;
+          document.getElementById('token-reveal-modal').style.display = 'flex';
+        }
+
+        result.textContent = 'Agent provisioned!';
+        result.style.color = 'var(--success)';
+        document.getElementById('provision-form').style.display = 'none';
+
+        /* Clear form */
+        document.getElementById('prov-agent-id').value = '';
+        document.getElementById('prov-display-name').value = '';
+        document.getElementById('prov-system-prompt').value = '';
+        document.getElementById('prov-greeting').value = '';
+        result.textContent = '';
+
+        loadAgents();
+      } catch (err) {
+        result.textContent = 'Network error';
+        result.style.color = 'var(--error)';
+      }
+      btn.disabled = false;
+    }
+
+    function copyRevealedToken() {
+      navigator.clipboard.writeText(lastRevealedToken).then(() => {
+        const btn = document.getElementById('copy-revealed-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy Token'; }, 2000);
+      });
+    }
+
+    function closeTokenModal() {
+      document.getElementById('token-reveal-modal').style.display = 'none';
+      lastRevealedToken = '';
+    }
+
+    async function deprovisionAgent(agentId) {
+      if (!confirm('Deprovision agent "' + agentId + '"? This will release all channels and revoke access.')) return;
+      try {
+        const res = await apiFetch('/api/v1/deprovision', {
+          method: 'POST',
+          body: JSON.stringify({ agentId })
+        });
+        const data = await res.json();
+        if (data.error) {
+          showToast(data.error, 'error');
+        } else {
+          showToast('Agent deprovisioned', 'success');
+          loadAgents();
+        }
+      } catch {
+        showToast('Network error', 'error');
       }
     }
 
@@ -2553,7 +2789,7 @@ export function renderAdminPage(specJson: string): string {
       const body = document.getElementById('agents-body');
 
       if (agentsData.length === 0) {
-        body.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted);text-align:center;padding:1.5rem;">No agents found</td></tr>';
+        body.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted);text-align:center;padding:1.5rem;">No agents found. Click "+ New Agent" to provision one.</td></tr>';
         return;
       }
 
@@ -2579,11 +2815,12 @@ export function renderAdminPage(specJson: string): string {
           '<td>' + escHtml(email) + '</td>' +
           '<td>' + statusBadge + '</td>' +
           '<td><span class="badge badge-info">' + escHtml(tier) + '</span></td>' +
+          '<td><button onclick="event.stopPropagation();deprovisionAgent(\\'' + escAttr(agentId) + '\\')" title="Deprovision" style="background:none;border:none;color:var(--error);cursor:pointer;font-size:1rem;padding:4px;opacity:0.6;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">&#10005;</button></td>' +
           '</tr>';
 
         /* Edit panel row */
         html += '<tr class="agent-edit-panel" id="agent-edit-' + idx + '">' +
-          '<td colspan="6">' +
+          '<td colspan="7">' +
           '<div class="edit-panel-inner">' +
           /* Left: Rate Limits */
           '<div class="edit-section">' +

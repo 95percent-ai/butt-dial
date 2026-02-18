@@ -295,6 +295,92 @@ adminRouter.get("/admin/api/dashboard", adminAuth, (req: Request, res: Response)
   }
 });
 
+/** My org info — returns the caller's org details for dashboard banners and provisioning limits */
+adminRouter.get("/admin/api/my-org", adminAuth, (req: Request, res: Response) => {
+  try {
+    const authInfo = getAuthInfo(req);
+    const isSuperAdmin = req.auth?.scopes?.includes("super-admin");
+    const orgId = authInfo?.orgId || "default";
+
+    // In demo mode, return sensible defaults
+    if (config.demoMode) {
+      res.json({
+        role: "super-admin",
+        orgId: "default",
+        orgName: "Demo Organization",
+        mode: "sandbox",
+        accountStatus: "approved",
+        agentCount: 0,
+        poolMax: config.initialAgentPoolSize || 5,
+        poolActive: 0,
+      });
+      return;
+    }
+
+    const db = getProvider("database");
+
+    // Determine role
+    const role = isSuperAdmin ? "super-admin" : "org-admin";
+
+    // Get org info
+    let orgName = "Unknown";
+    let mode = "sandbox";
+    let accountStatus = "approved";
+
+    try {
+      const orgs = db.query<{ name: string; mode: string }>(
+        "SELECT name, mode FROM organizations WHERE id = ?",
+        [orgId],
+      );
+      if (orgs.length > 0) {
+        orgName = orgs[0].name;
+        mode = orgs[0].mode || "sandbox";
+      }
+    } catch {}
+
+    // Get account status from user_accounts (for org-admins)
+    if (!isSuperAdmin) {
+      try {
+        const users = db.query<{ account_status: string }>(
+          "SELECT account_status FROM user_accounts WHERE org_id = ? ORDER BY created_at LIMIT 1",
+          [orgId],
+        );
+        if (users.length > 0) {
+          accountStatus = users[0].account_status || "pending_review";
+        }
+      } catch {}
+    }
+
+    // Agent count for this org
+    let agentCount = 0;
+    try {
+      const of = orgFilter(authInfo);
+      const cnt = db.query<{ cnt: number }>(
+        `SELECT COUNT(*) as cnt FROM agent_channels WHERE 1=1${of.clause}`,
+        of.params,
+      );
+      agentCount = cnt[0]?.cnt || 0;
+    } catch {}
+
+    // Pool info
+    const poolMax = config.initialAgentPoolSize || 5;
+    let poolActive = agentCount;
+
+    res.json({
+      role,
+      orgId,
+      orgName,
+      mode,
+      accountStatus,
+      agentCount,
+      poolMax,
+      poolActive,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
 /** Usage history — time-series data for charts (org-scoped) */
 adminRouter.get("/admin/api/usage-history", adminAuth, (req: Request, res: Response) => {
   if (config.demoMode) { res.json(getDemoUsageHistory()); return; }
@@ -724,6 +810,82 @@ adminRouter.post("/admin/api/outbound-call", adminAuth, async (req: Request, res
     const errMsg = err instanceof Error ? err.message : String(err);
     logger.error("outbound_call_error", { error: errMsg });
     res.status(500).json({ error: errMsg });
+  }
+});
+
+// ── Pending Account Reviews (C9) ────────────────────────────────
+
+/** List pending accounts — super-admin only */
+adminRouter.get("/admin/api/pending-accounts", adminAuth, (req: Request, res: Response) => {
+  try {
+    const db = getProvider("database");
+    const isSuperAdmin = req.auth?.scopes?.includes("super-admin");
+
+    if (!isSuperAdmin) {
+      res.status(403).json({ error: "Super-admin access required" });
+      return;
+    }
+
+    const accounts = db.query<Record<string, unknown>>(
+      `SELECT id, email, org_id, company_name, website, use_case_description, account_status, tos_accepted_at, created_at
+       FROM user_accounts WHERE account_status = 'pending_review' ORDER BY created_at DESC LIMIT 50`
+    );
+
+    res.json({ accounts });
+  } catch (err) {
+    res.json({ accounts: [], error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
+/** Approve or reject a pending account */
+adminRouter.post("/admin/api/pending-accounts/:userId/review", adminAuth, (req: Request, res: Response) => {
+  try {
+    const isSuperAdmin = req.auth?.scopes?.includes("super-admin");
+    if (!isSuperAdmin) {
+      res.status(403).json({ error: "Super-admin access required" });
+      return;
+    }
+
+    const userId = req.params.userId;
+    const { action, reason } = req.body ?? {};
+
+    if (!action || !["approve", "reject", "suspend"].includes(action)) {
+      res.status(400).json({ error: "action must be 'approve', 'reject', or 'suspend'" });
+      return;
+    }
+
+    const db = getProvider("database");
+    const statusMap: Record<string, string> = {
+      approve: "approved",
+      reject: "rejected",
+      suspend: "suspended",
+    };
+
+    const newStatus = statusMap[action];
+    const result = db.run(
+      "UPDATE user_accounts SET account_status = ? WHERE id = ?",
+      [newStatus, userId]
+    );
+
+    if (result.changes === 0) {
+      res.status(404).json({ error: "Account not found" });
+      return;
+    }
+
+    // If approved, update org mode to production
+    if (action === "approve") {
+      try {
+        const user = db.query<{ org_id: string }>("SELECT org_id FROM user_accounts WHERE id = ?", [userId]);
+        if (user.length > 0) {
+          db.run("UPDATE organizations SET mode = 'production' WHERE id = ?", [user[0].org_id]);
+        }
+      } catch {}
+    }
+
+    logger.info("account_review", { userId, action: newStatus, reason: reason || null });
+    res.json({ success: true, userId, status: newStatus });
+  } catch (err) {
+    res.status(500).json({ error: String(err instanceof Error ? err.message : err) });
   }
 });
 
