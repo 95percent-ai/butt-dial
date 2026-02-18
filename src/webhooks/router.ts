@@ -6,6 +6,8 @@ import { handleInboundSms } from "./inbound-sms.js";
 import { handleInboundVoice, handleOutboundVoice } from "./inbound-voice.js";
 import { handleInboundEmail } from "./inbound-email.js";
 import { handleInboundWhatsApp } from "./inbound-whatsapp.js";
+import { handleInboundLine } from "./inbound-line.js";
+import { handleBridgeStatus } from "./bridge-status.js";
 import { verifyTwilioSignature, verifyResendSignature } from "../security/webhook-signature.js";
 import { metrics } from "../observability/metrics.js";
 
@@ -30,6 +32,9 @@ webhookRouter.post("/webhooks/:agentId/email", verifyResendSignature, handleInbo
 
 // Inbound WhatsApp webhook — Twilio POSTs here when someone sends WhatsApp to agent's number
 webhookRouter.post("/webhooks/:agentId/whatsapp", verifyTwilioSignature, handleInboundWhatsApp);
+
+// Inbound LINE webhook — LINE POSTs here when someone sends a message to agent's LINE Official Account
+webhookRouter.post("/webhooks/:agentId/line", handleInboundLine);
 
 // Voice webhooks — Twilio POSTs here when a call connects
 // TODO: re-enable verifyTwilioSignature after fixing signature mismatch with ngrok
@@ -90,6 +95,9 @@ webhookRouter.post("/webhooks/:agentId/voice/status", (req: Request, res: Respon
   res.status(200).type("text/xml").send("<Response/>");
 });
 
+// Bridge call status callback — Twilio POSTs here when bridge call legs change state
+webhookRouter.post("/webhooks/bridge-status", handleBridgeStatus);
+
 // Prometheus metrics endpoint
 webhookRouter.get("/metrics", (_req: Request, res: Response) => {
   res.set("Content-Type", "text/plain; version=0.0.4; charset=utf-8");
@@ -115,6 +123,7 @@ webhookRouter.get("/health/ready", (_req: Request, res: Response) => {
   checks.telephony = config.twilioAccountSid ? "configured" : "not_configured";
   checks.email = config.resendApiKey ? "configured" : "not_configured";
   checks.whatsapp = config.twilioAccountSid ? "configured" : "not_configured";
+  checks.line = config.lineChannelAccessToken ? "configured" : "not_configured";
 
   const status = allOk ? "ready" : "degraded";
   res.status(allOk ? 200 : 503).json({ status, providers: checks });

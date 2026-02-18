@@ -16,24 +16,26 @@ import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } fro
 import { metrics } from "../observability/metrics.js";
 import { preSendCheck } from "../security/compliance.js";
 import { translate, needsTranslation, getAgentLanguage } from "../lib/translator.js";
+import { resolveFromNumber } from "../lib/number-pool.js";
 
 interface AgentRow {
   agent_id: string;
   phone_number: string | null;
   email_address: string | null;
   whatsapp_sender_sid: string | null;
+  line_channel_id: string | null;
   status: string;
 }
 
 export function registerSendMessageTool(server: McpServer): void {
   server.tool(
     "comms_send_message",
-    "Send a message (SMS, email, or WhatsApp) from an agent to a recipient.",
+    "Send a message (SMS, email, WhatsApp, or LINE) from an agent to a recipient.",
     {
       agentId: z.string().describe("The agent ID that owns the sending address"),
       to: z.string().describe("Recipient address (phone number in E.164 for SMS/WhatsApp, or email address)"),
       body: z.string().describe("The message text to send"),
-      channel: z.enum(["sms", "email", "whatsapp"]).default("sms").describe("Channel to send via (default: sms)"),
+      channel: z.enum(["sms", "email", "whatsapp", "line"]).default("sms").describe("Channel to send via (default: sms)"),
       subject: z.string().optional().describe("Email subject line (required for email channel)"),
       html: z.string().optional().describe("Optional HTML body for email"),
       templateId: z.string().optional().describe("WhatsApp content template SID (e.g. HX...) for messages outside 24h window"),
@@ -69,7 +71,7 @@ export function registerSendMessageTool(server: McpServer): void {
 
       // Look up the agent
       const rows = db.query<AgentRow>(
-        "SELECT agent_id, phone_number, email_address, whatsapp_sender_sid, status FROM agent_channels WHERE agent_id = ?",
+        "SELECT agent_id, phone_number, email_address, whatsapp_sender_sid, line_channel_id, status FROM agent_channels WHERE agent_id = ?",
         [agentId]
       );
 
@@ -92,7 +94,7 @@ export function registerSendMessageTool(server: McpServer): void {
       }
 
       // Rate limit check (before any provider call)
-      const actionType = channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
+      const actionType = channel === "sms" ? "sms" : channel === "email" ? "email" : channel === "whatsapp" ? "whatsapp" : "line";
       try {
         checkRateLimits(db, agentId, actionType, channel, to, extra.authInfo as AuthInfo | undefined);
       } catch (err) {
@@ -131,6 +133,8 @@ export function registerSendMessageTool(server: McpServer): void {
         return await sendEmail(db, agent, agentId, to, translatedBody, orgId, subject, html, bodyOriginal);
       } else if (channel === "whatsapp") {
         return await sendWhatsApp(db, agent, agentId, to, translatedBody, orgId, templateId, templateVars, bodyOriginal);
+      } else if (channel === "line") {
+        return await sendLine(db, agent, agentId, to, translatedBody, orgId, bodyOriginal);
       } else {
         return await sendSms(db, agent, agentId, to, translatedBody, orgId, bodyOriginal);
       }
@@ -149,10 +153,12 @@ async function sendSms(
   orgId: string,
   bodyOriginal?: string,
 ) {
-  if (!agent.phone_number) {
+  // Smart routing: try number pool first, fall back to agent's own number
+  const fromNumber = resolveFromNumber(db, agent.phone_number, to, "sms", orgId);
+  if (!fromNumber) {
     logger.warn("send_message_no_phone", { agentId });
     return {
-      content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" has no phone number assigned` }) }],
+      content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" has no phone number available (checked pool and agent)` }) }],
       isError: true,
     };
   }
@@ -162,7 +168,7 @@ async function sendSms(
   let result;
   try {
     result = await telephony.sendSms({
-      from: agent.phone_number,
+      from: fromNumber,
       to,
       body,
     });
@@ -179,7 +185,7 @@ async function sendSms(
   db.run(
     `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, body_original, external_id, status, cost, org_id)
      VALUES (?, ?, 'sms', 'outbound', ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [messageId, agentId, agent.phone_number, to, body, bodyOriginal || null, result.messageId, result.status, result.cost ?? null, orgId]
+    [messageId, agentId, fromNumber, to, body, bodyOriginal || null, result.messageId, result.status, result.cost ?? null, orgId]
   );
 
   logUsage(db, { agentId, actionType: "sms", channel: "sms", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
@@ -196,7 +202,7 @@ async function sendSms(
       text: JSON.stringify({
         success: true, messageId, externalId: result.messageId,
         status: result.status, cost: result.cost ?? null,
-        channel: "sms", from: agent.phone_number, to,
+        channel: "sms", from: fromNumber, to,
       }, null, 2),
     }],
   };
@@ -337,6 +343,68 @@ async function sendWhatsApp(
         success: true, messageId, externalId: result.messageId,
         status: result.status, cost: result.cost ?? null,
         channel: "whatsapp", from: agent.whatsapp_sender_sid, to,
+      }, null, 2),
+    }],
+  };
+}
+
+async function sendLine(
+  db: ReturnType<typeof getProvider<"database">>,
+  agent: { agent_id: string; line_channel_id: string | null },
+  agentId: string,
+  to: string,
+  body: string,
+  orgId: string,
+  bodyOriginal?: string,
+) {
+  if (!agent.line_channel_id) {
+    logger.warn("send_message_no_line", { agentId });
+    return {
+      content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" has no LINE channel configured` }) }],
+      isError: true,
+    };
+  }
+
+  const line = getProvider("line");
+
+  let result;
+  try {
+    result = await line.send({
+      channelAccessToken: agent.line_channel_id,
+      to,
+      body,
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    logger.error("send_message_provider_error", { agentId, to, channel: "line", error: errMsg });
+    return {
+      content: [{ type: "text" as const, text: JSON.stringify({ error: errMsg }) }],
+      isError: true,
+    };
+  }
+
+  const messageId = randomUUID();
+  db.run(
+    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, body_original, external_id, status, cost, org_id)
+     VALUES (?, ?, 'line', 'outbound', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [messageId, agentId, agentId, to, body, bodyOriginal || null, result.messageId, result.status, result.cost ?? null, orgId]
+  );
+
+  logUsage(db, { agentId, actionType: "line", channel: "line", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
+  metrics.increment("mcp_messages_sent_total", { channel: "line" });
+
+  logger.info("send_message_success", {
+    messageId, agentId, to, channel: "line",
+    externalId: result.messageId, status: result.status,
+  });
+
+  return {
+    content: [{
+      type: "text" as const,
+      text: JSON.stringify({
+        success: true, messageId, externalId: result.messageId,
+        status: result.status, cost: result.cost ?? null,
+        channel: "line", from: agentId, to,
       }, null, 2),
     }],
   };

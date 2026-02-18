@@ -101,12 +101,38 @@ export function seedSnirAgent(db: ReturnType<typeof createSqliteProvider>): void
   console.log("");
 }
 
+export function seedNumberPool(db: ReturnType<typeof createSqliteProvider>): void {
+  const numbers = [
+    { phone: "+18452514056", country: "US", label: "US Primary", isDefault: 1 },
+    { phone: "+97243760273", country: "IL", label: "Israel", isDefault: 0 },
+  ];
+
+  for (const n of numbers) {
+    const existing = db.query<{ id: string }>(
+      "SELECT id FROM number_pool WHERE phone_number = ?",
+      [n.phone]
+    );
+    if (existing.length > 0) {
+      console.log(`Number pool "${n.phone}" already exists — skipping.`);
+      continue;
+    }
+    db.run(
+      `INSERT INTO number_pool (id, phone_number, country_code, capabilities, is_default, label)
+       VALUES (?, ?, ?, '["sms","voice"]', ?, ?)`,
+      [randomUUID(), n.phone, n.country, n.isDefault, n.label]
+    );
+    console.log(`  Seeded number pool: ${n.phone} (${n.country}, default=${n.isDefault})`);
+  }
+  console.log("");
+}
+
 // Run directly as a script
 if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("seed.ts")) {
   const db = createSqliteProvider();
   try {
     seedTestAgent(db);
     seedSnirAgent(db);
+    seedNumberPool(db);
   } finally {
     db.close();
   }

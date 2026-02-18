@@ -197,6 +197,17 @@ adminRouter.get("/admin/api/dashboard", adminAuth, (req: Request, res: Response)
       _pendingVoicemails = pv[0]?.cnt || 0;
     } catch {}
 
+    // Delivery rate (30d) for top card
+    let _deliveryTotal = 0;
+    let _deliverySuccess = 0;
+    try {
+      const dr = db.query<{ total: number; success: number }>(
+        `SELECT COUNT(*) as total, SUM(CASE WHEN status IN ('sent','delivered','received','completed') THEN 1 ELSE 0 END) as success FROM messages WHERE created_at >= datetime('now', '-30 days')${of.clause}`,
+        of.params
+      );
+      if (dr[0]) { _deliveryTotal = dr[0].total || 0; _deliverySuccess = dr[0].success || 0; }
+    } catch {}
+
     // Aggregated spending limits
     let _limits: { maxActionsDay?: number; maxSpendDay?: number; maxSpendMonth?: number } = {};
     try {
@@ -256,6 +267,8 @@ adminRouter.get("/admin/api/dashboard", adminAuth, (req: Request, res: Response)
         totalCalls: _totalCalls,
         todayCalls: _todayCalls,
         pendingVoicemails: _pendingVoicemails,
+        deliveryTotal: _deliveryTotal,
+        deliverySuccess: _deliverySuccess,
         limits: {
           maxActionsDay: _limits.maxActionsDay || 500,
           maxSpendDay: _limits.maxSpendDay || 10,
@@ -278,7 +291,7 @@ adminRouter.get("/admin/api/dashboard", adminAuth, (req: Request, res: Response)
       })),
     });
   } catch (err) {
-    res.json({ agents: [], usage: { totalMessages: 0, todayActions: 0, totalCost: 0, spendToday: 0, spendThisMonth: 0, totalCalls: 0, todayCalls: 0, pendingVoicemails: 0, limits: { maxActionsDay: 500, maxSpendDay: 10, maxSpendMonth: 100 } }, services: { database: "ok", telephony: "not_configured", email: "not_configured", whatsapp: "not_configured", voice: "not_configured" }, recentActivity: [], alerts: [] });
+    res.json({ agents: [], usage: { totalMessages: 0, todayActions: 0, totalCost: 0, spendToday: 0, spendThisMonth: 0, totalCalls: 0, todayCalls: 0, pendingVoicemails: 0, deliveryTotal: 0, deliverySuccess: 0, limits: { maxActionsDay: 500, maxSpendDay: 10, maxSpendMonth: 100 } }, services: { database: "ok", telephony: "not_configured", email: "not_configured", whatsapp: "not_configured", voice: "not_configured" }, recentActivity: [], alerts: [] });
   }
 });
 

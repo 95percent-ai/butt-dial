@@ -2,7 +2,8 @@
  * Inbound/outbound voice webhook handlers.
  *
  * - handleInboundVoice: Twilio POSTs here when someone dials the agent's number.
- *   Returns ConversationRelay TwiML so Twilio opens a WebSocket for live AI voice.
+ *   First checks for a bridge route (cheap call forwarding). If found, returns
+ *   <Dial> TwiML. Otherwise returns ConversationRelay TwiML for live AI voice.
  *
  * - handleOutboundVoice: Twilio hits this when an agent-initiated call connects.
  *   Reads the call config from the session store, returns the same ConversationRelay TwiML.
@@ -15,6 +16,7 @@ import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 import { getCallConfig } from "./voice-sessions.js";
 import { getAgentLanguage } from "../lib/translator.js";
+import type { BridgeRoute } from "../providers/interfaces.js";
 
 interface AgentRow {
   agent_id: string;
@@ -85,6 +87,51 @@ export async function handleInboundVoice(req: Request, res: Response): Promise<v
     const orgRows = db.query<{ org_id: string }>("SELECT org_id FROM agent_channels WHERE agent_id = ?", [agentId]);
     if (orgRows.length > 0 && orgRows[0].org_id) orgId = orgRows[0].org_id;
   } catch {}
+
+  // --- Bridge detection: check if this call matches a bridge route ---
+  try {
+    const bridgeRoutes = db.query<BridgeRoute>(
+      `SELECT * FROM bridge_registry
+       WHERE local_number = ? AND active = 1 AND org_id = ?
+       AND (caller_pattern = ? OR caller_pattern = '*')
+       ORDER BY CASE WHEN caller_pattern = '*' THEN 1 ELSE 0 END
+       LIMIT 1`,
+      [body.To, orgId, body.From]
+    );
+
+    if (bridgeRoutes.length > 0) {
+      const route = bridgeRoutes[0];
+
+      // Log bridge call
+      const bridgeCallId = randomUUID();
+      const statusCallbackUrl = `${config.webhookBaseUrl}/webhooks/bridge-status?bridgeCallId=${bridgeCallId}`;
+
+      db.run(
+        `INSERT INTO bridge_calls (id, bridge_id, inbound_sid, caller, destination, status, org_id)
+         VALUES (?, ?, ?, ?, ?, 'in-progress', ?)`,
+        [bridgeCallId, route.id, body.CallSid || null, body.From, route.destination_number, orgId]
+      );
+
+      // Return <Dial> TwiML — Twilio bridges audio between both legs
+      const dialTwiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Dial callerId="${body.To}" action="${statusCallbackUrl}"><Number statusCallback="${statusCallbackUrl}" statusCallbackEvent="initiated ringing answered completed">${route.destination_number}</Number></Dial></Response>`;
+
+      logger.info("inbound_voice_bridge_matched", {
+        agentId,
+        bridgeCallId,
+        routeId: route.id,
+        from: body.From,
+        destination: route.destination_number,
+        label: route.label,
+      });
+
+      res.status(200).type("text/xml").send(dialTwiml);
+      return;
+    }
+  } catch {
+    // bridge_registry table might not exist yet — continue to normal voice flow
+  }
+
+  // --- Normal AI voice flow (no bridge match) ---
 
   // Store inbound call in messages table
   const messageId = randomUUID();

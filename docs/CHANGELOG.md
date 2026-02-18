@@ -1,6 +1,22 @@
-<!-- version: 3.3 | updated: 2026-02-17 -->
+<!-- version: 3.4 | updated: 2026-02-17 -->
 
 # Changelog
+
+## Session 19 — 2026-02-17
+
+### Number Pool + Smart Routing (DEC-059)
+- **New file:** `src/db/schema-number-pool.sql` — `number_pool` table with country_code, capabilities, is_default, org_id
+- **New file:** `src/lib/number-pool.ts` — country detection (~50 countries from E.164 prefix) + smart number selection (same-country → default → any → agent fallback)
+- **New file:** `tests/number-pool.test.ts` — 21 assertions (12 unit + 2 DB + 4 integration + 2 regression)
+- **Modified:** `src/db/migrate.ts` — loads number pool schema
+- **Modified:** `src/db/seed.ts` — seeds US (+18452514056, default) and IL (+97243760273) into pool
+- **Modified:** `src/tools/send-message.ts` — SMS routing uses `resolveFromNumber()` from pool
+- **Modified:** `src/tools/make-call.ts` — voice call routing uses `resolveFromNumber()` from pool
+- **Modified:** `src/tools/send-voice-message.ts` — voice message routing uses `resolveFromNumber()` from pool
+- **Backward compatible:** empty pool = same behavior as before (agent's own number used)
+
+### Marketing Overview Document
+- **New file:** `docs/MARKETING-OVERVIEW.md` — investor/evangelist-facing document covering capabilities, market case, architecture, revenue model, and current build status. All claims validated against actual codebase and test results.
 
 ## Session 18 — 2026-02-17
 

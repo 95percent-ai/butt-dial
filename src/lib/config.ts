@@ -82,6 +82,11 @@ const configSchema = z.object({
   convexDeploymentUrl: z.string().optional(),
   convexAdminKey: z.string().optional(),
 
+  // LINE Messaging API
+  lineChannelAccessToken: z.string().optional(),
+  lineChannelSecret: z.string().optional(),
+  providerLine: z.string().default("line"),
+
   // Anthropic (LLM for voice conversations)
   anthropicApiKey: z.string().optional(),
 
@@ -195,6 +200,9 @@ function loadConfig() {
     tursoAuthToken: process.env.TURSO_AUTH_TOKEN,
     convexDeploymentUrl: process.env.CONVEX_DEPLOYMENT_URL,
     convexAdminKey: process.env.CONVEX_ADMIN_KEY,
+    lineChannelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
+    lineChannelSecret: process.env.LINE_CHANNEL_SECRET,
+    providerLine: process.env.PROVIDER_LINE,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     voiceDefaultGreeting: process.env.VOICE_DEFAULT_GREETING,
     voiceDefaultSystemPrompt: process.env.VOICE_DEFAULT_SYSTEM_PROMPT,

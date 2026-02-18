@@ -1043,8 +1043,8 @@ export function renderAdminPage(specJson: string): string {
             <div class="card-label">Total Calls</div>
           </div>
           <div class="health-card">
-            <div class="big-number" id="stat-voicemails" style="color:var(--accent)">0</div>
-            <div class="card-label">Pending Voicemails</div>
+            <div class="big-number" id="stat-delivery" style="color:var(--success)">--%</div>
+            <div class="card-label">Delivery Rate</div>
           </div>
           <div class="health-card">
             <div class="big-number" id="stat-cost">$0.00</div>
@@ -1061,7 +1061,7 @@ export function renderAdminPage(specJson: string): string {
             </div>
           </div>
           <div class="chart-card">
-            <h3>Cost by Channel</h3>
+            <h3>Cost by Channel <span id="cost-chart-total" style="float:right;color:var(--accent);font-size:0.85rem;font-weight:600"></span></h3>
             <div class="chart-wrapper">
               <canvas id="cost-chart"></canvas>
               <div class="chart-empty" id="cost-chart-empty">No data yet</div>
@@ -1662,10 +1662,17 @@ export function renderAdminPage(specJson: string): string {
         document.getElementById('stat-agents').textContent = activeCount || agents.length;
         document.getElementById('stat-messages').textContent = (dash.usage?.totalMessages || 0).toLocaleString();
         document.getElementById('stat-calls').textContent = (dash.usage?.totalCalls || 0).toLocaleString();
-        const vmCount = dash.usage?.pendingVoicemails || 0;
-        const vmEl = document.getElementById('stat-voicemails');
-        vmEl.textContent = vmCount;
-        vmEl.style.color = vmCount > 0 ? 'var(--warning)' : 'var(--accent)';
+        const drTotal = dash.usage?.deliveryTotal || 0;
+        const drSuccess = dash.usage?.deliverySuccess || 0;
+        const drEl = document.getElementById('stat-delivery');
+        if (drTotal > 0) {
+          const drPct = (drSuccess / drTotal * 100).toFixed(1);
+          drEl.textContent = drPct + '%';
+          drEl.style.color = parseFloat(drPct) >= 95 ? 'var(--success)' : parseFloat(drPct) >= 80 ? 'var(--warning)' : 'var(--error)';
+        } else {
+          drEl.textContent = '--%';
+          drEl.style.color = 'var(--text-muted)';
+        }
         document.getElementById('stat-cost').textContent = '$' + (dash.usage?.totalCost || 0).toFixed(2);
 
         /* Progress bars — use real daily/monthly spend and dynamic limits */
@@ -1807,16 +1814,22 @@ export function renderAdminPage(specJson: string): string {
 
       if (costChart) costChart.destroy();
 
+      const totalEl = document.getElementById('cost-chart-total');
+
       if (values.length === 0 || values.every(v => v === 0)) {
         ctx.classList.add('hidden-chart');
         if (emptyEl) emptyEl.classList.add('visible');
+        if (totalEl) totalEl.textContent = '';
         costChart = null;
         return;
       }
 
+      if (totalEl) totalEl.textContent = 'Total: $' + values.reduce((a, b) => a + b, 0).toFixed(2);
+
       ctx.classList.remove('hidden-chart');
       if (emptyEl) emptyEl.classList.remove('visible');
 
+      const total = values.reduce((a, b) => a + b, 0);
       costChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -1827,10 +1840,66 @@ export function renderAdminPage(specJson: string): string {
             borderWidth: 0
           }]
         },
+        plugins: [{
+          id: 'costLabels',
+          afterDraw(chart) {
+            const { ctx: c, data, chartArea } = chart;
+            if (!data.datasets[0]) return;
+            const meta = chart.getDatasetMeta(0);
+            c.save();
+            c.font = '11px system-ui, sans-serif';
+            c.textAlign = 'center';
+            c.textBaseline = 'middle';
+            meta.data.forEach((arc, i) => {
+              const val = data.datasets[0].data[i];
+              if (val <= 0) return;
+              const pct = total > 0 ? (val / total * 100).toFixed(0) + '%' : '';
+              const usd = '$' + val.toFixed(2);
+              const pos = arc.tooltipPosition();
+              c.fillStyle = '#e6edf3';
+              c.fillText(pct, pos.x, pos.y - 7);
+              c.fillStyle = '#8b949e';
+              c.fillText(usd, pos.x, pos.y + 7);
+            });
+            c.restore();
+          }
+        }],
         options: {
           responsive: true,
           maintainAspectRatio: true,
-          plugins: { legend: { position: 'bottom', labels: { color: '#8b949e', font: { size: 11 }, padding: 12 } } }
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: '#8b949e',
+                font: { size: 11 },
+                padding: 12,
+                generateLabels(chart) {
+                  const ds = chart.data.datasets[0];
+                  const t = ds.data.reduce((a, b) => a + b, 0);
+                  return chart.data.labels.map((lbl, i) => {
+                    const v = ds.data[i];
+                    const pct = t > 0 ? (v / t * 100).toFixed(0) : '0';
+                    return {
+                      text: lbl + '  $' + v.toFixed(2) + '  (' + pct + '%)',
+                      fillStyle: ds.backgroundColor[i],
+                      hidden: false,
+                      index: i,
+                    };
+                  });
+                }
+              }
+            },
+            tooltip: {
+              callbacks: {
+                label(ctx) {
+                  const v = ctx.parsed;
+                  const pct = total > 0 ? (v / total * 100).toFixed(1) : '0';
+                  return ctx.label + ': $' + v.toFixed(2) + ' (' + pct + '%)';
+                }
+              }
+            }
+          }
         }
       });
     }

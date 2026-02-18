@@ -72,6 +72,16 @@ export function runMigrations(): void {
   const accountsSchema = fs.readFileSync(accountsSchemaPath, "utf-8");
   db.exec(accountsSchema);
 
+  // Call Bridging: bridge_registry + bridge_calls tables
+  const bridgeSchemaPath = path.join(projectRoot, "src", "db", "schema-bridge.sql");
+  const bridgeSchema = fs.readFileSync(bridgeSchemaPath, "utf-8");
+  db.exec(bridgeSchema);
+
+  // Number Pool: shared phone numbers for smart outbound routing
+  const numberPoolSchemaPath = path.join(projectRoot, "src", "db", "schema-number-pool.sql");
+  const numberPoolSchema = fs.readFileSync(numberPoolSchemaPath, "utf-8");
+  db.exec(numberPoolSchema);
+
   // Phase 22: Translation — add language column to agent_channels, body_original + source_language to messages
   try {
     db.run("ALTER TABLE agent_channels ADD COLUMN language TEXT DEFAULT 'en-US'");
@@ -90,6 +100,18 @@ export function runMigrations(): void {
   }
   try {
     db.run("ALTER TABLE audit_log ADD COLUMN org_id TEXT DEFAULT 'default'");
+  } catch {
+    // Column already exists
+  }
+
+  // Phase: LINE channel — add line_channel_id and line_status to agent_channels
+  try {
+    db.run("ALTER TABLE agent_channels ADD COLUMN line_channel_id TEXT");
+  } catch {
+    // Column already exists
+  }
+  try {
+    db.run("ALTER TABLE agent_channels ADD COLUMN line_status TEXT DEFAULT 'pending'");
   } catch {
     // Column already exists
   }

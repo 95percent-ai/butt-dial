@@ -14,6 +14,7 @@ import { requireAgent, getOrgId, authErrorResponse, type AuthInfo } from "../sec
 import { requireAgentInOrg } from "../security/org-scope.js";
 import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
+import { resolveFromNumber } from "../lib/number-pool.js";
 
 interface AgentRow {
   agent_id: string;
@@ -69,10 +70,12 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
 
       const agent = rows[0];
 
-      if (!agent.phone_number) {
+      // Smart routing: try number pool first, fall back to agent's own number
+      const fromNumber = resolveFromNumber(db, agent.phone_number, to, "voice", orgId);
+      if (!fromNumber) {
         logger.warn("send_voice_no_phone", { agentId });
         return {
-          content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" has no phone number assigned` }) }],
+          content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" has no phone number available (checked pool and agent)` }) }],
           isError: true,
         };
       }
@@ -136,7 +139,7 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
 
       try {
         const callResult = await telephony.makeCall({
-          from: agent.phone_number,
+          from: fromNumber,
           to,
           twiml,
         });
@@ -156,7 +159,7 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
       db.run(
         `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id)
          VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?, ?)`,
-        [messageId, agentId, agent.phone_number, to, text, callSid, callStatus, orgId]
+        [messageId, agentId, fromNumber, to, text, callSid, callStatus, orgId]
       );
 
       logUsage(db, { agentId, actionType: "voice_message", channel: "voice", targetAddress: to, cost: 0, externalId: callSid });
@@ -180,7 +183,7 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
               messageId,
               callSid,
               status: callStatus,
-              from: agent.phone_number,
+              from: fromNumber,
               to,
               audioUrl,
               durationSeconds,

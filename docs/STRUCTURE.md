@@ -1,4 +1,4 @@
-<!-- version: 3.2 | updated: 2026-02-16 -->
+<!-- version: 3.3 | updated: 2026-02-17 -->
 
 # Project Structure
 
@@ -22,7 +22,8 @@ agentos-comms-mcp/
 │   │   ├── billing.ts            # Billing module: markup, tiers, spending alerts
 │   │   ├── audio-converter.ts    # PCM ↔ mu-law 8kHz converter + WAV headers
 │   │   ├── org-manager.ts        # Organization CRUD + token management (multi-tenant)
-│   │   └── translator.ts         # Language detection + translation via Anthropic API (Claude Haiku)
+│   │   ├── translator.ts         # Language detection + translation via Anthropic API (Claude Haiku)
+│   │   └── number-pool.ts       # Smart number routing: country detection + pool selection for outbound calls/SMS
 │   │
 │   ├── providers/                # Pluggable provider adapters
 │   │   ├── interfaces.ts         # All 8 provider interfaces
@@ -60,8 +61,9 @@ agentos-comms-mcp/
 │   │   ├── schema-billing.sql   # Billing config table
 │   │   ├── schema-org.sql       # Organization + org_tokens tables (multi-tenant)
 │   │   ├── schema-otp.sql       # OTP verification codes table
+│   │   ├── schema-number-pool.sql # Number pool table (shared phone numbers for smart routing)
 │   │   ├── migrate.ts            # Migration runner (runs all schema files + org_id migration)
-│   │   └── seed.ts               # Test agent seeder (npm run seed)
+│   │   └── seed.ts               # Test agent seeder + number pool seeder (npm run seed)
 │   │
 │   ├── webhooks/                 # Inbound webhook handlers
 │   │   ├── router.ts             # Express router (/health, /health/ready, webhook routes)
@@ -159,7 +161,8 @@ agentos-comms-mcp/
 │   ├── documentation.test.ts  # Dry test for documentation completeness — 52 assertions
 │   ├── end-to-end.test.ts     # Comprehensive end-to-end test — 49 assertions
 │   ├── multi-tenant.test.ts   # Multi-tenant organization isolation test — 50 assertions
-│   └── translation.test.ts   # Translation feature test — 33 assertions
+│   ├── translation.test.ts   # Translation feature test — 33 assertions
+│   └── number-pool.test.ts  # Number pool + smart routing test — 21 assertions
 │
 └── docs/
     ├── SPEC.md                   # Project specification (source of truth)
@@ -177,6 +180,7 @@ agentos-comms-mcp/
     ├── OBSERVABILITY.md          # Monitoring and alerts guide
     ├── ARCHITECTURE.md           # System architecture
     ├── TROUBLESHOOTING.md        # Common issues and fixes
+    ├── MARKETING-OVERVIEW.md     # Investor/evangelist overview — capabilities, market case, architecture
     └── references/               # External reference documents
         ├── PROJECT-SCOPE.md
         ├── ARCHITECTURE-OVERVIEW.md

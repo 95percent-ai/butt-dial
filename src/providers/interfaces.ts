@@ -98,6 +98,24 @@ export interface IWhatsAppProvider {
   registerSender(phoneNumber: string, displayName: string): Promise<{ senderId: string; status: string }>;
 }
 
+export interface SendLineParams {
+  channelAccessToken: string;
+  to: string;       // LINE userId (not phone number)
+  body: string;
+  altText?: string;  // alt text for rich messages
+}
+
+export interface SendLineResult {
+  messageId: string;
+  status: string;
+  cost?: number;
+}
+
+export interface ILineProvider {
+  send(params: SendLineParams): Promise<SendLineResult>;
+  getProfile(channelAccessToken: string, userId: string): Promise<{ displayName: string; userId: string }>;
+}
+
 export interface TTSSynthesizeParams {
   text: string;
   voice?: string;
@@ -149,4 +167,30 @@ export interface IStorageProvider {
   download(key: string): Promise<Buffer>;
   delete(key: string): Promise<void>;
   getUrl(key: string): string;
+}
+
+// Call bridging — two cheap local calls instead of one international call
+export interface BridgeRoute {
+  id: string;
+  local_number: string;
+  caller_pattern: string;
+  destination_number: string;
+  label: string | null;
+  active: number;
+  org_id: string;
+  created_at: string;
+}
+
+export interface BridgeCall {
+  id: string;
+  bridge_id: string | null;
+  inbound_sid: string | null;
+  outbound_sid: string | null;
+  caller: string;
+  destination: string;
+  status: string;
+  duration: number | null;
+  org_id: string;
+  started_at: string;
+  ended_at: string | null;
 }

@@ -1,4 +1,4 @@
-<!-- version: 4.2 | updated: 2026-02-16 -->
+<!-- version: 4.3 | updated: 2026-02-17 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -316,3 +316,16 @@ Per-agent language with automatic translation across all channels.
 - [x] **Admin UI** — language dropdown in agent edit panel, translation toggle card in settings
 - [x] **Admin API** — `POST /admin/api/agents/:agentId/language`, `TRANSLATION_ENABLED` in save list, translation in dashboard services
 - [x] **Tests** — 33/33 translation assertions pass, 49/49 end-to-end regression pass
+
+## Phase 23 — Feature: Number Pool + Smart Routing
+Shared phone number pool with automatic country-based outbound routing. Same-country = cheapest path.
+
+- [x] **Schema** — `number_pool` table (phone_number, country_code, capabilities, is_default, org_id) + index
+- [x] **Migration** — `schema-number-pool.sql` loaded in `migrate.ts`
+- [x] **Core module** — `src/lib/number-pool.ts`: `detectCountryFromPhone()` (~50 countries), `selectBestNumber()` (same-country → default → any → null), `resolveFromNumber()` (pool → agent fallback)
+- [x] **Seed data** — US +18452514056 (default), IL +97243760273
+- [x] **Integration: send-message** — SMS routing uses `resolveFromNumber()` from pool
+- [x] **Integration: make-call** — voice call routing uses `resolveFromNumber()` from pool
+- [x] **Integration: send-voice-message** — voice message routing uses `resolveFromNumber()` from pool
+- [x] **Tests** — 21/21 assertions pass (12 unit + 2 DB + 4 integration + 2 regression + 1 channel filter)
+- [x] **Backward compatible** — empty pool = same behavior as before (agent's own number)

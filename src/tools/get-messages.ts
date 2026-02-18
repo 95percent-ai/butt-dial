@@ -33,7 +33,7 @@ export function registerGetMessagesTool(server: McpServer): void {
     {
       agentId: z.string().describe("The agent ID to list messages for"),
       limit: z.number().default(20).describe("Max number of messages to return (default 20)"),
-      channel: z.enum(["sms", "whatsapp", "email", "voice"]).optional().describe("Filter by channel"),
+      channel: z.enum(["sms", "whatsapp", "email", "voice", "line"]).optional().describe("Filter by channel"),
       contactAddress: z.string().optional().describe("Filter by contact address (phone/email) — shows conversation thread"),
     },
     async ({ agentId, limit, channel, contactAddress }, extra) => {

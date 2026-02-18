@@ -63,6 +63,8 @@ export function getDemoDashboard() {
       totalCalls: 73,
       todayCalls: 5,
       pendingVoicemails: 3,
+      deliveryTotal: 847,
+      deliverySuccess: 821,
       limits: {
         maxActionsDay: 500,
         maxSpendDay: 25.0,

@@ -1,4 +1,4 @@
-<!-- version: 1.7 | updated: 2026-02-16 -->
+<!-- version: 1.8 | updated: 2026-02-17 -->
 
 # AgentOS Communication MCP Server — Spec
 
@@ -62,6 +62,26 @@ The MCP server is a standalone product that different systems connect to. All fu
 | **Dedicated** (default) | Each agent gets its own phone number, WhatsApp sender, and email address. Full identity isolation. |
 | **Shared Pool** | Agents share a pool of numbers with smart routing. Cheapest at scale. |
 | **Hybrid** | Shared pool by default, dedicated identity as a per-agent upgrade. |
+
+### Number Pool + Smart Routing
+
+A shared `number_pool` table holds phone numbers tagged with country code and capabilities (SMS, voice). Outbound SMS and voice calls automatically select the best number from the pool based on the destination's country. Same-country routing = cheapest path.
+
+**How it works:**
+
+1. `detectCountryFromPhone(destination)` — maps E.164 prefix to ISO country code (~50 countries). Longest prefix matched first (+972 before +97). Default: US.
+2. `selectBestNumber(db, destination, channel, orgId)` — routing priority:
+   - Same-country number with matching capability (cheapest)
+   - Default number (`is_default=1`) with matching capability
+   - Any active number with matching capability
+   - `null` (no suitable number in pool)
+3. `resolveFromNumber(db, agentPhone, destination, channel, orgId)` — tries pool first, falls back to agent's own phone number. Fully backward-compatible: empty pool = agent's own number used.
+
+**Transparent to AI agents** — no tool changes needed. The agent calls `comms_send_message` or `comms_make_call` as before. The server picks the optimal outbound number automatically.
+
+**Schema:** `number_pool` table with `phone_number`, `country_code`, `capabilities` (JSON array), `is_default`, `status`, `org_id`. Indexed on `(country_code, status)`.
+
+**Seed data:** US (+18452514056, default) and IL (+97243760273).
 
 ### WhatsApp Strategy (configurable per environment)
 

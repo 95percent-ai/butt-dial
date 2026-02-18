@@ -20,6 +20,7 @@ import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 import { checkTcpaTimeOfDay, checkDnc, checkContentFilter } from "../security/compliance.js";
 import { applyGuardrails } from "../security/communication-guardrails.js";
+import { resolveFromNumber } from "../lib/number-pool.js";
 
 interface AgentRow {
   agent_id: string;
@@ -112,10 +113,12 @@ export function registerMakeCallTool(server: McpServer): void {
 
       const agent = rows[0];
 
-      if (!agent.phone_number) {
+      // Smart routing: try number pool first, fall back to agent's own number
+      const fromNumber = resolveFromNumber(db, agent.phone_number, to, "voice", orgId);
+      if (!fromNumber) {
         logger.warn("make_call_no_phone", { agentId });
         return {
-          content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" has no phone number assigned` }) }],
+          content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" has no phone number available (checked pool and agent)` }) }],
           isError: true,
         };
       }
@@ -194,7 +197,7 @@ export function registerMakeCallTool(server: McpServer): void {
       let result;
       try {
         result = await telephony.makeCall({
-          from: agent.phone_number,
+          from: fromNumber,
           to,
           webhookUrl,
         });
@@ -212,7 +215,7 @@ export function registerMakeCallTool(server: McpServer): void {
       db.run(
         `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id)
          VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?, ?)`,
-        [messageId, agentId, agent.phone_number, to, systemPrompt || null, result.callSid, result.status, orgId]
+        [messageId, agentId, fromNumber, to, systemPrompt || null, result.callSid, result.status, orgId]
       );
 
       // Log to call_logs table
@@ -221,7 +224,7 @@ export function registerMakeCallTool(server: McpServer): void {
         db.run(
           `INSERT INTO call_logs (id, agent_id, call_sid, direction, from_address, to_address, status, org_id)
            VALUES (?, ?, ?, 'outbound', ?, ?, ?, ?)`,
-          [callLogId, agentId, result.callSid, agent.phone_number, to, result.status, orgId]
+          [callLogId, agentId, result.callSid, fromNumber, to, result.status, orgId]
         );
       } catch {
         // Best-effort — call_logs table might not exist in older DB
@@ -248,7 +251,7 @@ export function registerMakeCallTool(server: McpServer): void {
               callSid: result.callSid,
               sessionId,
               status: result.status,
-              from: agent.phone_number,
+              from: fromNumber,
               to,
             }, null, 2),
           },

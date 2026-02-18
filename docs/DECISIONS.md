@@ -1,6 +1,13 @@
-<!-- version: 3.5 | updated: 2026-02-17 -->
+<!-- version: 3.6 | updated: 2026-02-17 -->
 
 # Decisions Log
+
+## DEC-059: Number Pool + Smart Routing
+**Date:** 2026-02-17
+**What:** Added a shared `number_pool` table and smart routing logic. Outbound SMS and voice calls now automatically select the best phone number from the pool based on the destination country. Same-country number = cheapest path. Falls back to the agent's own number if no pool match.
+**Why:** Calling an Israeli number from a US number costs international rates. With an IL number in the pool, the system automatically routes via the local number. Agents don't need to know about number selection — it's transparent.
+**How it works:** `detectCountryFromPhone()` maps E.164 prefixes to ISO country codes (~50 countries). `selectBestNumber()` picks: (1) same-country match, (2) default number, (3) any available number, (4) null. `resolveFromNumber()` tries pool first, then agent's own phone. Fully backward-compatible — empty pool = same behavior as before.
+**Alternatives considered:** Per-agent number assignment only (no cost optimization), manual number selection per call (too much friction for the AI agent).
 
 ## DEC-050: TCPA Timezone Auto-Detection
 **Date:** 2026-02-17

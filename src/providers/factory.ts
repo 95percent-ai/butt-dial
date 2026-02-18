@@ -4,6 +4,7 @@ import type {
   ITelephonyProvider,
   IEmailProvider,
   IWhatsAppProvider,
+  ILineProvider,
   ITTSProvider,
   ISTTProvider,
   IVoiceOrchestrator,
@@ -29,11 +30,14 @@ import { createOpenAITTSProvider } from "./tts-openai.js";
 import { createVonageTelephonyProvider } from "./telephony-vonage.js";
 import { createS3StorageProvider } from "./storage-s3.js";
 import { createR2StorageProvider } from "./storage-r2.js";
+import { createMockLineProvider } from "./line-mock.js";
+import { createLineProvider } from "./line-api.js";
 
 type ProviderMap = {
   telephony: ITelephonyProvider;
   email: IEmailProvider;
   whatsapp: IWhatsAppProvider;
+  line: ILineProvider;
   tts: ITTSProvider;
   stt: ISTTProvider;
   voiceOrchestration: IVoiceOrchestrator;
@@ -168,6 +172,23 @@ export function initProviders(): void {
     });
   }
 
+  // LINE
+  if (config.demoMode) {
+    providers.line = createMockLineProvider();
+    logger.info("provider_initialized", { slot: "line", provider: "mock (demo mode)" });
+  } else if (config.lineChannelAccessToken) {
+    providers.line = createLineProvider({
+      channelAccessToken: config.lineChannelAccessToken,
+    });
+    logger.info("provider_initialized", { slot: "line", provider: "line-api" });
+  } else {
+    providers.line = createMockLineProvider();
+    logger.warn("provider_fallback_mock", {
+      slot: "line",
+      reason: "No LINE credentials found — using mock adapter",
+    });
+  }
+
   // STT
   if (config.demoMode) {
     providers.stt = createMockSTTProvider();
@@ -188,6 +209,7 @@ export function initProviders(): void {
     telephony: config.demoMode ? "mock" : config.providerTelephony,
     email: config.providerEmail + " (pending)",
     whatsapp: config.providerWhatsapp + " (pending)",
+    line: config.providerLine + " (pending)",
     tts: config.providerTts + " (pending)",
     stt: config.providerStt + " (pending)",
     voiceOrchestration: config.providerVoiceOrchestration + " (pending)",
