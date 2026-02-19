@@ -303,6 +303,105 @@ restRouter.post("/make-call", async (req, res) => {
   }
 });
 
+// POST /api/v1/get-me
+restRouter.post("/get-me", async (req, res) => {
+  try {
+    const { agentId, target, targetName, requesterPhone, requesterName, message, recipientTimezone } = req.body;
+    if (!agentId || !target || !requesterPhone) return errorJson(res, 400, "Required: agentId, target, requesterPhone");
+
+    const auth = authInfo(req);
+    requireAgent(agentId, auth);
+    sanitize(target, "target");
+    sanitize(requesterPhone, "requesterPhone");
+    if (targetName) sanitize(targetName, "targetName");
+    if (requesterName) sanitize(requesterName, "requesterName");
+    if (message) sanitize(message, "message");
+
+    const db = getProvider("database");
+    const orgId = getOrgId(auth);
+    requireAgentInOrg(db, agentId, auth);
+
+    const rows = db.query<any>(
+      "SELECT agent_id, phone_number, status FROM agent_channels WHERE agent_id = ?",
+      [agentId],
+    );
+    if (rows.length === 0) return errorJson(res, 404, `Agent "${agentId}" not found`);
+    const agent = rows[0];
+
+    const fromNumber = resolveFromNumber(db, agent.phone_number, target, "voice", orgId);
+    if (!fromNumber) return errorJson(res, 400, `Agent "${agentId}" has no phone number available`);
+    if (agent.status !== "active") return errorJson(res, 400, `Agent "${agentId}" is not active`);
+
+    checkRateLimits(db, agentId, "voice_call", "voice", target, auth);
+
+    // TCPA
+    if (!config.demoMode) {
+      const tz = recipientTimezone || inferTimezoneFromPhone(target);
+      const tcpa = checkTcpaTimeOfDay(tz);
+      if (!tcpa.allowed) return errorJson(res, 403, `Compliance: ${tcpa.reason}`);
+    }
+
+    const dncCheck = checkDnc(db, target, "phone");
+    if (!dncCheck.allowed) return errorJson(res, 403, `Compliance: ${dncCheck.reason}`);
+
+    // Build secretary prompt
+    const callerName = requesterName || "your contact";
+    const calleeName = targetName || "";
+    const messageContext = message ? `\nContext: ${callerName} wants to talk about: ${message}` : "";
+    const systemPrompt = `You are a phone secretary calling on behalf of ${callerName}.
+${callerName} would like to speak with ${calleeName || "the person"}.${messageContext}
+
+Your job:
+1. Greet them and ask if now is a good time to talk.
+2. If YES — say "Great, please hold while I connect you" and use the transfer_call tool to transfer to ${requesterPhone}.
+3. If NO — ask when would be a better time, note their answer, thank them and say goodbye.
+
+Keep it natural and brief — this is a phone call.`;
+    const msgPart = message ? ` ${message}.` : "";
+    const greeting = `Hi${calleeName ? ` ${calleeName}` : ""}, I'm calling on behalf of ${callerName}.${msgPart} Is this a good time to talk?`;
+
+    const sessionId = randomUUID();
+    const agentLang = getAgentLanguage(db, agentId);
+    storeCallConfig(sessionId, {
+      agentId,
+      systemPrompt: applyGuardrails(systemPrompt),
+      greeting,
+      voice: config.voiceDefaultVoice,
+      language: agentLang,
+      agentLanguage: agentLang,
+      forceMode: "answering-machine",
+    });
+
+    const webhookUrl = `${config.webhookBaseUrl}/webhooks/${agentId}/outbound-voice?session=${sessionId}`;
+    const telephony = getProvider("telephony");
+    const result = await telephony.makeCall({ from: fromNumber, to: target, webhookUrl });
+
+    const messageId = randomUUID();
+    db.run(
+      `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id) VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?, ?)`,
+      [messageId, agentId, fromNumber, target, `[Get Me] ${callerName} → ${calleeName || target}`, result.callSid, result.status, orgId],
+    );
+
+    try {
+      db.run(
+        `INSERT INTO call_logs (id, agent_id, call_sid, direction, from_address, to_address, status, org_id) VALUES (?, ?, ?, 'outbound', ?, ?, ?, ?)`,
+        [randomUUID(), agentId, result.callSid, fromNumber, target, result.status, orgId],
+      );
+    } catch { /* best effort */ }
+
+    logUsage(db, { agentId, actionType: "voice_call", channel: "voice", targetAddress: target, cost: 0, externalId: result.callSid });
+
+    logger.info("rest_get_me", { messageId, agentId, target, targetName, requesterPhone, requesterName, callSid: result.callSid });
+    return res.json({
+      success: true, messageId, callSid: result.callSid, sessionId, status: result.status,
+      from: fromNumber, to: target,
+      description: `Calling ${calleeName || target} on behalf of ${callerName}. If available, will be connected to ${requesterPhone}.`,
+    });
+  } catch (err) {
+    return handleRestError(res, err);
+  }
+});
+
 // POST /api/v1/send-voice-message
 restRouter.post("/send-voice-message", async (req, res) => {
   try {
@@ -1120,6 +1219,37 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
           },
           responses: {
             "200": { description: "Call initiated", content: { "application/json": { schema: { $ref: "#/components/schemas/MakeCallResponse" } } } },
+            "400": { description: "Bad request" },
+            "403": { description: "Auth or compliance error" },
+          },
+        },
+      },
+      "/get-me": {
+        post: {
+          summary: "Secretary call — call someone on your behalf, bridge if available",
+          tags: ["Communication"],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["agentId", "target", "requesterPhone"],
+                  properties: {
+                    agentId: { type: "string", description: "Agent ID that owns the calling phone number" },
+                    target: { type: "string", description: "Phone number to call (E.164)" },
+                    targetName: { type: "string", description: "Name of the person being called" },
+                    requesterPhone: { type: "string", description: "Your phone number — where to bridge if they say yes" },
+                    requesterName: { type: "string", description: "Your name" },
+                    message: { type: "string", description: "Reason for the call — included in the greeting" },
+                    recipientTimezone: { type: "string", description: "IANA timezone of the recipient" },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": { description: "Secretary call initiated" },
             "400": { description: "Bad request" },
             "403": { description: "Auth or compliance error" },
           },

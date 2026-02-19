@@ -418,9 +418,9 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
           removeCallConfig(sessionId);
         }
 
-        // Determine mode: agent connected → "agent", otherwise → "answering-machine"
+        // Determine mode: forceMode overrides, otherwise agent connected → "agent", else → "answering-machine"
         const agentSession = agentId ? getAgentSession(agentId) : undefined;
-        const mode = agentSession ? "agent" : "answering-machine";
+        const mode = callConfig?.forceMode || (agentSession ? "agent" : "answering-machine");
 
         // Resolve languages for translation bridge
         const db = getProvider("database");

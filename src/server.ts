@@ -21,6 +21,7 @@ import { registerOtpTools } from "./tools/otp-tools.js";
 import { registerOrgTools } from "./tools/org-tools.js";
 import { registerBridgeCallTool } from "./tools/bridge-call.js";
 import { registerConsentTools } from "./tools/consent-tools.js";
+import { registerGetMeTool } from "./tools/get-me.js";
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -111,6 +112,9 @@ export function createMcpServer(): McpServer {
 
   // Consent tracking tools
   registerConsentTools(server);
+
+  // "Get me" secretary call tool
+  registerGetMeTool(server);
 
   // --- Enterprise / SaaS only tools ---
   const edition = config.edition;

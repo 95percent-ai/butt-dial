@@ -18,6 +18,8 @@ export interface VoiceCallConfig {
   callerLanguage?: string;
   /** Agent's operating language (from agent_channels.language) */
   agentLanguage?: string;
+  /** Force a specific voice mode, bypassing agent-connection detection */
+  forceMode?: "answering-machine";
 }
 
 export interface VoiceConversation {
