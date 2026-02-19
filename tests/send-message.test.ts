@@ -81,9 +81,9 @@ async function main() {
   assert(parsed.success === true, "response has success: true");
   assert(typeof parsed.messageId === "string", "response has messageId");
   assert(typeof parsed.externalId === "string", "response has externalId (mock ID)");
-  assert(parsed.externalId.startsWith("mock-msg-"), "externalId starts with mock-msg-");
+  assert(parsed.externalId.startsWith("SM"), "externalId starts with SM (Twilio format)");
   assert(parsed.status === "sent", "status is 'sent'");
-  assert(parsed.cost === 0.0075, "cost is 0.0075 (mock)");
+  assert(parsed.cost === 0.0079, "cost is 0.0079 (mock)");
   const agentPhone = getAgentPhone();
   assert(parsed.from === agentPhone, "from is test agent's phone number");
   assert(parsed.to === "+972526557547", "to is the recipient number");

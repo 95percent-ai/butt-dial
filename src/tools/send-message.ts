@@ -17,6 +17,7 @@ import { metrics } from "../observability/metrics.js";
 import { preSendCheck } from "../security/compliance.js";
 import { translate, needsTranslation, getAgentLanguage } from "../lib/translator.js";
 import { resolveFromNumber } from "../lib/number-pool.js";
+import { maybeTriggerSandboxReply } from "../lib/sandbox-responder.js";
 
 interface AgentRow {
   agent_id: string;
@@ -191,6 +192,9 @@ async function sendSms(
   logUsage(db, { agentId, actionType: "sms", channel: "sms", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
   metrics.increment("mcp_messages_sent_total", { channel: "sms" });
 
+  // Trigger sandbox reply (fire-and-forget)
+  maybeTriggerSandboxReply({ orgId, agentId, channel: "sms", to, from: fromNumber, body });
+
   logger.info("send_message_success", {
     messageId, agentId, to, channel: "sms",
     externalId: result.messageId, status: result.status,
@@ -264,6 +268,9 @@ async function sendEmail(
   logUsage(db, { agentId, actionType: "email", channel: "email", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
   metrics.increment("mcp_messages_sent_total", { channel: "email" });
 
+  // Trigger sandbox reply (fire-and-forget)
+  maybeTriggerSandboxReply({ orgId, agentId, channel: "email", to, from: agent.email_address!, body });
+
   logger.info("send_message_success", {
     messageId, agentId, to, channel: "email",
     externalId: result.messageId, status: result.status,
@@ -330,6 +337,9 @@ async function sendWhatsApp(
   logUsage(db, { agentId, actionType: "whatsapp", channel: "whatsapp", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
   metrics.increment("mcp_messages_sent_total", { channel: "whatsapp" });
 
+  // Trigger sandbox reply (fire-and-forget)
+  maybeTriggerSandboxReply({ orgId, agentId, channel: "whatsapp", to, from: agent.whatsapp_sender_sid!, body });
+
   logger.info("send_message_success", {
     messageId, agentId, to, channel: "whatsapp",
     externalId: result.messageId, status: result.status,
@@ -392,6 +402,9 @@ async function sendLine(
 
   logUsage(db, { agentId, actionType: "line", channel: "line", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
   metrics.increment("mcp_messages_sent_total", { channel: "line" });
+
+  // Trigger sandbox reply (fire-and-forget)
+  maybeTriggerSandboxReply({ orgId, agentId, channel: "line", to, from: agentId, body });
 
   logger.info("send_message_success", {
     messageId, agentId, to, channel: "line",

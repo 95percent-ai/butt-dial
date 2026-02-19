@@ -2,6 +2,7 @@
  * Mock email adapter — returns fake results for development and demo mode.
  */
 
+import { randomUUID } from "crypto";
 import { logger } from "../lib/logger.js";
 import type {
   IEmailProvider,
@@ -9,17 +10,14 @@ import type {
   SendEmailResult,
 } from "./interfaces.js";
 
-let counter = 0;
-
-function generateMockId(): string {
-  counter++;
-  return `mock-email-${Date.now()}-${counter}`;
+function generateEmailId(): string {
+  return `EM${randomUUID().replace(/-/g, "")}`;
 }
 
 export function createMockEmailProvider(): IEmailProvider {
   return {
     async send(params: SendEmailParams): Promise<SendEmailResult> {
-      const messageId = generateMockId();
+      const messageId = generateEmailId();
 
       logger.info("mock_email_sent", {
         messageId,
@@ -29,12 +27,13 @@ export function createMockEmailProvider(): IEmailProvider {
         bodyLength: params.body.length,
         hasHtml: !!params.html,
         attachments: params.attachments?.length ?? 0,
+        sandbox: true,
       });
 
       return {
         messageId,
         status: "sent",
-        cost: 0,
+        cost: 0.001,
       };
     },
 

@@ -21,6 +21,15 @@ MASTER_SECURITY_TOKEN=your-secret-here
 - Passed as: `Authorization: Bearer <masterToken>`
 - No master token configured = all admin routes open (dev mode)
 
+### Session Cookies (Admin UI)
+Email/password login and registration set an encrypted session cookie for browser-based admin access. Users go straight to `/admin` after login — no token copy-paste needed.
+
+- Cookie: `__bd_session`, HttpOnly, SameSite=Lax, 7-day expiry
+- Payload: `{ orgId, userId, orgToken, expiresAt }` encrypted with AES-256-CBC
+- Admin middleware checks cookie before Bearer token (both work)
+- `POST /auth/api/logout` clears the cookie
+- Tokens remain for programmatic access (MCP agents, REST API, super-admin)
+
 ### Demo Mode
 When `DEMO_MODE=true`, all authentication is bypassed. Never use in production.
 

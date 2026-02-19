@@ -12,6 +12,7 @@ import { generateOtp, verifyOtp } from "../security/otp.js";
 import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
+import { setSessionCookie, clearSessionCookie, COOKIE_MAX_AGE_MS } from "../security/session.js";
 
 export const authApiRouter = Router();
 
@@ -52,6 +53,9 @@ interface PendingRegistration {
   passwordHash: string;
   passwordSalt: string;
   orgName: string;
+  companyName?: string;
+  website?: string;
+  useCase?: string;
   expiresAt: number;
 }
 
@@ -101,7 +105,7 @@ authApiRouter.post("/register", (req: Request, res: Response) => {
       return;
     }
 
-    const { email, password, orgName, tosAccepted } = req.body ?? {};
+    const { email, password, orgName, tosAccepted, companyName, website, useCase } = req.body ?? {};
 
     // Validate input
     if (!email || typeof email !== "string" || !email.includes("@")) {
@@ -148,6 +152,9 @@ authApiRouter.post("/register", (req: Request, res: Response) => {
       passwordHash: hash,
       passwordSalt: salt,
       orgName: orgName.trim(),
+      companyName: companyName ? String(companyName).trim() : undefined,
+      website: website ? String(website).trim() : undefined,
+      useCase: useCase ? String(useCase).trim() : undefined,
       expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
     });
 
@@ -252,17 +259,27 @@ authApiRouter.post("/verify-email", (req: Request, res: Response) => {
     const { org, rawToken } = createOrganization(db, pending.orgName, slug + "-" + randomUUID().slice(0, 8));
 
     const userId = randomUUID();
+    // Community/enterprise: auto-approve. SaaS: pending review.
+    const accountStatus = config.edition === "saas" ? "pending_review" : "approved";
     db.run(
-      `INSERT INTO user_accounts (id, email, password_hash, password_salt, org_id, email_verified, tos_accepted_at, account_status)
-       VALUES (?, ?, ?, ?, ?, 1, datetime('now'), 'pending_review')`,
-      [userId, normalizedEmail, pending.passwordHash, pending.passwordSalt, org.id],
+      `INSERT INTO user_accounts (id, email, password_hash, password_salt, org_id, email_verified, tos_accepted_at, account_status, company_name, website, use_case_description)
+       VALUES (?, ?, ?, ?, ?, 1, datetime('now'), ?, ?, ?, ?)`,
+      [userId, normalizedEmail, pending.passwordHash, pending.passwordSalt, org.id, accountStatus, pending.companyName || null, pending.website || null, pending.useCase || null],
     );
 
     // Clean up pending registration
     pendingRegistrations.delete(normalizedEmail);
 
+    // Set session cookie for automatic admin access
+    setSessionCookie(res, {
+      orgId: org.id,
+      userId,
+      orgToken: rawToken,
+      expiresAt: Date.now() + COOKIE_MAX_AGE_MS,
+    });
+
     logger.info("account_created", { email: normalizedEmail, orgId: org.id });
-    res.json({ success: true, orgToken: rawToken, orgId: org.id });
+    res.json({ success: true, orgToken: rawToken, orgId: org.id, redirect: "/admin" });
   } catch (err) {
     logger.error("verify_email_error", { error: String(err) });
     res.status(500).json({ error: "Verification failed. Please try again." });
@@ -343,8 +360,16 @@ authApiRouter.post("/login", (req: Request, res: Response) => {
     // Generate a fresh org token (old ones remain valid)
     const freshToken = generateOrgToken(db, user.org_id, `login-${normalizedEmail}`);
 
+    // Set session cookie for automatic admin access
+    setSessionCookie(res, {
+      orgId: user.org_id,
+      userId: user.id,
+      orgToken: freshToken,
+      expiresAt: Date.now() + COOKIE_MAX_AGE_MS,
+    });
+
     logger.info("user_login", { email: normalizedEmail, orgId: user.org_id });
-    res.json({ success: true, orgToken: freshToken, orgId: user.org_id });
+    res.json({ success: true, orgToken: freshToken, orgId: user.org_id, redirect: "/admin" });
   } catch (err) {
     logger.error("login_error", { error: String(err) });
     res.status(500).json({ error: "Login failed. Please try again." });
@@ -437,6 +462,13 @@ authApiRouter.post("/reset-password", (req: Request, res: Response) => {
     logger.error("reset_password_error", { error: String(err) });
     res.status(500).json({ error: "Password reset failed. Please try again." });
   }
+});
+
+// ── POST /logout ─────────────────────────────────────────────
+
+authApiRouter.post("/logout", (_req: Request, res: Response) => {
+  clearSessionCookie(res);
+  res.json({ success: true });
 });
 
 // ── Email helpers ───────────────────────────────────────────────

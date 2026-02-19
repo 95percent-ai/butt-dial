@@ -29,6 +29,7 @@ import {
 import { preSendCheck, checkTcpaTimeOfDay, checkDnc, checkContentFilter } from "../security/compliance.js";
 import { translate, needsTranslation, getAgentLanguage } from "../lib/translator.js";
 import { resolveFromNumber } from "../lib/number-pool.js";
+import { maybeTriggerSandboxReply } from "../lib/sandbox-responder.js";
 import { storeCallConfig } from "../webhooks/voice-sessions.js";
 import { applyGuardrails } from "../security/communication-guardrails.js";
 import { metrics } from "../observability/metrics.js";
@@ -60,6 +61,19 @@ restRouter.get("/health", (_req, res) => {
     uptime: Math.round(process.uptime()),
     version: "1.0.0",
   });
+});
+
+/** Integration guide as raw markdown — public, no auth */
+restRouter.get("/integration-guide", async (_req, res) => {
+  try {
+    const { readFile } = await import("fs/promises");
+    const { resolve } = await import("path");
+    const guidePath = resolve(process.cwd(), "docs", "INTEGRATION.md");
+    const content = await readFile(guidePath, "utf-8");
+    res.type("text/markdown").send(content);
+  } catch {
+    res.status(404).type("text/plain").send("Integration guide not found. Ensure docs/INTEGRATION.md exists.");
+  }
 });
 
 // ── Auth middleware for all remaining endpoints ───────────────────────
@@ -151,6 +165,7 @@ restRouter.post("/send-message", async (req, res) => {
       );
       logUsage(db, { agentId, actionType: "email", channel: "email", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
       metrics.increment("mcp_messages_sent_total", { channel: "email" });
+      maybeTriggerSandboxReply({ orgId, agentId, channel: "email", to, from: agent.email_address, body: translatedBody });
       return res.json({ success: true, messageId, externalId: result.messageId, status: result.status, channel: "email", from: agent.email_address, to });
     }
 
@@ -165,6 +180,7 @@ restRouter.post("/send-message", async (req, res) => {
       );
       logUsage(db, { agentId, actionType: "whatsapp", channel: "whatsapp", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
       metrics.increment("mcp_messages_sent_total", { channel: "whatsapp" });
+      maybeTriggerSandboxReply({ orgId, agentId, channel: "whatsapp", to, from: agent.whatsapp_sender_sid, body: translatedBody });
       return res.json({ success: true, messageId, externalId: result.messageId, status: result.status, channel: "whatsapp", from: agent.whatsapp_sender_sid, to });
     }
 
@@ -179,6 +195,7 @@ restRouter.post("/send-message", async (req, res) => {
       );
       logUsage(db, { agentId, actionType: "line", channel: "line", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
       metrics.increment("mcp_messages_sent_total", { channel: "line" });
+      maybeTriggerSandboxReply({ orgId, agentId, channel: "line", to, from: agentId, body: translatedBody });
       return res.json({ success: true, messageId, externalId: result.messageId, status: result.status, channel: "line", from: agentId, to });
     }
 
@@ -194,6 +211,7 @@ restRouter.post("/send-message", async (req, res) => {
     );
     logUsage(db, { agentId, actionType: "sms", channel: "sms", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
     metrics.increment("mcp_messages_sent_total", { channel: "sms" });
+    maybeTriggerSandboxReply({ orgId, agentId, channel: "sms", to, from: fromNumber, body: translatedBody });
 
     logger.info("rest_send_message", { messageId, agentId, to, channel: "sms" });
     return res.json({ success: true, messageId, externalId: result.messageId, status: result.status, channel: "sms", from: fromNumber, to });

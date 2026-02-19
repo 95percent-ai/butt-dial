@@ -146,6 +146,14 @@ const configSchema = z.object({
     .transform((v) => v === "true")
     .default("false"),
 
+  // Sandbox LLM replies
+  sandboxLlmEnabled: z
+    .string()
+    .transform((v) => v !== "false")
+    .default("true"),
+  sandboxLlmEndpoint: z.string().optional(),
+  sandboxReplyDelayMs: z.coerce.number().default(2000),
+
   // Billing
   billingMarkupPercent: z.coerce.number().default(0),
 
@@ -233,6 +241,9 @@ function loadConfig() {
     anomalyDetectorEnabled: process.env.ANOMALY_DETECTOR_ENABLED,
     translationEnabled: process.env.TRANSLATION_ENABLED,
     registrationEnabled: process.env.REGISTRATION_ENABLED,
+    sandboxLlmEnabled: process.env.SANDBOX_LLM_ENABLED,
+    sandboxLlmEndpoint: process.env.SANDBOX_LLM_ENDPOINT,
+    sandboxReplyDelayMs: process.env.SANDBOX_REPLY_DELAY_MS,
     billingMarkupPercent: process.env.BILLING_MARKUP_PERCENT,
     demoMode: process.env.DEMO_MODE,
   };

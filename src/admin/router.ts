@@ -15,8 +15,9 @@ import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 import { getAgentBillingConfig, setAgentBillingConfig, getTierLimits, getAvailableTiers } from "../lib/billing.js";
-import { verifyOrgToken } from "../lib/org-manager.js";
+import { verifyOrgToken, generateOrgToken } from "../lib/org-manager.js";
 import { orgFilter } from "../security/org-scope.js";
+import { getSessionFromCookie, setSessionCookie, COOKIE_MAX_AGE_MS } from "../security/session.js";
 import type { AuthInfo } from "../security/auth-guard.js";
 import { getDemoDashboard, getDemoUsageHistory, getDemoTopContacts, getDemoAnalytics } from "./demo-data.js";
 
@@ -52,6 +53,22 @@ function adminAuth(req: Request, res: Response, next: NextFunction): void {
     req.auth = { token: "unconfigured", clientId: "admin", scopes: ["admin", "super-admin"], orgId: "default" };
     next();
     return;
+  }
+
+  // Session cookie auth — check before Bearer token
+  const session = getSessionFromCookie(req);
+  if (session) {
+    try {
+      const db = getProvider("database");
+      const orgVerified = verifyOrgToken(db, session.orgToken);
+      if (orgVerified) {
+        req.auth = { token: session.orgToken, clientId: orgVerified.orgId, scopes: ["org-admin"], orgId: orgVerified.orgId };
+        next();
+        return;
+      }
+    } catch {
+      // Cookie token invalid — fall through to Bearer check
+    }
   }
 
   const authHeader = req.headers.authorization;
@@ -815,9 +832,15 @@ adminRouter.post("/admin/api/outbound-call", adminAuth, async (req: Request, res
 
 // ── Pending Account Reviews (C9) ────────────────────────────────
 
-/** List pending accounts — super-admin only */
+/** List pending accounts — super-admin only, SaaS edition only */
 adminRouter.get("/admin/api/pending-accounts", adminAuth, (req: Request, res: Response) => {
   try {
+    // Non-SaaS editions auto-approve — no pending accounts to review
+    if (config.edition !== "saas") {
+      res.json({ accounts: [] });
+      return;
+    }
+
     const db = getProvider("database");
     const isSuperAdmin = req.auth?.scopes?.includes("super-admin");
 
@@ -884,6 +907,54 @@ adminRouter.post("/admin/api/pending-accounts/:userId/review", adminAuth, (req: 
 
     logger.info("account_review", { userId, action: newStatus, reason: reason || null });
     res.json({ success: true, userId, status: newStatus });
+  } catch (err) {
+    res.status(500).json({ error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
+// ── API Token Endpoints ──────────────────────────────────────────
+
+/** Get the caller's org API token (from session cookie) */
+adminRouter.get("/admin/api/my-token", adminAuth, (req: Request, res: Response) => {
+  try {
+    const session = getSessionFromCookie(req);
+    if (session?.orgToken) {
+      res.json({ token: session.orgToken });
+      return;
+    }
+    // Fallback: super-admin or Bearer token users don't have a cookie-stored token
+    res.json({ token: null, message: "Token available only for session-based login" });
+  } catch (err) {
+    res.status(500).json({ error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
+/** Regenerate org API token — creates new token, updates session cookie */
+adminRouter.post("/admin/api/regenerate-token", adminAuth, (req: Request, res: Response) => {
+  try {
+    const session = getSessionFromCookie(req);
+    const orgId = session?.orgId || req.auth?.orgId;
+
+    if (!orgId) {
+      res.status(400).json({ error: "Could not determine organization" });
+      return;
+    }
+
+    const db = getProvider("database");
+    const newToken = generateOrgToken(db, orgId, "regenerated");
+
+    // Update session cookie with new token
+    if (session) {
+      setSessionCookie(res, {
+        orgId: session.orgId,
+        userId: session.userId,
+        orgToken: newToken,
+        expiresAt: Date.now() + COOKIE_MAX_AGE_MS,
+      });
+    }
+
+    logger.info("token_regenerated", { orgId });
+    res.json({ success: true, token: newToken });
   } catch (err) {
     res.status(500).json({ error: String(err instanceof Error ? err.message : err) });
   }

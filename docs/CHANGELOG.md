@@ -1,6 +1,39 @@
-<!-- version: 3.7 | updated: 2026-02-19 -->
+<!-- version: 3.9 | updated: 2026-02-19 -->
 
 # Changelog
+
+## Session 24 — 2026-02-19
+
+### Simplify Third-Party Integration (DEC-067 through DEC-070)
+- Community/enterprise editions now auto-approve accounts on email verification (no KYC gate)
+- KYC fields (company, website, use case) hidden for non-SaaS editions
+- Pending accounts endpoint returns empty for non-SaaS editions
+- Added API Key card to admin dashboard with copy and regenerate buttons
+- Added `GET /admin/api/my-token` and `POST /admin/api/regenerate-token` endpoints
+- Created `src/lib/llm-adapter.ts` — plug-and-play LLM interface (Anthropic, OpenAI, custom endpoint)
+- Created `src/lib/sandbox-responder.ts` — fire-and-forget simulated replies after sandbox sends
+- All mock providers (SMS, email, WhatsApp, LINE) now use realistic Twilio-format IDs (SM, CA, PN, EM, WA, LN)
+- Added sandbox config vars: `SANDBOX_LLM_ENABLED`, `SANDBOX_LLM_ENDPOINT`, `SANDBOX_REPLY_DELAY_MS`
+- Sandbox reply hook added to send-message tool (MCP + REST) for all 4 channels
+- Created `docs/INTEGRATION.md` — master integration guide
+- Updated `/docs/integration` web page with new content
+- Added `GET /api/v1/integration-guide` endpoint (public, returns raw markdown)
+- Updated `tests/send-message.test.ts` to match realistic mock ID format
+- Updated `tests/onboarding-flow.test.ts` to match edition-aware KYC behavior
+- New test suite: `tests/third-party-integration.test.ts` — 40/40 pass
+
+## Session 23 — 2026-02-19
+
+### Session-Based Auth for Admin Panel (DEC-066)
+- Added `src/security/session.ts` — encrypted session cookie module (AES-256-CBC)
+- Login and email verification now set `__bd_session` cookie and redirect to `/admin`
+- Removed token reveal screen and "What's Next" guide from auth page
+- Admin middleware checks session cookie before Bearer token (backward compatible)
+- Added `POST /auth/api/logout` to clear session cookie
+- Admin panel tries cookie auth on load, falls back to token-based login for super-admins
+- Logout now clears cookie server-side and redirects to `/auth/login`
+- Added inline cookie parser middleware to `index.ts`
+- Tests: 33/33 pass (8 admin-rejection tests skipped in demo mode)
 
 ## Session 22 — 2026-02-19
 

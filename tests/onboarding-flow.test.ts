@@ -63,9 +63,10 @@ async function main() {
   const authRes = await fetch(`${SERVER_URL}/auth/login`);
   assert(authRes.status === 200, "Auth page returns 200");
   const authHtml = await authRes.text();
-  assert(authHtml.includes('id="reg-company"'), "Auth page has company name field");
-  assert(authHtml.includes('id="reg-website"'), "Auth page has website field");
-  assert(authHtml.includes('id="reg-usecase"'), "Auth page has use case field");
+  // KYC fields only appear for SaaS edition — community/enterprise hides them
+  assert(!authHtml.includes('id="reg-company"'), "Auth page hides company name field (community edition)");
+  assert(!authHtml.includes('id="reg-website"'), "Auth page hides website field (community edition)");
+  assert(!authHtml.includes('id="reg-usecase"'), "Auth page hides use case field (community edition)");
   assert(authHtml.includes('id="reg-tos"'), "Auth page has ToS checkbox");
   assert(authHtml.includes("/legal/terms"), "Auth page links to Terms of Service");
   assert(authHtml.includes("/legal/aup"), "Auth page links to Acceptable Use Policy");

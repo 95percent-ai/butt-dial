@@ -2,6 +2,7 @@
  * Mock WhatsApp adapter — returns fake results for development and demo mode.
  */
 
+import { randomUUID } from "crypto";
 import { logger } from "../lib/logger.js";
 import type {
   IWhatsAppProvider,
@@ -9,17 +10,14 @@ import type {
   SendWhatsAppResult,
 } from "./interfaces.js";
 
-let counter = 0;
-
-function generateMockId(): string {
-  counter++;
-  return `mock-whatsapp-${Date.now()}-${counter}`;
+function generateWhatsAppId(): string {
+  return `WA${randomUUID().replace(/-/g, "")}`;
 }
 
 export function createMockWhatsAppProvider(): IWhatsAppProvider {
   return {
     async send(params: SendWhatsAppParams): Promise<SendWhatsAppResult> {
-      const messageId = generateMockId();
+      const messageId = generateWhatsAppId();
 
       logger.info("mock_whatsapp_sent", {
         messageId,
@@ -29,12 +27,13 @@ export function createMockWhatsAppProvider(): IWhatsAppProvider {
         hasMedia: !!params.mediaUrl,
         hasTemplate: !!params.templateId,
         templateVars: params.templateVars ? Object.keys(params.templateVars).length : 0,
+        sandbox: true,
       });
 
       return {
         messageId,
         status: "sent",
-        cost: 0,
+        cost: 0.005,
       };
     },
 

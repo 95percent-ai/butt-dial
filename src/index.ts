@@ -101,6 +101,22 @@ async function main() {
     await transport.handlePostMessage(req, res);
   });
 
+  // 4b. Cookie parser (zero-dependency, inline)
+  app.use((req, _res, next) => {
+    const header = req.headers.cookie;
+    if (header) {
+      req.cookies = {};
+      for (const pair of header.split(";")) {
+        const idx = pair.indexOf("=");
+        if (idx < 0) continue;
+        const key = pair.slice(0, idx).trim();
+        const val = decodeURIComponent(pair.slice(idx + 1).trim());
+        req.cookies[key] = val;
+      }
+    }
+    next();
+  });
+
   // 5. Body parsers + routes (after MCP so transport gets raw stream)
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: true, limit: "1mb" }));

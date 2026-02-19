@@ -1195,181 +1195,153 @@ GET /sse?token=<org-token>&agentId=<agent-id>
     content: `
 # Integration Guide
 
-Complete walkthrough for connecting your AI agent to Butt-Dial MCP — from registration to production.
+Give your AI agent a phone number. Register, get a token, send your first message, go live.
 
 ---
 
-## 1. Register and Get Your Token
+## 1. Quick Start (5 Steps)
 
-Visit the registration page and create an account:
-
-\`\`\`
-https://your-server/auth/login → Register
-\`\`\`
-
-After verifying your email, you'll receive an **organization token**. Save it — this is your API key.
-
----
-
-## 2. Sign Into the Admin Panel
-
-Go to \`/admin\` and enter your organization token. You'll see:
-
-- **Dashboard** — usage stats, active agents, service health
-- **Settings** — provider configuration
-- **Agents** — provision and manage agents
-- **API Docs** — interactive Swagger explorer
-- **Simulator** — test tools without writing code
-
----
-
-## 3. Provision an Agent
-
-From the **Agents** tab, click **+ New Agent** and fill in:
-
-- **Agent ID** — unique identifier (e.g. \`support-bot\`)
-- **Display Name** — human-readable name
-- **Capabilities** — SMS, Voice, Email, WhatsApp
-- **Country** — for phone number provisioning
-
-Or provision via REST API:
+### Install & Run
 
 \`\`\`bash
-curl -X POST https://your-server/api/v1/provision \\
-  -H "Authorization: Bearer <org-token>" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "agentId": "support-bot",
-    "displayName": "Support Bot",
-    "capabilities": ["sms", "voice", "email"]
-  }'
+git clone https://github.com/elrad/butt-dial-mcp.git
+cd butt-dial-mcp
+npm install && cp .env.example .env
+npm run build && node dist/index.js
 \`\`\`
 
-**Save the security token** returned — it's shown once and cannot be recovered.
+### Register
+
+Visit \`http://localhost:3100/auth/login\` → **Register**. Verify with the 6-digit code (printed to console in demo mode).
+
+### Get Your API Token
+
+Go to \`/admin\`. Your API token is at the top of the dashboard. Click **Copy**.
+
+### Send Your First Message
+
+\`\`\`bash
+curl -X POST http://localhost:3100/api/v1/send-message \\
+  -H "Authorization: Bearer YOUR_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"agentId":"test-agent-001","to":"+15559876543","body":"Hello!","channel":"sms"}'
+\`\`\`
+
+### Check the Result
+
+\`\`\`bash
+curl http://localhost:3100/api/v1/messages?agentId=test-agent-001 \\
+  -H "Authorization: Bearer YOUR_TOKEN"
+\`\`\`
+
+If an LLM key is configured, you'll see a simulated reply after ~2 seconds.
 
 ---
 
-## 4. Connect via MCP (SSE)
+## 2. Authentication
 
-Your AI agent connects to the server using the MCP protocol over Server-Sent Events:
+| Token | Who | How to Get | Accesses |
+|-------|-----|------------|----------|
+| **Org Token** | Developers | Registration / admin panel | Admin, provisioning |
+| **Agent Token** | AI agents | Provisioning API | MCP tools, REST API |
+| **Master Token** | Super-admins | \`.env\` file | Everything |
 
+REST: \`Authorization: Bearer YOUR_TOKEN\`
+MCP: \`GET /sse?token=YOUR_TOKEN&agentId=my-agent\`
+
+---
+
+## 3. Sandbox Mode
+
+New accounts start in sandbox. All API calls work with mock providers — no real messages, no costs.
+
+**LLM-Powered Replies:** If \`ANTHROPIC_API_KEY\`, \`OPENAI_API_KEY\`, or \`SANDBOX_LLM_ENDPOINT\` is set, sandbox sends generate a simulated inbound reply after ~2 seconds. Set \`SANDBOX_LLM_ENABLED=false\` to disable.
+
+---
+
+## 4. REST API
+
+All endpoints at \`/api/v1/\`. Interactive docs at \`/admin#docs\`.
+
+\`\`\`bash
+# SMS
+curl -X POST /api/v1/send-message -d '{"agentId":"bot","to":"+15559876543","body":"Hi","channel":"sms"}'
+
+# Email
+curl -X POST /api/v1/send-message -d '{"agentId":"bot","to":"user@example.com","body":"Hi","channel":"email","subject":"Hello"}'
+
+# Voice call
+curl -X POST /api/v1/make-call -d '{"agentId":"bot","to":"+15559876543","greeting":"Hello!"}'
+
+# Messages
+curl /api/v1/messages?agentId=bot
+
+# Provision agent
+curl -X POST /api/v1/provision -d '{"agentId":"bot","displayName":"My Bot","capabilities":["sms","voice"]}'
 \`\`\`
-GET https://your-server/sse?token=<agent-token>&agentId=<agent-id>
-\`\`\`
 
-### Node.js Example
+---
+
+## 5. MCP Connection
 
 \`\`\`javascript
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
 const transport = new SSEClientTransport(
-  new URL("https://your-server/sse?token=YOUR_TOKEN&agentId=support-bot")
+  new URL("http://localhost:3100/sse?token=YOUR_TOKEN&agentId=my-agent")
 );
-
 const client = new Client({ name: "my-agent", version: "1.0.0" });
 await client.connect(transport);
 
-// List available tools
-const tools = await client.listTools();
-console.log(tools.tools.map(t => t.name));
-
-// Send an SMS
 const result = await client.callTool({
   name: "comms_send_message",
-  arguments: {
-    agentId: "support-bot",
-    to: "+15559876543",
-    body: "Hello from my AI agent!",
-    channel: "sms"
-  }
+  arguments: { agentId: "my-agent", to: "+15559876543", body: "Hello!", channel: "sms" }
 });
 \`\`\`
 
-### Claude Desktop / Cursor
-
-Add to your MCP config:
+Claude Desktop / Cursor config:
 
 \`\`\`json
-{
-  "mcpServers": {
-    "butt-dial": {
-      "url": "https://your-server/sse?token=YOUR_TOKEN&agentId=support-bot"
-    }
-  }
-}
+{ "mcpServers": { "butt-dial": { "url": "http://localhost:3100/sse?token=TOKEN&agentId=my-agent" } } }
 \`\`\`
 
 ---
 
-## 5. Or Use the REST API
+## 6. Channels
 
-Every MCP tool is also available as a REST endpoint:
-
-\`\`\`bash
-# Send SMS
-curl -X POST https://your-server/api/v1/send-message \\
-  -H "Authorization: Bearer <agent-token>" \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"support-bot","to":"+15559876543","body":"Hello!","channel":"sms"}'
-
-# Make a call
-curl -X POST https://your-server/api/v1/make-call \\
-  -H "Authorization: Bearer <agent-token>" \\
-  -H "Content-Type: application/json" \\
-  -d '{"agentId":"support-bot","to":"+15559876543","greeting":"Hello!"}'
-
-# Get messages
-curl https://your-server/api/v1/messages?agentId=support-bot \\
-  -H "Authorization: Bearer <agent-token>"
-\`\`\`
-
-Full API reference: [API Docs](/docs/api-reference) or interactive explorer at \`/admin#docs\`.
+| Channel | Provider | Send | Inbound | Requirements |
+|---------|----------|------|---------|--------------|
+| SMS | Twilio | \`channel: "sms"\` | Auto-webhook | TWILIO_ACCOUNT_SID, AUTH_TOKEN |
+| Voice | Twilio | \`comms_make_call\` | Auto-webhook | Same + WEBHOOK_BASE_URL (HTTPS) |
+| Email | Resend | \`channel: "email"\` | Resend dashboard webhook | RESEND_API_KEY |
+| WhatsApp | Twilio | \`channel: "whatsapp"\` | Auto-webhook | Twilio WhatsApp sandbox |
+| LINE | LINE API | \`channel: "line"\` | LINE Console webhook | LINE_CHANNEL_ACCESS_TOKEN |
 
 ---
 
-## 6. Test in Sandbox
+## 7. Going Live
 
-New accounts start in **sandbox mode**:
+1. Add real provider credentials (Settings tab or \`.env\`)
+2. Set \`DEMO_MODE=false\`
+3. Set public \`WEBHOOK_BASE_URL\`
+4. Provision agent with real channels
+5. Real messages flow
 
-- All API calls use mock providers — no real messages sent
-- No costs incurred
-- Full tool suite available for integration testing
-- Use the **Simulator** tab in the admin panel for quick tests
-
----
-
-## 7. Go to Production
-
-Once your integration is tested:
-
-1. Your account is automatically queued for review
-2. Admin reviews your KYC information and use case
-3. Upon approval, your org switches to production mode
-4. Configure real provider credentials (Twilio, Resend, etc.) in the Settings tab
-5. Real messages start flowing
+Community/enterprise editions auto-approve accounts. SaaS requires admin review.
 
 ---
 
-## Webhook Setup
+## 8. Troubleshooting
 
-For inbound messages (SMS replies, incoming calls, etc.), your server needs a public URL:
+| Problem | Fix |
+|---------|-----|
+| Can't connect | \`curl http://localhost:3100/health\` |
+| Auth errors | Check token, or set \`DEMO_MODE=true\` |
+| No inbound | Set \`WEBHOOK_BASE_URL\` to public URL |
+| No sandbox replies | Set an LLM key + \`SANDBOX_LLM_ENABLED=true\` |
 
-\`\`\`env
-WEBHOOK_BASE_URL=https://your-domain.com
-\`\`\`
-
-Webhook URLs are auto-configured during provisioning. See the [Channel Setup Guide](/docs/channel-setup) for per-channel details.
-
----
-
-## Authentication Summary
-
-| Token Type | How to Get | What It Accesses |
-|------------|-----------|------------------|
-| Org Token | Registration or login | Admin panel, provisioning, org-level operations |
-| Agent Token | Returned by provision | MCP tools, REST API, scoped to one agent |
-| Master Token | \`.env\` config | Super-admin: all orgs, all agents |
+Full guide: \`/api/v1/integration-guide\` (raw markdown) or [docs](/docs/integration).
 `,
   },
 

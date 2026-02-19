@@ -1,6 +1,35 @@
-<!-- version: 3.8 | updated: 2026-02-19 -->
+<!-- version: 4.0 | updated: 2026-02-19 -->
 
 # Decisions Log
+
+## DEC-067: Edition-Aware Registration & Auto-Approval
+**Date:** 2026-02-19
+**What:** Community and enterprise editions now auto-approve accounts on email verification (`account_status = 'approved'`). SaaS keeps `pending_review` with admin approval gate. KYC fields (company name, website, use case) are only shown when `EDITION=saas`. Pending accounts endpoint returns empty array for non-SaaS editions.
+**Why:** For self-hosted community edition, the user IS the admin — KYC and approval review are pointless friction. Removing this gate means register → verify → start using immediately.
+**Alternatives considered:** Always show KYC (adds friction for self-hosters), always hide KYC (loses SaaS audit trail).
+
+## DEC-068: API Token Display in Admin Dashboard
+**Date:** 2026-02-19
+**What:** Admin dashboard now shows the user's API token at the top with copy and regenerate buttons. `GET /admin/api/my-token` returns token from session, `POST /admin/api/regenerate-token` creates a new one and updates the session cookie.
+**Why:** Previously tokens were only revealed once during registration. Regeneration required direct DB access. Making the token visible and regeneratable in the dashboard removes a major developer friction point.
+
+## DEC-069: Smart Sandbox with LLM-Powered Replies
+**Date:** 2026-02-19
+**What:** After a sandbox send (any channel), the system can optionally generate a simulated reply using an LLM. A plug-and-play adapter auto-detects available LLM providers (Anthropic, OpenAI, custom OpenAI-compatible endpoint). Fire-and-forget with configurable delay. All mock providers now use realistic Twilio-format IDs (SM, CA, PN, EM, WA, LN prefixes).
+**Why:** Developers testing in sandbox need to experience the full send-receive loop. Realistic IDs help catch format assumptions early. The LLM adapter uses raw fetch — zero new dependencies.
+**Config:** `SANDBOX_LLM_ENABLED` (default true), `SANDBOX_LLM_ENDPOINT` (optional), `SANDBOX_REPLY_DELAY_MS` (default 2000ms).
+
+## DEC-070: Master Integration Guide
+**Date:** 2026-02-19
+**What:** Created `docs/INTEGRATION.md` as the single integration reference. Available as: file on disk, rendered web page at `/docs/integration`, raw markdown at `GET /api/v1/integration-guide` (public, no auth). Consolidates info from ONBOARDING, SETUP, and CHANNEL-SETUP docs.
+**Why:** Third-party developers (and their AI agents) need one comprehensive document to build a working integration. The raw markdown endpoint lets LLMs fetch and parse it programmatically.
+
+## DEC-066: Session Cookies for Admin, Tokens for APIs
+**Date:** 2026-02-19
+**What:** Email/password login and registration now set an encrypted session cookie (`__bd_session`) that grants automatic access to the admin panel. Users no longer see a token reveal screen — they go straight to `/admin`. Org tokens still exist but are positioned for programmatic access (MCP agents, REST API), not for human login.
+**Why:** The previous flow (register → reveal token → copy it → paste into admin login) was confusing for community edition where the sysadmin is the user (DEC-065). Session cookies provide standard browser-based auth. Tokens remain for API consumers.
+**Implementation:** AES-256-CBC encrypted cookie with `{ orgId, userId, orgToken, expiresAt }`. HttpOnly, SameSite=Lax, 7-day expiry. Admin middleware checks cookie before Bearer token. Token-based login preserved as fallback for super-admins.
+**Alternatives considered:** JWT (adds dependency, more complex), server-side sessions with session store (overkill for single-instance).
 
 ## DEC-065: Community Edition — Single User Role
 **Date:** 2026-02-19

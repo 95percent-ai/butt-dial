@@ -1,4 +1,4 @@
-<!-- version: 3.5 | updated: 2026-02-18 -->
+<!-- version: 3.7 | updated: 2026-02-19 -->
 
 # Project Structure
 
@@ -21,7 +21,9 @@ agentos-comms-mcp/
 │   │   ├── voicemail-dispatcher.ts # Dispatches pending voicemails when agent reconnects via SSE
 │   │   ├── billing.ts            # Billing module: markup, tiers, spending alerts
 │   │   ├── audio-converter.ts    # PCM ↔ mu-law 8kHz converter + WAV headers
+│   │   ├── llm-adapter.ts         # Plug-and-play LLM interface (Anthropic, OpenAI, custom endpoint)
 │   │   ├── org-manager.ts        # Organization CRUD + token management (multi-tenant)
+│   │   ├── sandbox-responder.ts  # Fire-and-forget LLM-powered reply simulation for sandbox mode
 │   │   ├── translator.ts         # Language detection + translation via Anthropic API (Claude Haiku)
 │   │   ├── number-pool.ts       # Smart number routing: country detection + pool selection for outbound calls/SMS
 │   │   ├── country-compliance.ts # Per-country regulatory rules engine (37 countries: TCPA, GDPR, CASL, etc.)
@@ -110,6 +112,7 @@ agentos-comms-mcp/
 │   │   ├── http-rate-limiter.ts # HTTP-level per-IP + global rate limiting (in-memory)
 │   │   ├── ip-filter.ts        # IP allowlist/denylist middleware factory (admin + webhook scopes)
 │   │   ├── anomaly-detector.ts # Volume spike, brute force, rapid token rotation detection
+│   │   ├── session.ts         # Session cookie module: AES-256-CBC encrypt/decrypt/set/clear for admin auth (DEC-066)
 │   │   └── compliance.ts      # Content filter, DNC, TCPA, CAN-SPAM, GDPR erasure
 │   ├── provisioning/             # Agent provisioning helpers
 │   │   ├── phone-number.ts      # Buy, configure webhooks, release phone numbers
@@ -125,8 +128,8 @@ agentos-comms-mcp/
 │   │   └── whatsapp-alerter.ts  # Sends formatted alerts to admin WhatsApp number
 │   ├── public/                    # Public-facing pages
 │   │   ├── landing-page.ts       # Landing page HTML (hero, features, registration)
-│   │   ├── auth-page.ts          # Auth page HTML (login, register with KYC, verify, token reveal + What's Next guide)
-│   │   ├── auth-api.ts           # Registration/login API endpoints
+│   │   ├── auth-page.ts          # Auth page HTML (login, register with KYC, verify — auto-redirects to /admin)
+│   │   ├── auth-api.ts           # Registration/login/logout API endpoints (sets session cookies on login/verify)
 │   │   ├── docs.ts               # Documentation pages (/docs/*: home, getting-started, integration, channel-setup, etc.)
 │   │   └── legal-pages.ts       # Terms of Service, AUP, Privacy Policy HTML pages
 │   │
@@ -175,7 +178,9 @@ agentos-comms-mcp/
 │   ├── translation.test.ts   # Translation feature test — 33 assertions
 │   ├── number-pool.test.ts  # Number pool + smart routing test — 21 assertions
 │   ├── regulatory-compliance.test.ts # Regulatory compliance & distribution model — 84 assertions
-│   └── onboarding-flow.test.ts # Third-party MCP onboarding — 44 assertions
+│   ├── onboarding-flow.test.ts          # Third-party MCP onboarding — 44 assertions
+│   ├── session-auth.test.ts             # Session-based admin auth — 33 assertions (8 skipped in demo mode)
+│   └── third-party-integration.test.ts  # Third-party integration — 40 assertions (registration, token, sandbox, docs)
 │
 └── docs/
     ├── SPEC.md                   # Project specification (source of truth)
@@ -194,6 +199,7 @@ agentos-comms-mcp/
     ├── ARCHITECTURE.md           # System architecture
     ├── TROUBLESHOOTING.md        # Common issues and fixes
     ├── CHANNEL-SETUP.md          # Channel setup guide — SMS, Voice, Email, WhatsApp, LINE (inbound/outbound/two-way)
+    ├── INTEGRATION.md            # Master integration guide — register, get token, sandbox, REST API, MCP, go live
     ├── MARKETING-OVERVIEW.md     # Investor/evangelist overview — capabilities, market case, architecture
     └── references/               # External reference documents
         ├── PROJECT-SCOPE.md

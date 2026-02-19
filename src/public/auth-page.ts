@@ -3,7 +3,10 @@
  * Inline SPA with dark theme matching admin.
  */
 
+import { config } from "../lib/config.js";
+
 export function renderAuthPage(): string {
+  const isSaas = config.edition === "saas";
   return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -100,37 +103,6 @@ export function renderAuthPage(): string {
     .view { display: none; }
     .view.active { display: block; }
 
-    /* Token reveal */
-    .token-box {
-      background: var(--bg-input);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 12px;
-      margin: 16px 0;
-      word-break: break-all;
-      font-family: monospace;
-      font-size: 13px;
-      color: var(--accent);
-      position: relative;
-    }
-    .token-warning {
-      background: rgba(210,153,34,0.15);
-      border: 1px solid rgba(210,153,34,0.3);
-      color: #d29922;
-      padding: 10px 14px;
-      border-radius: 6px;
-      font-size: 13px;
-      margin-bottom: 16px;
-    }
-    .btn-copy {
-      padding: 8px 16px; font-size: 13px; font-weight: 500;
-      background: transparent; color: var(--accent);
-      border: 1px solid var(--border); border-radius: 6px;
-      cursor: pointer; margin-right: 8px; transition: all 0.2s;
-    }
-    .btn-copy:hover { border-color: var(--accent); }
-    .actions { display: flex; gap: 8px; margin-top: 12px; }
-
     .back-link {
       display: block; text-align: center; margin-top: 24px;
       font-size: 14px; color: var(--text-muted);
@@ -202,6 +174,20 @@ export function renderAuthPage(): string {
           <input type="text" id="reg-org" required minlength="2" placeholder="Defaults to your email">
           <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">You can change this to a company name later in settings.</p>
         </div>
+        ${isSaas ? `
+        <div class="form-group">
+          <label>Company Name</label>
+          <input type="text" id="reg-company" placeholder="Your company's legal name">
+        </div>
+        <div class="form-group">
+          <label>Website</label>
+          <input type="url" id="reg-website" placeholder="https://example.com">
+        </div>
+        <div class="form-group">
+          <label>Use Case</label>
+          <input type="text" id="reg-usecase" placeholder="Briefly describe how you'll use the API">
+        </div>
+        ` : ""}
         <div class="form-group" style="display:flex;align-items:flex-start;gap:10px;">
           <input type="checkbox" id="reg-tos" required style="margin-top:3px;width:auto;flex-shrink:0;">
           <label for="reg-tos" style="font-size:13px;color:var(--text-muted);cursor:pointer;">
@@ -234,55 +220,6 @@ export function renderAuthPage(): string {
       <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;">
         <a href="#" onclick="showView('register')" style="font-size:13px;">&larr; Back to fix email</a>
         <button type="button" id="resend-btn" onclick="resendCode()" style="background:none;border:1px solid var(--border);color:var(--accent);padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer;" disabled>Resend code (60s)</button>
-      </div>
-    </div>
-
-    <!-- Token Reveal View -->
-    <div id="token-view" class="view">
-      <h2>You're All Set!</h2>
-      <div class="token-warning">
-        Save this token now! It cannot be recovered later. You'll use it to access the admin panel.
-      </div>
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px;">Your organization token:</p>
-      <div class="token-box" id="token-display"></div>
-      <div class="actions">
-        <button class="btn-copy" onclick="copyToken()">Copy Token</button>
-        <a href="/admin" class="btn" style="text-align:center;text-decoration:none;flex:1;">Go to Admin Panel</a>
-      </div>
-
-      <!-- What's Next Guide -->
-      <div id="whats-next" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
-        <h3 style="font-size:16px;color:var(--text-heading);margin-bottom:12px;">What's Next?</h3>
-        <ol style="list-style:none;counter-reset:steps;padding:0;margin:0;">
-          <li style="counter-increment:steps;display:flex;gap:12px;margin-bottom:10px;font-size:13px;color:var(--text-muted);">
-            <span style="flex-shrink:0;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">1</span>
-            <span><strong style="color:var(--text);">Copy your token</strong> and keep it safe — you'll need it to sign in.</span>
-          </li>
-          <li style="counter-increment:steps;display:flex;gap:12px;margin-bottom:10px;font-size:13px;color:var(--text-muted);">
-            <span style="flex-shrink:0;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">2</span>
-            <span><strong style="color:var(--text);">Go to the <a href="/admin">Admin Panel</a></strong> and sign in with your token.</span>
-          </li>
-          <li style="counter-increment:steps;display:flex;gap:12px;margin-bottom:10px;font-size:13px;color:var(--text-muted);">
-            <span style="flex-shrink:0;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">3</span>
-            <span><strong style="color:var(--text);">You start in Sandbox Mode</strong> — mock providers, no real messages. Safe to experiment.</span>
-          </li>
-          <li style="counter-increment:steps;display:flex;gap:12px;margin-bottom:10px;font-size:13px;color:var(--text-muted);">
-            <span style="flex-shrink:0;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">4</span>
-            <span><strong style="color:var(--text);">Provision your first agent</strong> from the Agents tab in the admin panel.</span>
-          </li>
-          <li style="counter-increment:steps;display:flex;gap:12px;margin-bottom:10px;font-size:13px;color:var(--text-muted);">
-            <span style="flex-shrink:0;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">5</span>
-            <span><strong style="color:var(--text);">Test with the Simulator</strong> or <a href="/docs/api-reference">REST API</a>.</span>
-          </li>
-          <li style="counter-increment:steps;display:flex;gap:12px;margin-bottom:10px;font-size:13px;color:var(--text-muted);">
-            <span style="flex-shrink:0;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">6</span>
-            <span><strong style="color:var(--text);">Read the <a href="/docs/integration">Integration Guide</a></strong> for SSE and REST connection details.</span>
-          </li>
-          <li style="counter-increment:steps;display:flex;gap:12px;font-size:13px;color:var(--text-muted);">
-            <span style="flex-shrink:0;width:24px;height:24px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">7</span>
-            <span><strong style="color:var(--text);">Your account will be reviewed</strong> for production access. We'll notify you once approved.</span>
-          </li>
-        </ol>
       </div>
     </div>
 
@@ -345,7 +282,6 @@ export function renderAuthPage(): string {
   }
 
   let pendingEmail = '';
-  let revealedToken = '';
 
   // Auto-fill account name from email
   document.getElementById('reg-email').addEventListener('input', function() {
@@ -376,11 +312,20 @@ export function renderAuthPage(): string {
       return;
     }
 
+    // Collect optional KYC fields (SaaS only)
+    const payload = { email, password, orgName, tosAccepted };
+    const companyEl = document.getElementById('reg-company');
+    const websiteEl = document.getElementById('reg-website');
+    const usecaseEl = document.getElementById('reg-usecase');
+    if (companyEl) payload.companyName = companyEl.value.trim();
+    if (websiteEl) payload.website = websiteEl.value.trim();
+    if (usecaseEl) payload.useCase = usecaseEl.value.trim();
+
     try {
       const res = await fetch('/auth/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, orgName, tosAccepted }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -456,10 +401,8 @@ export function renderAuthPage(): string {
         btn.disabled = false; btn.textContent = 'Verify Email';
         return;
       }
-      // Show token
-      revealedToken = data.orgToken || '';
-      document.getElementById('token-display').textContent = revealedToken;
-      showView('token');
+      // Redirect straight to admin (session cookie set by server)
+      window.location.href = data.redirect || '/admin';
     } catch (err) {
       showError('verify', 'Network error. Try again.');
     }
@@ -487,10 +430,8 @@ export function renderAuthPage(): string {
         btn.disabled = false; btn.textContent = 'Sign In';
         return;
       }
-      // Show token
-      revealedToken = data.orgToken || '';
-      document.getElementById('token-display').textContent = revealedToken;
-      showView('token');
+      // Redirect straight to admin (session cookie set by server)
+      window.location.href = data.redirect || '/admin';
     } catch (err) {
       showError('login', 'Network error. Try again.');
     }
@@ -561,14 +502,6 @@ export function renderAuthPage(): string {
     }
   }
 
-  // ── Copy token ─────────────────────────────
-  function copyToken() {
-    navigator.clipboard.writeText(revealedToken).then(() => {
-      const btn = document.querySelector('.btn-copy');
-      btn.textContent = 'Copied!';
-      setTimeout(() => { btn.textContent = 'Copy Token'; }, 2000);
-    });
-  }
 </script>
 
 </body>

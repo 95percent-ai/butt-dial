@@ -82,7 +82,7 @@ export function resetBruteForceTracker(): void {
   bruteForceTracker.clear();
 }
 
-// Extend Express Request to include auth (MCP SDK reads this)
+// Extend Express Request to include auth (MCP SDK reads this) and cookies
 declare global {
   namespace Express {
     interface Request {
@@ -92,6 +92,7 @@ declare global {
         scopes: string[];
         orgId?: string;
       };
+      cookies?: Record<string, string>;
     }
   }
 }

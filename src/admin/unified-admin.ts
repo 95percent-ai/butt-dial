@@ -951,10 +951,10 @@ export function renderAdminPage(specJson: string): string {
   <div id="login-overlay">
     <div class="login-box">
       <h1>Butt-Dial Admin</h1>
-      <p>Enter your master security token to continue.</p>
+      <p>Sign in with your API token (for super-admins).</p>
       <form id="login-form" autocomplete="off">
         <div class="login-token-wrapper">
-          <input type="password" id="login-token" placeholder="Master Token" autofocus>
+          <input type="password" id="login-token" placeholder="API Token" autofocus>
           <button type="button" class="login-eye-btn" id="login-eye-btn" onclick="toggleTokenVisibility()" tabindex="-1">
             <svg id="eye-icon-show" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -966,11 +966,11 @@ export function renderAdminPage(specJson: string): string {
             </svg>
           </button>
         </div>
-        <button type="submit">Sign In</button>
+        <button type="submit">Sign In with Token</button>
       </form>
       <div class="login-error" id="login-error"></div>
       <p style="text-align:center;margin-top:16px;font-size:13px;color:#8b949e;">
-        Don't have an account? <a href="/auth/login" style="color:#58a6ff;">Register</a>
+        <a href="/auth/login" style="color:#58a6ff;">Sign in with email</a> &nbsp;|&nbsp; <a href="/auth/login" style="color:#58a6ff;">Register</a>
       </p>
     </div>
   </div>
@@ -1047,6 +1047,19 @@ export function renderAdminPage(specJson: string): string {
           <div class="service-dot"><span class="dot" id="svc-whatsapp"></span> WhatsApp</div>
           <div class="service-dot"><span class="dot" id="svc-voice"></span> Voice AI</div>
           <div class="service-dot"><span class="dot" id="svc-assistant"></span> Assistant</div>
+        </div>
+
+        <!-- API Key Card -->
+        <div id="api-key-card" class="card" style="margin-bottom:20px;padding:20px 24px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+            <h3 style="font-size:15px;font-weight:600;color:var(--text-heading);margin:0;">Your API Key</h3>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-sm btn-secondary" onclick="copyApiKey()" id="copy-key-btn" style="font-size:12px;padding:4px 12px;">Copy</button>
+              <button class="btn btn-sm" onclick="regenerateApiKey()" style="font-size:12px;padding:4px 12px;background:var(--warning);color:#000;">Regenerate</button>
+            </div>
+          </div>
+          <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-family:monospace;font-size:13px;color:var(--text-muted);word-break:break-all;user-select:all;" id="api-key-display">Loading...</div>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Use this key as <code>Authorization: Bearer &lt;key&gt;</code> for REST API calls and <code>?token=&lt;key&gt;</code> for MCP connections.</p>
         </div>
 
         <div class="health-grid">
@@ -1565,7 +1578,7 @@ export function renderAdminPage(specJson: string): string {
     }
 
     async function apiFetch(url, opts = {}) {
-      const defaults = { headers: authHeaders() };
+      const defaults = { headers: authHeaders(), credentials: 'same-origin' };
       const merged = { ...defaults, ...opts, headers: { ...defaults.headers, ...(opts.headers || {}) } };
       return fetch(url, merged);
     }
@@ -1607,8 +1620,19 @@ export function renderAdminPage(specJson: string): string {
       }
     });
 
-    /* Auto-login if session token exists */
+    /* Auto-login: try session cookie first, then sessionStorage token */
     (async () => {
+      // 1. Try cookie-based auth (set by /auth/api/login or /auth/api/verify-email)
+      try {
+        const cookieRes = await fetch('/admin/api/my-org', { credentials: 'same-origin' });
+        if (cookieRes.ok) {
+          loginOverlay.classList.add('hidden');
+          onAuthenticated();
+          return;
+        }
+      } catch {}
+
+      // 2. Fall back to sessionStorage token (super-admin / backward compat)
       const saved = getToken();
       if (saved) {
         const ok = await attemptLogin(saved);
@@ -1619,12 +1643,14 @@ export function renderAdminPage(specJson: string): string {
     })();
 
     /* ── Logout ───────────────────────────────────────────────── */
-    document.getElementById('logout-btn').addEventListener('click', () => {
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      // Clear server-side session cookie
+      try {
+        await fetch('/auth/api/logout', { method: 'POST', credentials: 'same-origin' });
+      } catch {}
       sessionStorage.removeItem('adminToken');
-      loginOverlay.classList.remove('hidden');
-      loginTokenInput.value = '';
-      loginError.textContent = '';
       if (dashboardTimer) { clearInterval(dashboardTimer); dashboardTimer = null; }
+      window.location.href = '/auth/login';
     });
 
     /* ── Tab Routing ──────────────────────────────────────────── */
@@ -1682,6 +1708,7 @@ export function renderAdminPage(specJson: string): string {
       await checkDemoMode();
       await loadOrgInfo();
       loadDashboard();
+      loadApiKey();
       loadAnalytics();
       loadSettingsStatus();
       loadVoices();
@@ -1737,6 +1764,47 @@ export function renderAdminPage(specJson: string): string {
     }
 
     /* ── Dashboard ────────────────────────────────────────────── */
+    /* ── API Key helpers ──────────────────────────────────── */
+    let cachedApiKey = null;
+
+    async function loadApiKey() {
+      try {
+        const res = await apiFetch('/admin/api/my-token');
+        const data = await res.json();
+        cachedApiKey = data.token || null;
+        const el = document.getElementById('api-key-display');
+        if (el) {
+          el.textContent = cachedApiKey || 'Not available (super-admin or bearer token login)';
+        }
+      } catch {
+        const el = document.getElementById('api-key-display');
+        if (el) el.textContent = 'Failed to load';
+      }
+    }
+
+    window.copyApiKey = function() {
+      if (!cachedApiKey) return;
+      navigator.clipboard.writeText(cachedApiKey).then(() => {
+        const btn = document.getElementById('copy-key-btn');
+        if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000); }
+      });
+    };
+
+    window.regenerateApiKey = async function() {
+      if (!confirm('Regenerate your API key? The old key will still work, but a new one will be generated.')) return;
+      try {
+        const res = await apiFetch('/admin/api/regenerate-token', { method: 'POST' });
+        const data = await res.json();
+        if (data.token) {
+          cachedApiKey = data.token;
+          const el = document.getElementById('api-key-display');
+          if (el) el.textContent = cachedApiKey;
+        }
+      } catch (err) {
+        alert('Failed to regenerate token');
+      }
+    };
+
     async function loadDashboard() {
       try {
         const [dashRes, histRes, healthRes] = await Promise.all([

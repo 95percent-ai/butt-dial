@@ -1,4 +1,4 @@
-<!-- version: 1.9 | updated: 2026-02-18 -->
+<!-- version: 2.0 | updated: 2026-02-19 -->
 
 # AgentOS Communication MCP Server — Spec
 
@@ -280,6 +280,7 @@ Full schema in `docs/references/PROJECT-SCOPE.md`.
 
 - Every tool call authenticated with security token
 - Tokens are rotatable and revocable, bound to agentId (impersonation prevention)
+- **Session cookies for admin UI** — email/password login sets an encrypted session cookie (`__bd_session`, AES-256-CBC). Admin middleware checks cookie before Bearer token. Users go straight to `/admin` after login/registration — no token copy-paste needed. Tokens remain for API/MCP access. (DEC-066)
 - Webhook signatures validated on every inbound request
 - Provider credentials encrypted at rest (AES-256)
 - No PII in logs
@@ -287,7 +288,7 @@ Full schema in `docs/references/PROJECT-SCOPE.md`.
 - Input sanitization: SQL injection, XSS, header injection, path traversal, command injection prevention
 - Replay attack prevention: webhook timestamps checked (5-minute window)
 - Anomaly detection: volume spikes, geo anomalies, rapid token rotation, brute force
-- Admin endpoints separately authenticated
+- Admin endpoints separately authenticated (session cookie or Bearer token)
 - CORS + CSP headers on all responses
 
 ---
@@ -325,6 +326,7 @@ Full schema in `docs/references/PROJECT-SCOPE.md`.
 
 ## Admin Features
 
+- **Session-based login** — register or log in at `/auth/login`, auto-redirected to admin panel via session cookie. Token-based login preserved for super-admins and API access.
 - **WhatsApp alerts** to admin on critical events (CRITICAL/HIGH/MEDIUM/LOW severity)
 - **Swagger UI** at `/admin/api-docs` — interactive API explorer
 - **Setup wizard** at `/admin/setup` — 7-step guided configuration
@@ -443,3 +445,4 @@ When complete, the server should:
 25. Consent tracking with pre-send enforcement
 26. Sandbox-to-production gating with admin approval
 27. Data retention auto-purge
+28. Session cookie auth for admin panel — login/register → auto-redirect to admin

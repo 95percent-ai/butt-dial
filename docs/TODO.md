@@ -1,4 +1,4 @@
-<!-- version: 4.7 | updated: 2026-02-19 -->
+<!-- version: 4.9 | updated: 2026-02-19 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -384,11 +384,39 @@ Global compliance guardrails, distribution tiers, consent tracking, and data ret
 ### Tests & Verification
 - [x] **F1-F7.** 84/84 assertions pass (legal pages, country rules, consent tracking, sandbox gating, edition gating, data retention, regression)
 
+## Phase 26 — Simplify Third-Party Integration
+Dead-simple developer onboarding: register → get token → test in sandbox → go live.
+
+### A. Edition-Aware Registration
+- [x] **A1.** Community/enterprise auto-approves accounts on email verification (no KYC gate)
+- [x] **A2.** KYC fields (company, website, use case) hidden for non-SaaS editions
+- [x] **A3.** Pending accounts endpoint returns empty for non-SaaS editions
+
+### B. API Token in Admin Panel
+- [x] **B1.** `GET /admin/api/my-token` — returns org token from session cookie
+- [x] **B2.** `POST /admin/api/regenerate-token` — generates new token, updates session
+- [x] **B3.** API Key card in admin dashboard (copy + regenerate buttons)
+
+### C. Smart Sandbox
+- [x] **C1.** `src/lib/llm-adapter.ts` — plug-and-play LLM interface (Anthropic, OpenAI, custom endpoint)
+- [x] **C2.** `src/lib/sandbox-responder.ts` — fire-and-forget simulated replies after sends
+- [x] **C3.** All mock providers use realistic Twilio-format IDs (SM, CA, PN, EM, WA, LN)
+- [x] **C4.** Config vars: `SANDBOX_LLM_ENABLED`, `SANDBOX_LLM_ENDPOINT`, `SANDBOX_REPLY_DELAY_MS`
+- [x] **C5.** Sandbox reply hook in send-message (MCP + REST) for all 4 channels
+
+### D. Integration Document
+- [x] **D1.** `docs/INTEGRATION.md` — master integration guide
+- [x] **D2.** Updated `/docs/integration` web page
+- [x] **D3.** `GET /api/v1/integration-guide` — returns raw markdown (public, no auth)
+
+### Tests
+- [x] **40/40** assertions pass (`tests/third-party-integration.test.ts`)
+
 ---
 
 ## Open Items
 
-- [ ] Discuss the "You're All Set" screen after registration — the org/account token reveal is confusing. What is it for? Should it be simplified or removed for community edition?
+- [x] ~~Discuss the "You're All Set" screen after registration~~ — Resolved by DEC-066: token reveal screen removed, session cookies auto-redirect to `/admin` after login/registration. Tokens remain for API/MCP access only.
 
 ---
 

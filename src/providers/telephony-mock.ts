@@ -3,6 +3,7 @@
  * Only sendSms() is implemented; other methods throw "not implemented".
  */
 
+import { randomUUID } from "crypto";
 import { logger } from "../lib/logger.js";
 import type {
   ITelephonyProvider,
@@ -17,15 +18,23 @@ import type {
 
 let counter = 0;
 
-function generateMockId(): string {
-  counter++;
-  return `mock-msg-${Date.now()}-${counter}`;
+/** Generate realistic Twilio-format IDs */
+function generateSmsId(): string {
+  return `SM${randomUUID().replace(/-/g, "")}`;
+}
+
+function generateCallId(): string {
+  return `CA${randomUUID().replace(/-/g, "")}`;
+}
+
+function generatePhoneSid(): string {
+  return `PN${randomUUID().replace(/-/g, "")}`;
 }
 
 export function createMockTelephonyProvider(): ITelephonyProvider {
   return {
     async sendSms(params: SendSmsParams): Promise<SendSmsResult> {
-      const messageId = generateMockId();
+      const messageId = generateSmsId();
 
       logger.info("mock_sms_sent", {
         messageId,
@@ -33,17 +42,18 @@ export function createMockTelephonyProvider(): ITelephonyProvider {
         to: params.to,
         bodyLength: params.body.length,
         mediaUrl: params.mediaUrl || null,
+        sandbox: true,
       });
 
       return {
         messageId,
         status: "sent",
-        cost: 0.0075,
+        cost: 0.0079,
       };
     },
 
     async makeCall(params: MakeCallParams): Promise<MakeCallResult> {
-      const callSid = `mock-call-${Date.now()}-${++counter}`;
+      const callSid = generateCallId();
 
       logger.info("mock_call_made", {
         callSid,
@@ -51,6 +61,7 @@ export function createMockTelephonyProvider(): ITelephonyProvider {
         to: params.to,
         hasTwiml: !!params.twiml,
         webhookUrl: params.webhookUrl ?? null,
+        sandbox: true,
       });
 
       return { callSid, status: "queued" };
@@ -72,7 +83,7 @@ export function createMockTelephonyProvider(): ITelephonyProvider {
     async buyNumber(params: BuyNumberParams): Promise<BuyNumberResult> {
       const areaCode = params.areaCode || "200";
       const phoneNumber = `+1555${areaCode}${String(++counter).padStart(4, "0")}`;
-      const sid = `PN${Date.now()}${counter}`;
+      const sid = generatePhoneSid();
 
       logger.info("mock_number_bought", {
         phoneNumber,

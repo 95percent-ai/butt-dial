@@ -66,6 +66,15 @@ npm run seed    # Creates test agent (test-agent-001)
 node dist/index.js
 ```
 
+## Registration & Login
+
+1. Visit http://localhost:3100/auth/login
+2. Create an account (email, password, account name, accept ToS)
+3. Verify your email with the 6-digit code
+4. You're redirected straight to the admin panel — no token copy needed
+
+Session cookies handle browser auth automatically. Tokens are for programmatic access (MCP agents, REST API).
+
 ## Web Setup Wizard
 
 Visit http://localhost:3100/admin/setup for guided setup:
