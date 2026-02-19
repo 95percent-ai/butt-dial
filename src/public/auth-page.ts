@@ -198,24 +198,9 @@ export function renderAuthPage(): string {
           </div>
         </div>
         <div class="form-group">
-          <label>Organization Name</label>
-          <input type="text" id="reg-org" required minlength="2" placeholder="My Company">
-        </div>
-        <p style="font-size:12px;color:var(--text-muted);margin:12px 0 16px;border-top:1px solid var(--border);padding-top:12px;">
-          The following fields help us review your account for production access. They are optional but speed up approval. See our <a href="/legal/privacy" target="_blank">Privacy Policy</a>.
-        </p>
-        <div class="form-group">
-          <label>Company Name (optional)</label>
-          <input type="text" id="reg-company" placeholder="Legal company name">
-        </div>
-        <div class="form-group">
-          <label>Website (optional)</label>
-          <input type="url" id="reg-website" placeholder="https://example.com">
-        </div>
-        <div class="form-group">
-          <label>Use Case (optional)</label>
-          <textarea id="reg-usecase" rows="3" placeholder="Describe how you plan to use communication channels"
-            style="width:100%;padding:10px 12px;font-size:14px;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;outline:none;resize:vertical;font-family:var(--font);transition:border-color 0.2s;"></textarea>
+          <label>Account Name</label>
+          <input type="text" id="reg-org" required minlength="2" placeholder="Defaults to your email">
+          <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">You can change this to a company name later in settings.</p>
         </div>
         <div class="form-group" style="display:flex;align-items:flex-start;gap:10px;">
           <input type="checkbox" id="reg-tos" required style="margin-top:3px;width:auto;flex-shrink:0;">
@@ -246,6 +231,10 @@ export function renderAuthPage(): string {
         </div>
         <button type="submit" class="btn" id="verify-btn">Verify Email</button>
       </form>
+      <div style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;">
+        <a href="#" onclick="showView('register')" style="font-size:13px;">&larr; Back to fix email</a>
+        <button type="button" id="resend-btn" onclick="resendCode()" style="background:none;border:1px solid var(--border);color:var(--accent);padding:6px 14px;border-radius:6px;font-size:13px;cursor:pointer;" disabled>Resend code (60s)</button>
+      </div>
     </div>
 
     <!-- Token Reveal View -->
@@ -358,6 +347,17 @@ export function renderAuthPage(): string {
   let pendingEmail = '';
   let revealedToken = '';
 
+  // Auto-fill account name from email
+  document.getElementById('reg-email').addEventListener('input', function() {
+    const orgField = document.getElementById('reg-org');
+    if (!orgField.dataset.edited) {
+      orgField.value = this.value.split('@')[0] || '';
+    }
+  });
+  document.getElementById('reg-org').addEventListener('input', function() {
+    this.dataset.edited = '1';
+  });
+
   // ── Register ───────────────────────────────
   document.getElementById('register-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -366,10 +366,8 @@ export function renderAuthPage(): string {
 
     const email = document.getElementById('reg-email').value;
     const password = document.getElementById('reg-password').value;
-    const orgName = document.getElementById('reg-org').value;
-    const companyName = document.getElementById('reg-company').value.trim() || undefined;
-    const website = document.getElementById('reg-website').value.trim() || undefined;
-    const useCaseDescription = document.getElementById('reg-usecase').value.trim() || undefined;
+    const orgField = document.getElementById('reg-org');
+    const orgName = orgField.value.trim() || email.split('@')[0];
     const tosAccepted = document.getElementById('reg-tos').checked;
 
     if (!tosAccepted) {
@@ -382,7 +380,7 @@ export function renderAuthPage(): string {
       const res = await fetch('/auth/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, orgName, tosAccepted, companyName, website, useCaseDescription }),
+        body: JSON.stringify({ email, password, orgName, tosAccepted }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -394,11 +392,49 @@ export function renderAuthPage(): string {
       pendingEmail = data.email;
       document.getElementById('verify-email-display').textContent = pendingEmail;
       showView('verify');
+      startResendCooldown();
     } catch (err) {
       showError('register', 'Network error. Try again.');
     }
     btn.disabled = false; btn.textContent = 'Create Account';
   });
+
+  // ── Resend code with cooldown ──────────────
+  let resendTimer = null;
+  function startResendCooldown() {
+    const btn = document.getElementById('resend-btn');
+    let seconds = 60;
+    btn.disabled = true;
+    btn.textContent = 'Resend code (' + seconds + 's)';
+    resendTimer = setInterval(() => {
+      seconds--;
+      if (seconds <= 0) {
+        clearInterval(resendTimer);
+        btn.disabled = false;
+        btn.textContent = 'Resend code';
+      } else {
+        btn.textContent = 'Resend code (' + seconds + 's)';
+      }
+    }, 1000);
+  }
+
+  window.resendCode = async function() {
+    if (!pendingEmail) return;
+    const btn = document.getElementById('resend-btn');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    try {
+      await fetch('/auth/api/resend-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: pendingEmail }),
+      });
+    } catch (e) {}
+    startResendCooldown();
+    const sa = document.getElementById('verify-success-alert');
+    sa.textContent = 'A new code has been sent.';
+    sa.classList.add('show');
+  };
 
   // ── Verify ─────────────────────────────────
   document.getElementById('verify-form').addEventListener('submit', async (e) => {

@@ -45,6 +45,26 @@ function checkRegistrationRate(ip: string): boolean {
   return true;
 }
 
+// ── Pending registrations (in-memory, expires in 10 min) ────────
+
+interface PendingRegistration {
+  email: string;
+  passwordHash: string;
+  passwordSalt: string;
+  orgName: string;
+  expiresAt: number;
+}
+
+const pendingRegistrations = new Map<string, PendingRegistration>();
+
+// Cleanup expired entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of pendingRegistrations) {
+    if (now > entry.expiresAt) pendingRegistrations.delete(key);
+  }
+}, 5 * 60 * 1000);
+
 // ── Token encryption helpers ────────────────────────────────────
 
 function getEncryptionKey(): Buffer {
@@ -81,7 +101,7 @@ authApiRouter.post("/register", (req: Request, res: Response) => {
       return;
     }
 
-    const { email, password, orgName, tosAccepted, companyName, website, useCaseDescription } = req.body ?? {};
+    const { email, password, orgName, tosAccepted } = req.body ?? {};
 
     // Validate input
     if (!email || typeof email !== "string" || !email.includes("@")) {
@@ -93,7 +113,7 @@ authApiRouter.post("/register", (req: Request, res: Response) => {
       return;
     }
     if (!orgName || typeof orgName !== "string" || orgName.trim().length < 2) {
-      res.status(400).json({ error: "Organization name is required (min 2 characters)" });
+      res.status(400).json({ error: "Account name is required (min 2 characters)" });
       return;
     }
     if (!tosAccepted) {
@@ -111,7 +131,7 @@ authApiRouter.post("/register", (req: Request, res: Response) => {
     const db = getProvider("database");
     const normalizedEmail = email.toLowerCase().trim();
 
-    // Check duplicate email
+    // Check duplicate email (in DB)
     const existing = db.query<{ id: string }>(
       "SELECT id FROM user_accounts WHERE email = ?",
       [normalizedEmail],
@@ -121,24 +141,15 @@ authApiRouter.post("/register", (req: Request, res: Response) => {
       return;
     }
 
-    // Hash password
+    // Hash password and store in memory (account created only after OTP verification)
     const { hash, salt } = hashPassword(password);
-
-    // Create org
-    const slug = orgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    const { org, rawToken } = createOrganization(db, orgName.trim(), slug + "-" + randomUUID().slice(0, 8));
-
-    // Encrypt the raw token for later reveal
-    const pendingTokenEnc = encryptToken(rawToken);
-
-    // Insert user account with ToS acceptance and KYC fields
-    const userId = randomUUID();
-    db.run(
-      `INSERT INTO user_accounts (id, email, password_hash, password_salt, org_id, pending_token_enc, tos_accepted_at, company_name, website, use_case_description, account_status)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, 'pending_review')`,
-      [userId, normalizedEmail, hash, salt, org.id, pendingTokenEnc,
-       companyName || null, website || null, useCaseDescription || null],
-    );
+    pendingRegistrations.set(normalizedEmail, {
+      email: normalizedEmail,
+      passwordHash: hash,
+      passwordSalt: salt,
+      orgName: orgName.trim(),
+      expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+    });
 
     // Generate OTP for email verification
     const { code } = generateOtp(db, "system", normalizedEmail, "email");
@@ -148,17 +159,52 @@ authApiRouter.post("/register", (req: Request, res: Response) => {
       logger.info("registration_otp_demo", { email: normalizedEmail, code });
       console.log(`[DEMO] Verification code for ${normalizedEmail}: ${code}`);
     } else {
-      // Use Resend email provider if available
       sendVerificationEmail(normalizedEmail, code).catch((err) => {
         logger.error("verification_email_failed", { email: normalizedEmail, error: String(err) });
       });
     }
 
-    logger.info("user_registered", { email: normalizedEmail, orgId: org.id });
+    logger.info("registration_pending", { email: normalizedEmail });
     res.json({ success: true, email: normalizedEmail });
   } catch (err) {
     logger.error("register_error", { error: String(err) });
     res.status(500).json({ error: "Registration failed. Please try again." });
+  }
+});
+
+// ── POST /resend-code ───────────────────────────────────────────
+
+authApiRouter.post("/resend-code", (req: Request, res: Response) => {
+  try {
+    const { email } = req.body ?? {};
+    if (!email) {
+      res.status(400).json({ error: "Email is required" });
+      return;
+    }
+
+    const db = getProvider("database");
+    const normalizedEmail = String(email).toLowerCase().trim();
+
+    // Check if there's a pending registration
+    const pending = pendingRegistrations.get(normalizedEmail);
+
+    if (pending && Date.now() <= pending.expiresAt) {
+      const { code } = generateOtp(db, "system", normalizedEmail, "email");
+      if (config.demoMode) {
+        logger.info("resend_otp_demo", { email: normalizedEmail, code });
+        console.log(`[DEMO] Resent verification code for ${normalizedEmail}: ${code}`);
+      } else {
+        sendVerificationEmail(normalizedEmail, code).catch((err) => {
+          logger.error("resend_verification_email_failed", { error: String(err) });
+        });
+      }
+    }
+
+    // Always return success (don't reveal if email exists)
+    res.json({ success: true });
+  } catch (err) {
+    logger.error("resend_code_error", { error: String(err) });
+    res.status(500).json({ error: "Failed to resend code" });
   }
 });
 
@@ -176,42 +222,47 @@ authApiRouter.post("/verify-email", (req: Request, res: Response) => {
     const db = getProvider("database");
     const normalizedEmail = String(email).toLowerCase().trim();
 
-    // Find user
-    const users = db.query<UserAccount>(
-      "SELECT * FROM user_accounts WHERE email = ?",
-      [normalizedEmail],
-    );
-    if (users.length === 0) {
-      res.status(404).json({ error: "Account not found" });
-      return;
-    }
-
-    const user = users[0];
-    if (user.email_verified === 1) {
-      res.status(400).json({ error: "Email already verified" });
-      return;
-    }
-
-    // Verify OTP
+    // Verify OTP first
     const result = verifyOtp(db, "system", normalizedEmail, String(code));
     if (!result.valid) {
       res.status(400).json({ error: result.reason || "Invalid code" });
       return;
     }
 
-    // Mark verified
-    db.run("UPDATE user_accounts SET email_verified = 1 WHERE id = ?", [user.id]);
-
-    // Decrypt and return the org token (shown once)
-    let orgToken: string | null = null;
-    if (user.pending_token_enc) {
-      orgToken = decryptToken(user.pending_token_enc);
-      // Clear the encrypted token — it can't be recovered after this
-      db.run("UPDATE user_accounts SET pending_token_enc = NULL WHERE id = ?", [user.id]);
+    // Check if already verified (account already exists)
+    const existingUsers = db.query<UserAccount>(
+      "SELECT * FROM user_accounts WHERE email = ?",
+      [normalizedEmail],
+    );
+    if (existingUsers.length > 0) {
+      res.status(400).json({ error: "Email already verified" });
+      return;
     }
 
-    logger.info("email_verified", { email: normalizedEmail, orgId: user.org_id });
-    res.json({ success: true, orgToken, orgId: user.org_id });
+    // Get pending registration
+    const pending = pendingRegistrations.get(normalizedEmail);
+    if (!pending || Date.now() > pending.expiresAt) {
+      pendingRegistrations.delete(normalizedEmail);
+      res.status(410).json({ error: "Registration expired. Please register again." });
+      return;
+    }
+
+    // Now create the account + org
+    const slug = pending.orgName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const { org, rawToken } = createOrganization(db, pending.orgName, slug + "-" + randomUUID().slice(0, 8));
+
+    const userId = randomUUID();
+    db.run(
+      `INSERT INTO user_accounts (id, email, password_hash, password_salt, org_id, email_verified, tos_accepted_at, account_status)
+       VALUES (?, ?, ?, ?, ?, 1, datetime('now'), 'pending_review')`,
+      [userId, normalizedEmail, pending.passwordHash, pending.passwordSalt, org.id],
+    );
+
+    // Clean up pending registration
+    pendingRegistrations.delete(normalizedEmail);
+
+    logger.info("account_created", { email: normalizedEmail, orgId: org.id });
+    res.json({ success: true, orgToken: rawToken, orgId: org.id });
   } catch (err) {
     logger.error("verify_email_error", { error: String(err) });
     res.status(500).json({ error: "Verification failed. Please try again." });

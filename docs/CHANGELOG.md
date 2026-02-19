@@ -1,6 +1,42 @@
-<!-- version: 3.6 | updated: 2026-02-18 -->
+<!-- version: 3.7 | updated: 2026-02-19 -->
 
 # Changelog
+
+## Session 22 — 2026-02-19
+
+### Landing Page Updates
+- Added "Open" to hero headline: "Open Communication Infrastructure for AI Agents"
+- Removed "Not a wrapper around Twilio" from subtitle
+- Rewrote "Privacy First" card with accurate features (AES-256 encryption, no content storage, redacted logs)
+- Replaced "Configurable markup for deployers" with "Offshore communication at local prices"
+- Replaced "Unified Conversation Threading" card (was inaccurate) with Privacy First card
+- Changed architecture diagram arrows to bidirectional, all 4 cards on one row
+- Applied `white-space: nowrap` to prevent "Infrastructure" from breaking across lines
+
+### Legal Pages
+- Fixed CSP blocking inline styles on `/legal/*` pages (added to public page CSP rule)
+- Added scroll-to-top button (appears after 300px scroll)
+- Added "Back to Home" link in legal nav bar
+
+### Auth Flow
+- Registration no longer creates account until email is verified with OTP
+- Pending registrations stored in memory (10-min expiry)
+- Account + org created only after valid OTP verification
+- Renamed "Organization Name" to "Account Name", auto-fills from email
+- Removed Company Name, Website, Use Case fields from registration form
+- Added "Back to fix email" link on verify screen
+- Added "Resend code" button with 60-second cooldown
+- Added `/auth/api/resend-code` endpoint
+
+### Decisions
+- DEC-065: Community edition — single user role (sysadmin = account user, same interface)
+
+### Deployed
+- Pushed to both remotes (origin + work) at commit `a0ef17c`
+
+### Open Items
+- "You're All Set" token screen needs discussion — unclear purpose for community edition
+- SaaS future: provider disclaimer, arbitration clause, provider terms links, onboarding visual, trust stats
 
 ## Session 21 — 2026-02-18
 

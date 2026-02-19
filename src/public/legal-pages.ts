@@ -57,9 +57,25 @@ const legalStyle = `
     text-align: center; color: var(--text-muted); font-size: 13px;
   }
   .legal-footer a { color: var(--text-muted); margin: 0 12px; }
+  .scroll-top {
+    position: fixed; bottom: 32px; right: 32px; z-index: 200;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--accent); color: #fff; border: none; cursor: pointer;
+    font-size: 20px; display: none; align-items: center; justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  .scroll-top:hover { transform: scale(1.1); }
+  .scroll-top.visible { display: flex; }
+  .back-home {
+    color: var(--accent); font-size: 13px; font-weight: 500;
+    margin-left: 16px; border-left: 1px solid var(--border); padding-left: 16px;
+  }
   @media (max-width: 640px) {
     .legal-nav { padding: 12px 16px; }
     .legal-container { padding: 80px 16px 40px; }
+    .back-home { display: none; }
+    .scroll-top { bottom: 20px; right: 20px; }
   }
 `;
 
@@ -79,8 +95,10 @@ function legalLayout(title: string, content: string): string {
       <a href="/legal/terms">Terms</a>
       <a href="/legal/aup">Acceptable Use</a>
       <a href="/legal/privacy">Privacy</a>
+      <a href="/" class="back-home">&larr; Back to Home</a>
     </div>
   </nav>
+  <button class="scroll-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Scroll to top">&#8593;</button>
   <div class="legal-container">
     ${content}
     <div class="legal-footer">
@@ -91,6 +109,12 @@ function legalLayout(title: string, content: string): string {
       &copy; ${new Date().getFullYear()} 95percent.ai. All rights reserved.
     </div>
   </div>
+  <script>
+    var btn = document.querySelector('.scroll-top');
+    window.addEventListener('scroll', function() {
+      btn.classList.toggle('visible', window.scrollY > 300);
+    });
+  </script>
 </body>
 </html>`;
 }

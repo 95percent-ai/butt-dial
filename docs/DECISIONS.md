@@ -1,6 +1,12 @@
-<!-- version: 3.7 | updated: 2026-02-18 -->
+<!-- version: 3.8 | updated: 2026-02-19 -->
 
 # Decisions Log
+
+## DEC-065: Community Edition — Single User Role
+**Date:** 2026-02-19
+**What:** In the community (freeware) edition, the sysadmin and the account user are the same person using the same interface. No separate admin vs user roles. The person who deploys it is the person who uses it.
+**Why:** Community edition is self-hosted by a single operator. Adding role separation adds complexity with no benefit — there's only one user. Role separation belongs in enterprise/SaaS editions where multiple users share an instance.
+**Alternatives considered:** Shared role system across all editions (unnecessary overhead for community), separate admin UI (confusing when there's only one user).
 
 ## DEC-060: 3-Tier Distribution Model (Community, Enterprise, SaaS)
 **Date:** 2026-02-18

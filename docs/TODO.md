@@ -1,4 +1,4 @@
-<!-- version: 4.6 | updated: 2026-02-18 -->
+<!-- version: 4.7 | updated: 2026-02-19 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -383,3 +383,19 @@ Global compliance guardrails, distribution tiers, consent tracking, and data ret
 
 ### Tests & Verification
 - [x] **F1-F7.** 84/84 assertions pass (legal pages, country rules, consent tracking, sandbox gating, edition gating, data retention, regression)
+
+---
+
+## Open Items
+
+- [ ] Discuss the "You're All Set" screen after registration — the org/account token reveal is confusing. What is it for? Should it be simplified or removed for community edition?
+
+---
+
+## SaaS Version — Future
+
+- [ ] Add provider disclaimer to Privacy Policy — "We pass data to providers you configure (Twilio, Resend, etc.) and don't control how they handle it"
+- [ ] Add arbitration clause to Terms — mandatory binding arbitration, no class actions
+- [ ] Link to provider terms — section listing Twilio ToS, Resend ToS, Vonage ToS, etc.
+- [ ] 3-step onboarding visual on landing page — Connect → Configure → Communicate
+- [ ] Trust/stats section on landing page — agents connected, messages sent, countries supported

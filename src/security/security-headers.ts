@@ -21,7 +21,7 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
 
   // CSP: pages with inline CSS/JS need unsafe-inline (admin, landing, auth)
   const isAdmin = req.path.startsWith("/admin");
-  const isPublicPage = req.path === "/" || req.path.startsWith("/auth") || req.path.startsWith("/docs");
+  const isPublicPage = req.path === "/" || req.path.startsWith("/auth") || req.path.startsWith("/docs") || req.path.startsWith("/legal");
   if (isAdmin) {
     // Admin pages need CDN access for Chart.js and Swagger UI
     res.setHeader(

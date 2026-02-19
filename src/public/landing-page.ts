@@ -86,6 +86,7 @@ export function renderLandingPage(): string {
       margin-bottom: 24px;
     }
     .hero h1 .gradient {
+      white-space: nowrap;
       background: linear-gradient(135deg, #58a6ff 0%, #3fb950 50%, #d29922 100%);
       background-size: 200% 200%;
       -webkit-background-clip: text;
@@ -157,7 +158,7 @@ export function renderLandingPage(): string {
     /* ── Architecture diagram ─────────────────── */
     .arch-diagram {
       display: flex; align-items: center; justify-content: center;
-      gap: 0; flex-wrap: wrap;
+      gap: 0; flex-wrap: nowrap;
       margin-bottom: 48px;
     }
     .arch-box {
@@ -166,7 +167,9 @@ export function renderLandingPage(): string {
       border-radius: var(--radius);
       padding: 20px 28px;
       text-align: center;
-      min-width: 160px;
+      min-width: 140px;
+      flex: 1 1 0;
+      max-width: 240px;
     }
     .arch-box.arch-highlight {
       border-color: var(--accent);
@@ -306,7 +309,8 @@ export function renderLandingPage(): string {
       .nav-links a:not(.btn-nav) { display: none; }
       section { padding: 48px 16px; }
       .sec-grid { grid-template-columns: 1fr; }
-      .arch-diagram { flex-direction: column; }
+      .arch-diagram { flex-direction: column; flex-wrap: nowrap; }
+      .arch-box { max-width: 100%; min-width: auto; }
       .arch-arrow { transform: rotate(90deg); padding: 8px 0; }
     }
   </style>
@@ -327,8 +331,8 @@ export function renderLandingPage(): string {
 
   <!-- 2. Hero -->
   <section class="hero">
-    <h1>Communication <span class="gradient">Infrastructure</span> for AI Agents</h1>
-    <p class="hero-sub">Phone calls, SMS, email, WhatsApp. Not a wrapper around Twilio &mdash; a production-grade communication layer with pluggable providers, real-time translation, compliance, billing, and zero vendor lock-in. Self-hosted. Open source.</p>
+    <h1>Open Communication <span class="gradient">Infrastructure</span> for AI Agents</h1>
+    <p class="hero-sub">Phone calls, SMS, email, WhatsApp. A production-grade communication layer with pluggable providers, real-time translation, compliance, billing, and zero vendor lock-in. Self-hosted. Open source.</p>
     <div class="hero-cta">
       <a href="/auth/login" class="btn-primary">Get Started Free</a>
       <a href="https://github.com/elrad/butt-dial-mcp" target="_blank" class="btn-secondary">View on GitHub</a>
@@ -378,19 +382,19 @@ export function renderLandingPage(): string {
         <span class="arch-label">AI Agent</span>
         <span class="arch-desc">Your LLM decides what to say</span>
       </div>
-      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-arrow">&#8596;</div>
       <div class="arch-box arch-highlight">
         <span class="arch-icon">&#128222;</span>
         <span class="arch-label">Butt-Dial Server</span>
         <span class="arch-desc">MCP communication layer</span>
       </div>
-      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-arrow">&#8596;</div>
       <div class="arch-box">
         <span class="arch-icon">&#128268;</span>
         <span class="arch-label">Providers</span>
         <span class="arch-desc">Twilio, Vonage, Resend&hellip;</span>
       </div>
-      <div class="arch-arrow">&#8594;</div>
+      <div class="arch-arrow">&#8596;</div>
       <div class="arch-box">
         <span class="arch-icon">&#128100;</span>
         <span class="arch-label">Human</span>
@@ -438,7 +442,7 @@ export function renderLandingPage(): string {
         <p class="feature-desc">Per-agent language settings. Caller speaks one language, agent works in another. Translated in both directions.</p>
         <ul>
           <li>Works on voice, SMS, WhatsApp, and email</li>
-          <li>Original text preserved for audit</li>
+          <li>Available for Human to human communication</li>
           <li>Set per agent, not per account</li>
           <li>No extra API &mdash; built into the pipeline</li>
         </ul>
@@ -452,7 +456,7 @@ export function renderLandingPage(): string {
           <li>Send an SMS while on a call</li>
           <li>Fire off a confirmation email</li>
           <li>Transfer to a human when needed</li>
-          <li>Any MCP tool, triggered by voice</li>
+          <li>Trigger a webhook or any MCP tool</li>
         </ul>
       </div>
 
@@ -469,14 +473,14 @@ export function renderLandingPage(): string {
       </div>
 
       <div class="feature-detail-card">
-        <span class="feature-icon">&#128279;</span>
-        <h3>Unified Conversation Threading</h3>
-        <p class="feature-desc">All channels merge into one thread per contact. Customer texts, then calls, then emails &mdash; your agent sees the full history.</p>
+        <span class="feature-icon">&#128274;</span>
+        <h3>Privacy First</h3>
+        <p class="feature-desc">Self-hosted by design. Message content passes through &mdash; never stored. Credentials encrypted at rest. Logs redacted automatically.</p>
         <ul>
-          <li>Cross-channel context continuity</li>
-          <li>Single thread per phone/email contact</li>
-          <li>Agent sees previous interactions</li>
-          <li>No fragmented conversations</li>
+          <li>Self-hosted &mdash; data never leaves your server</li>
+          <li>Message content passes through, never stored</li>
+          <li>Credentials encrypted with AES-256</li>
+          <li>Phone numbers and emails redacted in logs</li>
         </ul>
       </div>
 
@@ -486,7 +490,7 @@ export function renderLandingPage(): string {
         <p class="feature-desc">Per-agent cost tracking with tiered plans. Deploy for clients and monetize from day one.</p>
         <ul>
           <li>4 tiers: Free, Starter, Pro, Enterprise</li>
-          <li>Configurable markup for deployers</li>
+          <li>Offshore communication at local prices</li>
           <li>Per-agent and per-org spending caps</li>
           <li>Usage dashboards with cost breakdown</li>
         </ul>
