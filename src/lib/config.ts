@@ -154,6 +154,13 @@ const configSchema = z.object({
   sandboxLlmEndpoint: z.string().optional(),
   sandboxReplyDelayMs: z.coerce.number().default(2000),
 
+  // AI voice disclosure (FCC compliance — ON by default)
+  voiceAiDisclosure: z
+    .string()
+    .transform((v) => v !== "false")
+    .default("true"),
+  voiceAiDisclosureText: z.string().default("Please note, this is an AI-generated call. "),
+
   // Billing
   billingMarkupPercent: z.coerce.number().default(0),
 
@@ -244,6 +251,8 @@ function loadConfig() {
     sandboxLlmEnabled: process.env.SANDBOX_LLM_ENABLED,
     sandboxLlmEndpoint: process.env.SANDBOX_LLM_ENDPOINT,
     sandboxReplyDelayMs: process.env.SANDBOX_REPLY_DELAY_MS,
+    voiceAiDisclosure: process.env.VOICE_AI_DISCLOSURE,
+    voiceAiDisclosureText: process.env.VOICE_AI_DISCLOSURE_TEXT,
     billingMarkupPercent: process.env.BILLING_MARKUP_PERCENT,
     demoMode: process.env.DEMO_MODE,
   };

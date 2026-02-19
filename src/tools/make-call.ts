@@ -19,7 +19,7 @@ import { requireAgentInOrg } from "../security/org-scope.js";
 import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 import { checkTcpaTimeOfDay, checkDnc, checkContentFilter } from "../security/compliance.js";
-import { applyGuardrails } from "../security/communication-guardrails.js";
+import { applyGuardrails, applyDisclosure } from "../security/communication-guardrails.js";
 import { resolveFromNumber } from "../lib/number-pool.js";
 
 interface AgentRow {
@@ -181,7 +181,7 @@ export function registerMakeCallTool(server: McpServer): void {
       storeCallConfig(sessionId, {
         agentId,
         systemPrompt: applyGuardrails(systemPrompt || config.voiceDefaultSystemPrompt),
-        greeting: greeting || config.voiceDefaultGreeting,
+        greeting: applyDisclosure(greeting || config.voiceDefaultGreeting),
         voice: voice || config.voiceDefaultVoice,
         language: callLang,
         callerLanguage: targetLanguage || undefined,

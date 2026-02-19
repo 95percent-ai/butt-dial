@@ -12,7 +12,8 @@ import { generateOtp, verifyOtp } from "../security/otp.js";
 import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
-import { setSessionCookie, clearSessionCookie, COOKIE_MAX_AGE_MS } from "../security/session.js";
+import { setSessionCookie, clearSessionCookie, getSessionFromCookie, COOKIE_MAX_AGE_MS } from "../security/session.js";
+import { DISCLAIMER_VERSION } from "./disclaimer-page.js";
 
 export const authApiRouter = Router();
 
@@ -279,7 +280,8 @@ authApiRouter.post("/verify-email", (req: Request, res: Response) => {
     });
 
     logger.info("account_created", { email: normalizedEmail, orgId: org.id });
-    res.json({ success: true, orgToken: rawToken, orgId: org.id, redirect: "/admin" });
+    // New accounts always need to accept the disclaimer first
+    res.json({ success: true, orgToken: rawToken, orgId: org.id, redirect: "/disclaimer" });
   } catch (err) {
     logger.error("verify_email_error", { error: String(err) });
     res.status(500).json({ error: "Verification failed. Please try again." });
@@ -368,8 +370,23 @@ authApiRouter.post("/login", (req: Request, res: Response) => {
       expiresAt: Date.now() + COOKIE_MAX_AGE_MS,
     });
 
+    // Check if user has accepted current disclaimer version
+    let loginRedirect = "/admin";
+    try {
+      const disclaimerRows = db.query<{ version: string }>(
+        "SELECT version FROM disclaimer_acceptances WHERE user_id = ? AND disclaimer_type = 'platform_usage' ORDER BY accepted_at DESC LIMIT 1",
+        [user.id],
+      );
+      if (disclaimerRows.length === 0 || disclaimerRows[0].version !== DISCLAIMER_VERSION) {
+        loginRedirect = "/disclaimer";
+      }
+    } catch {
+      // Table might not exist yet — send to disclaimer to be safe
+      loginRedirect = "/disclaimer";
+    }
+
     logger.info("user_login", { email: normalizedEmail, orgId: user.org_id });
-    res.json({ success: true, orgToken: freshToken, orgId: user.org_id, redirect: "/admin" });
+    res.json({ success: true, orgToken: freshToken, orgId: user.org_id, redirect: loginRedirect });
   } catch (err) {
     logger.error("login_error", { error: String(err) });
     res.status(500).json({ error: "Login failed. Please try again." });
@@ -461,6 +478,58 @@ authApiRouter.post("/reset-password", (req: Request, res: Response) => {
   } catch (err) {
     logger.error("reset_password_error", { error: String(err) });
     res.status(500).json({ error: "Password reset failed. Please try again." });
+  }
+});
+
+// ── GET /disclaimer-status ───────────────────────────────────
+
+authApiRouter.get("/disclaimer-status", (req: Request, res: Response) => {
+  try {
+    const session = getSessionFromCookie(req);
+    if (!session) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+
+    const db = getProvider("database");
+    const rows = db.query<{ version: string }>(
+      "SELECT version FROM disclaimer_acceptances WHERE user_id = ? AND disclaimer_type = 'platform_usage' ORDER BY accepted_at DESC LIMIT 1",
+      [session.userId],
+    );
+
+    const accepted = rows.length > 0 && rows[0].version === DISCLAIMER_VERSION;
+    res.json({ accepted, currentVersion: DISCLAIMER_VERSION });
+  } catch (err) {
+    logger.error("disclaimer_status_error", { error: String(err) });
+    res.status(500).json({ error: "Failed to check disclaimer status" });
+  }
+});
+
+// ── POST /accept-disclaimer ─────────────────────────────────
+
+authApiRouter.post("/accept-disclaimer", (req: Request, res: Response) => {
+  try {
+    const session = getSessionFromCookie(req);
+    if (!session) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+
+    const db = getProvider("database");
+    const ip = String(req.ip || req.socket.remoteAddress || "unknown");
+    const userAgent = String(req.headers["user-agent"] || "unknown");
+
+    db.run(
+      `INSERT INTO disclaimer_acceptances (id, user_id, org_id, disclaimer_type, version, ip_address, user_agent)
+       VALUES (?, ?, ?, 'platform_usage', ?, ?, ?)`,
+      [randomUUID(), session.userId, session.orgId, DISCLAIMER_VERSION, ip, userAgent],
+    );
+
+    logger.info("disclaimer_accepted", { userId: session.userId, orgId: session.orgId, version: DISCLAIMER_VERSION });
+    res.json({ success: true, redirect: "/admin" });
+  } catch (err) {
+    logger.error("disclaimer_accept_error", { error: String(err) });
+    res.status(500).json({ error: "Failed to record acceptance" });
   }
 });
 

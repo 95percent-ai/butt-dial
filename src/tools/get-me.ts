@@ -19,7 +19,7 @@ import { requireAgentInOrg } from "../security/org-scope.js";
 import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 import { checkTcpaTimeOfDay, checkDnc } from "../security/compliance.js";
-import { applyGuardrails } from "../security/communication-guardrails.js";
+import { applyGuardrails, applyDisclosure } from "../security/communication-guardrails.js";
 import { resolveFromNumber } from "../lib/number-pool.js";
 
 interface AgentRow {
@@ -140,7 +140,7 @@ export function registerGetMeTool(server: McpServer): void {
       const callerName = requesterName || "your contact";
       const calleeName = targetName || "";
       const systemPrompt = buildSecretaryPrompt(callerName, calleeName || "the person", requesterPhone, message);
-      const greeting = buildGreeting(callerName, calleeName, message);
+      const greeting = applyDisclosure(buildGreeting(callerName, calleeName, message));
 
       // Store call config with forceMode so it always uses answering-machine (Anthropic) path
       const sessionId = randomUUID();

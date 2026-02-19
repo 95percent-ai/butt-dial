@@ -121,6 +121,11 @@ export function runMigrations(): void {
   const consentSchema = fs.readFileSync(consentSchemaPath, "utf-8");
   db.exec(consentSchema);
 
+  // Disclaimer acceptance tracking
+  const disclaimerSchemaPath = path.join(projectRoot, "src", "db", "schema-disclaimer.sql");
+  const disclaimerSchema = fs.readFileSync(disclaimerSchemaPath, "utf-8");
+  db.exec(disclaimerSchema);
+
   // Add tos_accepted_at to user_accounts
   try {
     db.run("ALTER TABLE user_accounts ADD COLUMN tos_accepted_at TEXT");

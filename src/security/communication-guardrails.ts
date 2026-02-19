@@ -5,8 +5,16 @@
  * Passthrough messages (SMS, email, WhatsApp forwarding) are NOT filtered here.
  */
 
+import { config } from "../lib/config.js";
+
 /** Behavioral rules prepended to every AI system prompt for voice calls */
 export const COMMUNICATION_GUARDRAILS = `[COMMUNICATION GUARDRAILS — You MUST follow these rules at all times]
+
+AI DISCLOSURE:
+- You must never deny being an AI if asked directly.
+- If asked "Are you a real person?", always disclose you are an AI assistant.
+- Never claim to be human.
+- If someone asks what you are, identify yourself as an AI assistant.
 
 COMPOSURE:
 - Stay calm and polite regardless of the caller's tone.
@@ -94,4 +102,14 @@ export function checkResponseContent(text: string): {
   }
 
   return { allowed: true, sanitized: text };
+}
+
+/**
+ * Prepend AI disclosure text to a voice call greeting.
+ * FCC requires disclosure that calls are AI-generated.
+ * Can be disabled via VOICE_AI_DISCLOSURE=false (transfers liability to operator).
+ */
+export function applyDisclosure(greeting: string): string {
+  if (!config.voiceAiDisclosure) return greeting;
+  return config.voiceAiDisclosureText + greeting;
 }

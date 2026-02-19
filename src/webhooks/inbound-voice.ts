@@ -16,6 +16,7 @@ import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 import { getCallConfig } from "./voice-sessions.js";
 import { getAgentLanguage } from "../lib/translator.js";
+import { applyDisclosure } from "../security/communication-guardrails.js";
 import type { BridgeRoute } from "../providers/interfaces.js";
 
 interface AgentRow {
@@ -150,7 +151,7 @@ export async function handleInboundVoice(req: Request, res: Response): Promise<v
     agentId,
     websocketUrl: wsUrl,
     voice: config.voiceDefaultVoice,
-    greeting: config.voiceDefaultGreeting,
+    greeting: applyDisclosure(config.voiceDefaultGreeting),
     language: agentLang,
   });
 
@@ -188,7 +189,7 @@ export async function handleOutboundVoice(req: Request, res: Response): Promise<
     agentId,
     websocketUrl: wsUrl,
     voice: callConfig?.voice || config.voiceDefaultVoice,
-    greeting: callConfig?.greeting || config.voiceDefaultGreeting,
+    greeting: applyDisclosure(callConfig?.greeting || config.voiceDefaultGreeting),
     language: callConfig?.language || config.voiceDefaultLanguage,
   });
 

@@ -20,6 +20,7 @@ import { orgFilter } from "../security/org-scope.js";
 import { getSessionFromCookie, setSessionCookie, COOKIE_MAX_AGE_MS } from "../security/session.js";
 import type { AuthInfo } from "../security/auth-guard.js";
 import { getDemoDashboard, getDemoUsageHistory, getDemoTopContacts, getDemoAnalytics } from "./demo-data.js";
+import { DISCLAIMER_VERSION } from "../public/disclaimer-page.js";
 
 export const adminRouter = Router();
 
@@ -63,6 +64,21 @@ function adminAuth(req: Request, res: Response, next: NextFunction): void {
       const orgVerified = verifyOrgToken(db, session.orgToken);
       if (orgVerified) {
         req.auth = { token: session.orgToken, clientId: orgVerified.orgId, scopes: ["org-admin"], orgId: orgVerified.orgId };
+
+        // Check disclaimer acceptance for session-based users
+        try {
+          const disclaimerRows = db.query<{ version: string }>(
+            "SELECT version FROM disclaimer_acceptances WHERE user_id = ? AND disclaimer_type = 'platform_usage' ORDER BY accepted_at DESC LIMIT 1",
+            [session.userId],
+          );
+          if (disclaimerRows.length === 0 || disclaimerRows[0].version !== DISCLAIMER_VERSION) {
+            (req as any).disclaimerRequired = true;
+          }
+        } catch {
+          // Table might not exist yet
+          (req as any).disclaimerRequired = true;
+        }
+
         next();
         return;
       }
@@ -104,8 +120,28 @@ function adminAuth(req: Request, res: Response, next: NextFunction): void {
   res.status(401).json({ error: "Invalid admin token" });
 }
 
+// ── Disclaimer gate middleware for admin API endpoints ─────────────
+function disclaimerGate(req: Request, res: Response, next: NextFunction): void {
+  if ((req as any).disclaimerRequired) {
+    // For API calls, return JSON redirect
+    const accept = req.headers.accept || "";
+    if (accept.includes("application/json") || req.xhr || req.path.startsWith("/admin/api/")) {
+      res.status(403).json({ requiresDisclaimer: true, redirectUrl: "/disclaimer" });
+      return;
+    }
+    // For HTML requests, redirect
+    res.redirect("/disclaimer");
+    return;
+  }
+  next();
+}
+
 // ── Unified Admin Page ────────────────────────────────────────────
-adminRouter.get("/admin", (_req: Request, res: Response) => {
+adminRouter.get("/admin", adminAuth, (req: Request, res: Response) => {
+  if ((req as any).disclaimerRequired) {
+    res.redirect("/disclaimer");
+    return;
+  }
   const spec = generateOpenApiSpec();
   res.type("html").send(renderAdminPage(JSON.stringify(spec)));
 });
@@ -129,7 +165,7 @@ adminRouter.get("/admin/api-docs/spec.json", (_req: Request, res: Response) => {
 });
 
 /** Dashboard data API — org-scoped */
-adminRouter.get("/admin/api/dashboard", adminAuth, (req: Request, res: Response) => {
+adminRouter.get("/admin/api/dashboard", adminAuth, disclaimerGate, (req: Request, res: Response) => {
   if (config.demoMode) { res.json(getDemoDashboard()); return; }
   try {
     const db = getProvider("database");
@@ -731,6 +767,8 @@ adminRouter.post("/admin/api/save", adminAuth, (req: Request, res: Response) => 
     "IDENTITY_MODE",
     "ISOLATION_MODE",
     "TRANSLATION_ENABLED",
+    "VOICE_AI_DISCLOSURE",
+    "VOICE_AI_DISCLOSURE_TEXT",
   ]);
 
   const filtered: Record<string, string> = {};

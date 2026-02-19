@@ -1392,6 +1392,34 @@ export function renderAdminPage(specJson: string): string {
           </div>
         </div>
 
+        <!-- Compliance Group -->
+        <div class="group-heading">Compliance</div>
+
+        <div class="card" id="card-disclosure">
+          <div class="card-header">
+            <span class="card-title">AI Voice Disclosure</span>
+            <span class="badge badge-info" id="disclosure-badge">--</span>
+          </div>
+          <div class="card-desc">FCC requires AI-generated calls to disclose they are AI at the start. Disabling this transfers legal liability to you.</div>
+          <div class="field">
+            <label>Enable AI Disclosure</label>
+            <select id="disclosure-enabled">
+              <option value="true">Enabled (recommended)</option>
+              <option value="false">Disabled</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Disclosure Text</label>
+            <input type="text" id="disclosure-text" placeholder="Please note, this is an AI-generated call. " value="Please note, this is an AI-generated call. ">
+          </div>
+          <div class="card-desc" style="font-size:0.75rem;color:var(--warning);margin-top:0.5rem;">
+            Warning: Disabling AI disclosure may violate FCC rules and state robocall laws. You assume full legal responsibility.
+          </div>
+          <div class="settings-actions">
+            <button class="btn btn-sm btn-primary" onclick="saveDisclosure()">Save</button>
+          </div>
+        </div>
+
         <!-- Server Group -->
         <div class="group-heading">Server</div>
 
@@ -3053,6 +3081,25 @@ export function renderAdminPage(specJson: string): string {
         });
         const data = await res.json();
         showToast(data.success ? 'Translation ' + (enabled === 'true' ? 'enabled' : 'disabled') : (data.message || 'Failed'), data.success ? 'success' : 'error');
+      } catch {
+        showToast('Network error', 'error');
+      }
+    }
+
+    async function saveDisclosure() {
+      const enabled = document.getElementById('disclosure-enabled').value;
+      const text = document.getElementById('disclosure-text').value;
+      try {
+        var creds = { VOICE_AI_DISCLOSURE: enabled };
+        if (text) creds.VOICE_AI_DISCLOSURE_TEXT = text;
+        const res = await apiFetch('/admin/api/save', {
+          method: 'POST',
+          body: JSON.stringify({ credentials: creds })
+        });
+        const data = await res.json();
+        showToast(data.success ? 'AI disclosure ' + (enabled === 'true' ? 'enabled' : 'disabled') : (data.message || 'Failed'), data.success ? 'success' : 'error');
+        document.getElementById('disclosure-badge').textContent = enabled === 'true' ? 'Enabled' : 'Disabled';
+        document.getElementById('disclosure-badge').className = 'badge ' + (enabled === 'true' ? 'badge-success' : 'badge-warning');
       } catch {
         showToast('Network error', 'error');
       }

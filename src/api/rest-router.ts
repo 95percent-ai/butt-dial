@@ -31,7 +31,7 @@ import { translate, needsTranslation, getAgentLanguage } from "../lib/translator
 import { resolveFromNumber } from "../lib/number-pool.js";
 import { maybeTriggerSandboxReply } from "../lib/sandbox-responder.js";
 import { storeCallConfig } from "../webhooks/voice-sessions.js";
-import { applyGuardrails } from "../security/communication-guardrails.js";
+import { applyGuardrails, applyDisclosure } from "../security/communication-guardrails.js";
 import { metrics } from "../observability/metrics.js";
 import { orgFilter } from "../security/org-scope.js";
 import {
@@ -270,7 +270,7 @@ restRouter.post("/make-call", async (req, res) => {
     storeCallConfig(sessionId, {
       agentId,
       systemPrompt: applyGuardrails(systemPrompt || config.voiceDefaultSystemPrompt),
-      greeting: greeting || config.voiceDefaultGreeting,
+      greeting: applyDisclosure(greeting || config.voiceDefaultGreeting),
       voice: voice || config.voiceDefaultVoice,
       language: callLang,
       callerLanguage: targetLanguage || undefined,
@@ -358,7 +358,8 @@ Your job:
 
 Keep it natural and brief — this is a phone call.`;
     const msgPart = message ? ` ${message}.` : "";
-    const greeting = `Hi${calleeName ? ` ${calleeName}` : ""}, I'm calling on behalf of ${callerName}.${msgPart} Is this a good time to talk?`;
+    const rawGreeting = `Hi${calleeName ? ` ${calleeName}` : ""}, I'm calling on behalf of ${callerName}.${msgPart} Is this a good time to talk?`;
+    const greeting = applyDisclosure(rawGreeting);
 
     const sessionId = randomUUID();
     const agentLang = getAgentLanguage(db, agentId);
