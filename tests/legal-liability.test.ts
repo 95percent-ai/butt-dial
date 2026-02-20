@@ -4,15 +4,15 @@
  * Tests:
  * Part 1 — Disclaimer Gate
  *   1. Schema: disclaimer_acceptances table exists
- *   2. Disclaimer page: GET /disclaimer returns 200 with HTML
+ *   2. Disclaimer page: GET /disclaimer redirects to /admin (modal handles it now)
  *   3. Disclaimer status API: GET /auth/api/disclaimer-status returns JSON
  *   4. Disclaimer accept API: POST /auth/api/accept-disclaimer without auth → 401
- *   5. Registration flow: verify-email returns redirect to /disclaimer
- *   6. Login flow: returns redirect to /disclaimer for new users
+ *   5. Registration flow: verify-email returns redirect to /admin (disclaimer shown as modal)
+ *   6. Login flow: returns redirect to /admin (disclaimer shown as modal)
  *   7. Accept + re-login: returns redirect to /admin
  *   8. Dashboard API: requires disclaimer for cookie-auth users
- *   9. Admin page: redirects to /disclaimer for users who haven't accepted
- *  10. Disclaimer version: page shows version 1.0
+ *   9. Admin page: serves page (disclaimer shown as modal overlay)
+ *  10. Disclaimer content: admin page contains disclaimer modal
  *
  * Part 2 — AI Voice Disclosure
  *  11. Config: voiceAiDisclosure exists in config schema
@@ -102,13 +102,12 @@ async function main() {
     assert(false, "1. disclaimer_acceptances table exists");
   }
 
-  // 2. Disclaimer page
+  // 2. Disclaimer page redirects to /admin (modal handles disclaimer now)
   try {
-    const res = await fetch(`${SERVER_URL}/disclaimer`);
-    const html = await res.text();
-    assert(res.status === 200, "2. GET /disclaimer returns 200");
-    assert(html.includes("Platform Usage Disclaimer"), "2b. Disclaimer page has title");
-    assert(html.includes("accept-disclaimer"), "2c. Disclaimer page has accept endpoint");
+    const res = await fetch(`${SERVER_URL}/disclaimer`, { redirect: "manual" });
+    assert(res.status === 302, "2. GET /disclaimer redirects (302)");
+    const location = res.headers.get("location") || "";
+    assert(location === "/admin", "2b. Disclaimer redirects to /admin");
   } catch (e) {
     assert(false, `2. GET /disclaimer — ${e}`);
   }
@@ -170,7 +169,7 @@ async function main() {
       redirect: "manual",
     });
     const verifyData = await verifyRes.json() as any;
-    assert(verifyData.redirect === "/disclaimer", "5c. Verify-email redirects to /disclaimer");
+    assert(verifyData.redirect === "/admin", "5c. Verify-email redirects to /admin");
 
     // Capture session cookie
     const setCookie = verifyRes.headers.get("set-cookie") || "";
@@ -183,7 +182,7 @@ async function main() {
     assert(false, `5. Registration flow — ${e}`);
   }
 
-  // 6. Login → should redirect to /disclaimer
+  // 6. Login → should redirect to /admin (disclaimer shown as modal)
   try {
     const loginRes = await fetch(`${SERVER_URL}/auth/api/login`, {
       method: "POST",
@@ -191,7 +190,7 @@ async function main() {
       body: JSON.stringify({ email: testEmail, password: testPassword }),
     });
     const loginData = await loginRes.json() as any;
-    assert(loginData.redirect === "/disclaimer", "6. Login redirects to /disclaimer for new users");
+    assert(loginData.redirect === "/admin", "6. Login redirects to /admin (disclaimer as modal)");
 
     // Update session cookie
     const setCookie = loginRes.headers.get("set-cookie") || "";
@@ -242,13 +241,18 @@ async function main() {
     assert(false, `9. Re-login redirect — ${e}`);
   }
 
-  // 10. Disclaimer page version
+  // 10. Admin page contains disclaimer modal with content
   try {
-    const res = await fetch(`${SERVER_URL}/disclaimer`);
+    // Use cookie auth to get the admin page HTML
+    const res = await fetch(`${SERVER_URL}/admin`, {
+      headers: { Cookie: `__bd_session=${sessionCookie}` },
+    });
     const html = await res.text();
-    assert(html.includes("version 1.0"), "10. Disclaimer page shows version 1.0");
+    assert(html.includes("disclaimer-overlay"), "10a. Admin page has disclaimer modal overlay");
+    assert(html.includes("Platform Usage Disclaimer"), "10b. Disclaimer modal has title");
+    assert(html.includes("accept-disclaimer"), "10c. Disclaimer modal has accept endpoint");
   } catch (e) {
-    assert(false, `10. Disclaimer version — ${e}`);
+    assert(false, `10. Disclaimer modal — ${e}`);
   }
 
   db.close();

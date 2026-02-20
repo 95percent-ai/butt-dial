@@ -14,7 +14,7 @@ import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 import { storeCallConfig } from "../webhooks/voice-sessions.js";
 import { getAgentLanguage } from "../lib/translator.js";
-import { requireAgent, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, resolveAgentId, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { requireAgentInOrg } from "../security/org-scope.js";
 import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
@@ -47,7 +47,7 @@ export function registerMakeCallTool(server: McpServer): void {
     "comms_make_call",
     "Initiate an outbound AI voice call. The agent calls a human, and when the call connects, a live conversation begins with an LLM-powered AI agent.",
     {
-      agentId: z.string().describe("The agent ID that owns the calling phone number"),
+      agentId: z.string().optional().describe("Agent ID (auto-detected from agent token if omitted)"),
       to: z.string().describe("Recipient phone number in E.164 format (e.g. +1234567890)"),
       systemPrompt: z
         .string()
@@ -74,7 +74,12 @@ export function registerMakeCallTool(server: McpServer): void {
         .optional()
         .describe("Recipient's IANA timezone (e.g. Asia/Jerusalem, Europe/London). Auto-detected from phone prefix if omitted."),
     },
-    async ({ agentId, to, systemPrompt, greeting, voice, language, targetLanguage, recipientTimezone }, extra) => {
+    async ({ agentId: explicitAgentId, to, systemPrompt, greeting, voice, language, targetLanguage, recipientTimezone }, extra) => {
+      const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
+      if (!agentId) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
+      }
+
       // Auth: agent can only call as themselves
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);

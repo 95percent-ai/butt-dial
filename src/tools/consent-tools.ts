@@ -10,7 +10,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
-import { requireAgent, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, resolveAgentId, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { appendAuditLog } from "../observability/audit-log.js";
 import type { IDBProvider } from "../providers/interfaces.js";
 
@@ -33,14 +33,19 @@ export function registerConsentTools(server: McpServer): void {
     "comms_record_consent",
     "Record that a contact has given consent to be contacted on a specific channel. Required before outbound communications in most jurisdictions.",
     {
-      agentId: z.string().describe("Agent ID this consent applies to"),
+      agentId: z.string().optional().describe("Agent ID (auto-detected from agent token if omitted)"),
       contactAddress: z.string().describe("Phone number or email of the contact"),
       channel: z.enum(["sms", "voice", "email", "whatsapp"]).describe("Communication channel"),
       consentType: z.enum(["express", "implied", "transactional"]).default("express").describe("Type of consent obtained"),
       source: z.string().optional().describe("How consent was obtained (web_form, verbal, sms_optin, api)"),
       notes: z.string().optional().describe("Additional context about the consent"),
     },
-    async ({ agentId, contactAddress, channel, consentType, source, notes }, extra) => {
+    async ({ agentId: explicitAgentId, contactAddress, channel, consentType, source, notes }, extra) => {
+      const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
+      if (!agentId) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
+      }
+
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
       } catch (err) {
@@ -97,11 +102,16 @@ export function registerConsentTools(server: McpServer): void {
     "comms_revoke_consent",
     "Record that a contact has revoked consent to be contacted on a specific channel. No further outbound communications will be allowed on this channel.",
     {
-      agentId: z.string().describe("Agent ID"),
+      agentId: z.string().optional().describe("Agent ID (auto-detected from agent token if omitted)"),
       contactAddress: z.string().describe("Phone number or email of the contact"),
       channel: z.enum(["sms", "voice", "email", "whatsapp"]).describe("Communication channel"),
     },
-    async ({ agentId, contactAddress, channel }, extra) => {
+    async ({ agentId: explicitAgentId, contactAddress, channel }, extra) => {
+      const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
+      if (!agentId) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
+      }
+
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
       } catch (err) {
@@ -150,11 +160,16 @@ export function registerConsentTools(server: McpServer): void {
     "comms_check_consent",
     "Check whether a contact has granted consent to be contacted on a specific channel.",
     {
-      agentId: z.string().describe("Agent ID"),
+      agentId: z.string().optional().describe("Agent ID (auto-detected from agent token if omitted)"),
       contactAddress: z.string().describe("Phone number or email of the contact"),
       channel: z.enum(["sms", "voice", "email", "whatsapp"]).describe("Communication channel"),
     },
-    async ({ agentId, contactAddress, channel }, extra) => {
+    async ({ agentId: explicitAgentId, contactAddress, channel }, extra) => {
+      const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
+      if (!agentId) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
+      }
+
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
       } catch (err) {

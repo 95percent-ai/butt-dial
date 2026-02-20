@@ -9,7 +9,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
-import { requireAgent, authErrorResponse, getOrgId, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, resolveAgentId, authErrorResponse, getOrgId, type AuthInfo } from "../security/auth-guard.js";
 import { requireAgentInOrg } from "../security/org-scope.js";
 import { sanitize, SanitizationError, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
@@ -33,7 +33,7 @@ export function registerSendMessageTool(server: McpServer): void {
     "comms_send_message",
     "Send a message (SMS, email, WhatsApp, or LINE) from an agent to a recipient.",
     {
-      agentId: z.string().describe("The agent ID that owns the sending address"),
+      agentId: z.string().optional().describe("Agent ID (auto-detected from agent token if omitted)"),
       to: z.string().describe("Recipient address (phone number in E.164 for SMS/WhatsApp, or email address)"),
       body: z.string().describe("The message text to send"),
       channel: z.enum(["sms", "email", "whatsapp", "line"]).default("sms").describe("Channel to send via (default: sms)"),
@@ -43,7 +43,12 @@ export function registerSendMessageTool(server: McpServer): void {
       templateVars: z.record(z.string()).optional().describe("Template variable substitutions (e.g. {\"1\": \"John\"})"),
       targetLanguage: z.string().optional().describe("Language of the recipient (e.g. he-IL, es-MX). When different from agent's language, the message body is translated before sending."),
     },
-    async ({ agentId, to, body, channel, subject, html, templateId, templateVars, targetLanguage }, extra) => {
+    async ({ agentId: explicitAgentId, to, body, channel, subject, html, templateId, templateVars, targetLanguage }, extra) => {
+      const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
+      if (!agentId) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
+      }
+
       // Auth: agent can only send as themselves
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);

@@ -8,7 +8,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
 import { config } from "../lib/config.js";
-import { requireAgent, requireAdmin, getOrgId, isSuperAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, requireAdmin, resolveAgentId, getOrgId, isSuperAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { orgFilter } from "../security/org-scope.js";
 import {
   getBillingSummary,
@@ -29,8 +29,9 @@ export function registerBillingTools(server: McpServer): void {
       agentId: z.string().optional().describe("Agent ID (required for agents, optional for admin — omit to see all)"),
       period: z.enum(["today", "week", "month", "all"]).default("month").describe("Time period for billing"),
     },
-    async ({ agentId, period }, extra) => {
+    async ({ agentId: explicitAgentId, period }, extra) => {
       const authInfo = extra.authInfo as AuthInfo | undefined;
+      const agentId = resolveAgentId(authInfo, explicitAgentId);
       const isAdmin = config.demoMode || authInfo?.scopes?.includes("admin");
 
       if (agentId) {

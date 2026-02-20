@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS user_accounts (
   created_at TEXT DEFAULT (datetime('now')),
   last_login_at TEXT,
   locked_until TEXT,
-  failed_login_attempts INTEGER DEFAULT 0
+  failed_login_attempts INTEGER DEFAULT 0,
+  full_name TEXT,
+  phone TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_user_accounts_email ON user_accounts(email);

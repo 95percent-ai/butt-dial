@@ -10,7 +10,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
-import { requireAgent, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, resolveAgentId, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { requireAgentInOrg } from "../security/org-scope.js";
 import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
@@ -27,12 +27,17 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
     "comms_send_voice_message",
     "Place an outbound phone call that plays a pre-recorded voice message. Text is converted to speech via TTS, then Twilio calls the recipient and plays the audio.",
     {
-      agentId: z.string().describe("The agent ID that owns the calling phone number"),
+      agentId: z.string().optional().describe("Agent ID (auto-detected from agent token if omitted)"),
       to: z.string().describe("Recipient phone number in E.164 format (e.g. +1234567890)"),
       text: z.string().min(1).describe("The message text to convert to speech and play"),
       voice: z.string().optional().describe("TTS voice ID (optional, uses default if omitted)"),
     },
-    async ({ agentId, to, text, voice }, extra) => {
+    async ({ agentId: explicitAgentId, to, text, voice }, extra) => {
+      const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
+      if (!agentId) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
+      }
+
       // Auth: agent can only call as themselves
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);

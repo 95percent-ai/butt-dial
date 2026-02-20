@@ -159,8 +159,16 @@ export function renderAuthPage(): string {
       <div id="register-alert" class="alert alert-error"></div>
       <form id="register-form">
         <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="reg-fullname" required minlength="2" autocomplete="name" placeholder="Your full name">
+        </div>
+        <div class="form-group">
           <label>Email</label>
           <input type="email" id="reg-email" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label>Phone Number <span style="font-size:11px;color:var(--text-muted);">(optional)</span></label>
+          <input type="tel" id="reg-phone" autocomplete="tel" placeholder="+1234567890">
         </div>
         <div class="form-group">
           <label>Password (min 8 characters)</label>
@@ -168,11 +176,6 @@ export function renderAuthPage(): string {
             <input type="password" id="reg-password" required minlength="8" autocomplete="new-password">
             <button type="button" class="pw-toggle" onclick="togglePw(this)" aria-label="Show password">&#128065;</button>
           </div>
-        </div>
-        <div class="form-group">
-          <label>Account Name</label>
-          <input type="text" id="reg-org" required minlength="2" placeholder="Defaults to your email">
-          <p style="font-size:11px;color:var(--text-muted);margin-top:4px;">You can change this to a company name later in settings.</p>
         </div>
         ${isSaas ? `
         <div class="form-group">
@@ -283,28 +286,24 @@ export function renderAuthPage(): string {
 
   let pendingEmail = '';
 
-  // Auto-fill account name from email
-  document.getElementById('reg-email').addEventListener('input', function() {
-    const orgField = document.getElementById('reg-org');
-    if (!orgField.dataset.edited) {
-      orgField.value = this.value.split('@')[0] || '';
-    }
-  });
-  document.getElementById('reg-org').addEventListener('input', function() {
-    this.dataset.edited = '1';
-  });
-
   // ── Register ───────────────────────────────
   document.getElementById('register-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('register-btn');
     btn.disabled = true; btn.textContent = 'Creating...';
 
+    const fullName = document.getElementById('reg-fullname').value.trim();
     const email = document.getElementById('reg-email').value;
+    const phone = document.getElementById('reg-phone').value.trim();
     const password = document.getElementById('reg-password').value;
-    const orgField = document.getElementById('reg-org');
-    const orgName = orgField.value.trim() || email.split('@')[0];
+    const orgName = email.split('@')[0];
     const tosAccepted = document.getElementById('reg-tos').checked;
+
+    if (!fullName || fullName.length < 2) {
+      showError('register', 'Full name is required (min 2 characters).');
+      btn.disabled = false; btn.textContent = 'Create Account';
+      return;
+    }
 
     if (!tosAccepted) {
       showError('register', 'You must accept the Terms of Service to register.');
@@ -313,7 +312,7 @@ export function renderAuthPage(): string {
     }
 
     // Collect optional KYC fields (SaaS only)
-    const payload = { email, password, orgName, tosAccepted };
+    const payload = { email, password, orgName, tosAccepted, fullName, phone };
     const companyEl = document.getElementById('reg-company');
     const websiteEl = document.getElementById('reg-website');
     const usecaseEl = document.getElementById('reg-usecase');
@@ -333,7 +332,12 @@ export function renderAuthPage(): string {
         btn.disabled = false; btn.textContent = 'Create Account';
         return;
       }
-      // Switch to verify view
+      // If no email verification required, redirect directly
+      if (data.requiresVerification === false && data.redirect) {
+        window.location.href = data.redirect;
+        return;
+      }
+      // Otherwise show OTP verify view
       pendingEmail = data.email;
       document.getElementById('verify-email-display').textContent = pendingEmail;
       showView('verify');

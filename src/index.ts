@@ -28,7 +28,7 @@ import { renderAuthPage } from "./public/auth-page.js";
 import { authApiRouter } from "./public/auth-api.js";
 import { restRouter } from "./api/rest-router.js";
 import { renderTermsPage, renderAupPage, renderPrivacyPage } from "./public/legal-pages.js";
-import { renderDisclaimerPage } from "./public/disclaimer-page.js";
+// renderDisclaimerPage no longer needed — disclaimer is now a modal inside admin page
 import { runDataRetentionCleanup } from "./lib/data-retention.js";
 
 async function main() {
@@ -141,8 +141,8 @@ async function main() {
   app.get("/legal/aup", (_req, res) => { res.type("html").send(renderAupPage()); });
   app.get("/legal/privacy", (_req, res) => { res.type("html").send(renderPrivacyPage()); });
 
-  // Disclaimer acceptance page
-  app.get("/disclaimer", (_req, res) => { res.type("html").send(renderDisclaimerPage()); });
+  // Disclaimer — now handled as modal inside admin page; redirect for backward compat
+  app.get("/disclaimer", (_req, res) => { res.redirect("/admin"); });
 
   // Auth pages + API
   app.get("/auth/login", (_req, res) => { res.type("html").send(renderAuthPage()); });

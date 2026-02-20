@@ -121,6 +121,16 @@ export function isSuperAdmin(authInfo?: AuthInfo): boolean {
   return authInfo.scopes.includes("super-admin") || authInfo.scopes.includes("admin");
 }
 
+/**
+ * Resolve agentId — use explicit value if provided, otherwise infer from agent token.
+ * Returns null if neither is available (caller should return an error).
+ */
+export function resolveAgentId(authInfo: AuthInfo | undefined, explicitAgentId?: string): string | null {
+  if (explicitAgentId) return explicitAgentId;
+  if (authInfo?.scopes?.includes("agent")) return authInfo.clientId;
+  return null;
+}
+
 /** Build a standard MCP error response for auth failures. */
 export function authErrorResponse(err: unknown) {
   const message = err instanceof AuthError ? err.message : "Authentication failed";

@@ -15,6 +15,7 @@ import {
   requireAgent,
   requireAdmin,
   getOrgId,
+  resolveAgentId,
   AuthError,
   type AuthInfo,
 } from "../security/auth-guard.js";
@@ -110,10 +111,11 @@ function handleAuthError(res: any, err: unknown) {
 // POST /api/v1/send-message
 restRouter.post("/send-message", async (req, res) => {
   try {
-    const { agentId, to, body, channel = "sms", subject, html, templateId, templateVars, targetLanguage } = req.body;
+    const { to, body, channel = "sms", subject, html, templateId, templateVars, targetLanguage } = req.body;
+    const agentId = resolveAgentId(authInfo(req), req.body.agentId);
 
     if (!agentId || !to || !body) {
-      return errorJson(res, 400, "Required: agentId, to, body");
+      return errorJson(res, 400, "Required: agentId (or use an agent token), to, body");
     }
 
     const auth = authInfo(req);
@@ -223,8 +225,9 @@ restRouter.post("/send-message", async (req, res) => {
 // POST /api/v1/make-call
 restRouter.post("/make-call", async (req, res) => {
   try {
-    const { agentId, to, systemPrompt, greeting, voice, language, targetLanguage, recipientTimezone } = req.body;
-    if (!agentId || !to) return errorJson(res, 400, "Required: agentId, to");
+    const { to, systemPrompt, greeting, voice, language, targetLanguage, recipientTimezone } = req.body;
+    const agentId = resolveAgentId(authInfo(req), req.body.agentId);
+    if (!agentId || !to) return errorJson(res, 400, "Required: agentId (or use an agent token), to");
 
     const auth = authInfo(req);
     requireAgent(agentId, auth);
@@ -303,11 +306,12 @@ restRouter.post("/make-call", async (req, res) => {
   }
 });
 
-// POST /api/v1/get-me
-restRouter.post("/get-me", async (req, res) => {
+// POST /api/v1/call-on-behalf
+restRouter.post("/call-on-behalf", async (req, res) => {
   try {
-    const { agentId, target, targetName, requesterPhone, requesterName, message, recipientTimezone } = req.body;
-    if (!agentId || !target || !requesterPhone) return errorJson(res, 400, "Required: agentId, target, requesterPhone");
+    const { target, targetName, requesterPhone, requesterName, message, recipientTimezone } = req.body;
+    const agentId = resolveAgentId(authInfo(req), req.body.agentId);
+    if (!agentId || !target || !requesterPhone) return errorJson(res, 400, "Required: agentId (or use an agent token), target, requesterPhone");
 
     const auth = authInfo(req);
     requireAgent(agentId, auth);
@@ -380,7 +384,7 @@ Keep it natural and brief — this is a phone call.`;
     const messageId = randomUUID();
     db.run(
       `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id) VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?, ?)`,
-      [messageId, agentId, fromNumber, target, `[Get Me] ${callerName} → ${calleeName || target}`, result.callSid, result.status, orgId],
+      [messageId, agentId, fromNumber, target, `[Call On Behalf] ${callerName} → ${calleeName || target}`, result.callSid, result.status, orgId],
     );
 
     try {
@@ -392,7 +396,7 @@ Keep it natural and brief — this is a phone call.`;
 
     logUsage(db, { agentId, actionType: "voice_call", channel: "voice", targetAddress: target, cost: 0, externalId: result.callSid });
 
-    logger.info("rest_get_me", { messageId, agentId, target, targetName, requesterPhone, requesterName, callSid: result.callSid });
+    logger.info("rest_call_on_behalf", { messageId, agentId, target, targetName, requesterPhone, requesterName, callSid: result.callSid });
     return res.json({
       success: true, messageId, callSid: result.callSid, sessionId, status: result.status,
       from: fromNumber, to: target,
@@ -406,8 +410,9 @@ Keep it natural and brief — this is a phone call.`;
 // POST /api/v1/send-voice-message
 restRouter.post("/send-voice-message", async (req, res) => {
   try {
-    const { agentId, to, text, voice } = req.body;
-    if (!agentId || !to || !text) return errorJson(res, 400, "Required: agentId, to, text");
+    const { to, text, voice } = req.body;
+    const agentId = resolveAgentId(authInfo(req), req.body.agentId);
+    if (!agentId || !to || !text) return errorJson(res, 400, "Required: agentId (or use an agent token), to, text");
 
     const auth = authInfo(req);
     requireAgent(agentId, auth);
@@ -462,8 +467,9 @@ restRouter.post("/send-voice-message", async (req, res) => {
 // POST /api/v1/transfer-call
 restRouter.post("/transfer-call", async (req, res) => {
   try {
-    const { agentId, callSid, to, announcementText } = req.body;
-    if (!agentId || !callSid || !to) return errorJson(res, 400, "Required: agentId, callSid, to");
+    const { callSid, to, announcementText } = req.body;
+    const agentId = resolveAgentId(authInfo(req), req.body.agentId);
+    if (!agentId || !callSid || !to) return errorJson(res, 400, "Required: agentId (or use an agent token), callSid, to");
 
     const auth = authInfo(req);
     requireAgent(agentId, auth);
@@ -517,12 +523,12 @@ restRouter.post("/transfer-call", async (req, res) => {
 // GET /api/v1/messages
 restRouter.get("/messages", async (req, res) => {
   try {
-    const agentId = req.query.agentId as string;
+    const agentId = resolveAgentId(authInfo(req), req.query.agentId as string);
     const limit = parseInt(req.query.limit as string) || 20;
     const channel = req.query.channel as string | undefined;
     const contactAddress = req.query.contactAddress as string | undefined;
 
-    if (!agentId) return errorJson(res, 400, "Required query param: agentId");
+    if (!agentId) return errorJson(res, 400, "Required query param: agentId (or use an agent token)");
 
     const auth = authInfo(req);
     requireAgent(agentId, auth);
@@ -724,8 +730,8 @@ restRouter.post("/deprovision", async (req, res) => {
 // GET /api/v1/channel-status
 restRouter.get("/channel-status", async (req, res) => {
   try {
-    const agentId = req.query.agentId as string;
-    if (!agentId) return errorJson(res, 400, "Required query param: agentId");
+    const agentId = resolveAgentId(authInfo(req), req.query.agentId as string);
+    if (!agentId) return errorJson(res, 400, "Required query param: agentId (or use an agent token)");
 
     const auth = authInfo(req);
     requireAgent(agentId, auth);
@@ -892,7 +898,7 @@ restRouter.post("/onboard", async (req, res) => {
 // GET /api/v1/usage
 restRouter.get("/usage", async (req, res) => {
   try {
-    const agentId = req.query.agentId as string | undefined;
+    const agentId = resolveAgentId(authInfo(req), req.query.agentId as string) || undefined;
     const period = (req.query.period as string) || "today";
 
     const auth = authInfo(req);
@@ -901,7 +907,7 @@ restRouter.get("/usage", async (req, res) => {
     if (agentId) {
       requireAgent(agentId, auth);
     } else if (!isAdmin) {
-      return errorJson(res, 400, "agentId is required for non-admin users");
+      return errorJson(res, 400, "agentId is required (or use an agent token)");
     }
 
     const db = getProvider("database");
@@ -938,7 +944,7 @@ restRouter.get("/usage", async (req, res) => {
 // GET /api/v1/billing
 restRouter.get("/billing", async (req, res) => {
   try {
-    const agentId = req.query.agentId as string | undefined;
+    const agentId = resolveAgentId(authInfo(req), req.query.agentId as string) || undefined;
     const period = (req.query.period as string) || "month";
 
     const auth = authInfo(req);
@@ -947,7 +953,7 @@ restRouter.get("/billing", async (req, res) => {
     if (agentId) {
       requireAgent(agentId, auth);
     } else if (!isAdmin) {
-      return errorJson(res, 400, "agentId is required for non-admin users");
+      return errorJson(res, 400, "agentId is required (or use an agent token)");
     }
 
     const db = getProvider("database");
@@ -1169,9 +1175,9 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "to", "body"],
+                  required: ["to", "body"],
                   properties: {
-                    agentId: { type: "string", description: "Agent ID that owns the sending address" },
+                    agentId: { type: "string", description: "Agent ID (optional if using an agent token)" },
                     to: { type: "string", description: "Recipient (E.164 phone or email)" },
                     body: { type: "string", description: "Message text" },
                     channel: { type: "string", enum: ["sms", "email", "whatsapp", "line"], default: "sms" },
@@ -1203,9 +1209,9 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "to"],
+                  required: ["to"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Agent ID (optional if using an agent token)" },
                     to: { type: "string", description: "E.164 phone number" },
                     systemPrompt: { type: "string" },
                     greeting: { type: "string" },
@@ -1225,7 +1231,7 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
           },
         },
       },
-      "/get-me": {
+      "/call-on-behalf": {
         post: {
           summary: "Secretary call — call someone on your behalf, bridge if available",
           tags: ["Communication"],
@@ -1235,9 +1241,9 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "target", "requesterPhone"],
+                  required: ["target", "requesterPhone"],
                   properties: {
-                    agentId: { type: "string", description: "Agent ID that owns the calling phone number" },
+                    agentId: { type: "string", description: "Agent ID (optional if using an agent token)" },
                     target: { type: "string", description: "Phone number to call (E.164)" },
                     targetName: { type: "string", description: "Name of the person being called" },
                     requesterPhone: { type: "string", description: "Your phone number — where to bridge if they say yes" },
@@ -1266,9 +1272,9 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "to", "text"],
+                  required: ["to", "text"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Agent ID (optional if using an agent token)" },
                     to: { type: "string" },
                     text: { type: "string", description: "Text to convert to speech" },
                     voice: { type: "string", description: "TTS voice ID" },
@@ -1293,9 +1299,9 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "callSid", "to"],
+                  required: ["callSid", "to"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Agent ID (optional if using an agent token)" },
                     callSid: { type: "string", description: "Twilio Call SID" },
                     to: { type: "string", description: "Target phone (E.164) or agent ID" },
                     announcementText: { type: "string" },
@@ -1315,7 +1321,7 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
           summary: "List messages for an agent",
           tags: ["Communication"],
           parameters: [
-            { name: "agentId", in: "query", required: true, schema: { type: "string" } },
+            { name: "agentId", in: "query", schema: { type: "string" }, description: "Agent ID (optional if using an agent token)" },
             { name: "limit", in: "query", schema: { type: "integer", default: 20 } },
             { name: "channel", in: "query", schema: { type: "string", enum: ["sms", "email", "whatsapp", "voice", "line"] } },
             { name: "contactAddress", in: "query", schema: { type: "string" }, description: "Filter by contact phone/email" },
@@ -1386,7 +1392,7 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
         get: {
           summary: "Get channel status for an agent",
           tags: ["Management"],
-          parameters: [{ name: "agentId", in: "query", required: true, schema: { type: "string" } }],
+          parameters: [{ name: "agentId", in: "query", schema: { type: "string" }, description: "Agent ID (optional if using an agent token)" }],
           responses: { "200": { description: "Channel status" } },
         },
       },

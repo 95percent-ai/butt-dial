@@ -113,7 +113,7 @@ export function createMcpServer(): McpServer {
   // Consent tracking tools
   registerConsentTools(server);
 
-  // "Get me" secretary call tool
+  // "Call on behalf" secretary call tool
   registerGetMeTool(server);
 
   // --- Enterprise / SaaS only tools ---

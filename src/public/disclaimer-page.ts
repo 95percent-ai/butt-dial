@@ -180,7 +180,7 @@ export function renderDisclaimerPage(): string {
 
     <div class="disclaimer-scroll">
       <h2>1. Operator Responsibility</h2>
-      <p>You are solely responsible for all communications made through this platform, including phone calls, SMS, emails, and WhatsApp messages initiated by your AI agents. The platform provides communication infrastructure; how you use it is your responsibility.</p>
+      <p>You are solely responsible for all communications made through this platform, including phone calls, SMS, emails, and messages via messaging services (WhatsApp, Telegram, LINE, etc.) initiated by your AI agents. The platform provides communication infrastructure; how you use it is your responsibility.</p>
 
       <h2>2. AI Disclosure Requirements</h2>
       <p>Federal Communications Commission (FCC) rules require disclosure that calls are AI-generated. You must:</p>

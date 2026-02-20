@@ -145,6 +145,10 @@ const configSchema = z.object({
     .string()
     .transform((v) => v === "true")
     .default("false"),
+  requireEmailVerification: z
+    .string()
+    .transform((v) => v === "true")
+    .default("false"),
 
   // Sandbox LLM replies
   sandboxLlmEnabled: z
@@ -248,6 +252,7 @@ function loadConfig() {
     anomalyDetectorEnabled: process.env.ANOMALY_DETECTOR_ENABLED,
     translationEnabled: process.env.TRANSLATION_ENABLED,
     registrationEnabled: process.env.REGISTRATION_ENABLED,
+    requireEmailVerification: process.env.REQUIRE_EMAIL_VERIFICATION,
     sandboxLlmEnabled: process.env.SANDBOX_LLM_ENABLED,
     sandboxLlmEndpoint: process.env.SANDBOX_LLM_ENDPOINT,
     sandboxReplyDelayMs: process.env.SANDBOX_REPLY_DELAY_MS,

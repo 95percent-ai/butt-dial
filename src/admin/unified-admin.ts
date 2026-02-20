@@ -64,6 +64,127 @@ export function renderAdminPage(specJson: string): string {
 
     #login-overlay.hidden { display: none; }
 
+    /* ── Disclaimer Modal Overlay ─────────────────────────────── */
+    #disclaimer-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9998;
+      background: rgba(0,0,0,0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #disclaimer-overlay.visible { display: flex; }
+
+    .disclaimer-modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 700px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .disclaimer-modal h1 {
+      font-size: 1.5rem;
+      color: var(--text-heading);
+      margin-bottom: 0.5rem;
+      text-align: center;
+    }
+
+    .disclaimer-modal .subtitle {
+      color: var(--text-muted);
+      font-size: 0.875rem;
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .disclaimer-modal h1 { flex-shrink: 0; }
+    .disclaimer-modal .subtitle { flex-shrink: 0; }
+
+    .disclaimer-scroll {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      overflow-y: auto;
+      margin-bottom: 1.5rem;
+      line-height: 1.65;
+      font-size: 0.875rem;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .disclaimer-scroll h2 {
+      font-size: 1rem;
+      color: var(--text-heading);
+      margin-top: 1.25rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .disclaimer-scroll h2:first-child { margin-top: 0; }
+    .disclaimer-scroll p { margin-bottom: 0.75rem; color: var(--text); }
+    .disclaimer-scroll ul { margin-bottom: 0.75rem; padding-left: 1.25rem; }
+    .disclaimer-scroll li { margin-bottom: 0.35rem; color: var(--text); }
+
+    .disclaimer-checkbox-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 1rem;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .disclaimer-checkbox-row input[type="checkbox"] {
+      margin-top: 3px;
+      accent-color: var(--accent);
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .disclaimer-checkbox-row label {
+      font-size: 0.875rem;
+      color: var(--text);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .disclaimer-accept-btn {
+      display: block;
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    .disclaimer-accept-btn:hover:not(:disabled) { background: var(--accent-hover); }
+    .disclaimer-accept-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .disclaimer-error {
+      background: var(--error-bg);
+      color: var(--error);
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius);
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      display: none;
+      flex-shrink: 0;
+    }
+
     .login-box {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -861,15 +982,217 @@ export function renderAdminPage(specJson: string): string {
     }
 
     /* ── API Docs ────────────────────────────────────────────────── */
-    #swagger-container { margin-bottom: 2rem; }
 
-    /* Swagger dark overrides */
+    /* Quick Start Guide */
+    .docs-section { margin-bottom: 2rem; }
+    .docs-section h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 0.75rem;
+    }
+    .docs-section p {
+      color: var(--text);
+      font-size: 0.85rem;
+      line-height: 1.6;
+      margin-bottom: 0.75rem;
+    }
+    .docs-intro {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .docs-intro p { margin-bottom: 0.5rem; }
+    .docs-intro p:last-child { margin-bottom: 0; }
+
+    /* Server info bar */
+    .server-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .server-info label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .server-info code {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.8rem;
+      color: var(--accent);
+      background: var(--bg-card);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      flex: 1;
+      min-width: 200px;
+    }
+    .copy-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.3rem 0.6rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      transition: all 0.15s;
+    }
+    .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .copy-btn.copied { color: var(--success); border-color: var(--success); }
+
+    /* Connection options */
+    .connect-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .connect-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+    }
+    .connect-card h3 {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 0.5rem;
+    }
+    .connect-card p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+      line-height: 1.5;
+    }
+    .code-block {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      position: relative;
+    }
+    .code-block pre {
+      margin: 0;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.75rem;
+      color: #c9d1d9;
+      line-height: 1.5;
+      white-space: pre;
+    }
+    .code-block .copy-btn {
+      position: absolute;
+      top: 0.4rem;
+      right: 0.4rem;
+      font-size: 0.65rem;
+      padding: 0.2rem 0.4rem;
+      background: rgba(255,255,255,0.05);
+      border-color: rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.4);
+    }
+    .code-block .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* Auth info */
+    .auth-info {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .auth-info p { font-size: 0.8rem; color: var(--text); margin-bottom: 0.4rem; line-height: 1.5; }
+    .auth-info p:last-child { margin-bottom: 0; }
+    .auth-info code { color: var(--accent); font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.8rem; }
+
+    /* Capability cards */
+    .capability-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .capability-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      transition: border-color 0.15s;
+    }
+    .capability-card:hover { border-color: var(--accent); }
+    .capability-card .cap-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .capability-card h3 { font-size: 0.9rem; font-weight: 700; color: var(--text-heading); margin-bottom: 0.35rem; }
+    .capability-card p { font-size: 0.8rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 0.5rem; }
+    .capability-card .cap-endpoints {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-family: "SFMono-Regular", Consolas, monospace;
+      border-top: 1px solid var(--border);
+      padding-top: 0.5rem;
+      margin-top: 0.25rem;
+    }
+    .capability-card .cap-endpoints span {
+      display: inline-block;
+      background: var(--bg-input);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      margin: 0.15rem 0.15rem 0.15rem 0;
+    }
+
+    /* Collapsible sections */
+    .collapsible-section { margin-bottom: 1.5rem; }
+    .collapsible-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1.25rem;
+      color: var(--text-heading);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: left;
+    }
+    .collapsible-toggle:hover { border-color: var(--accent); color: var(--accent); }
+    .collapsible-toggle .chevron {
+      transition: transform 0.2s;
+      font-size: 0.7rem;
+    }
+    .collapsible-toggle.open .chevron { transform: rotate(90deg); }
+    .collapsible-content {
+      display: none;
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 var(--radius) var(--radius);
+      padding: 1rem;
+      background: var(--bg-card);
+    }
+    .collapsible-content.open { display: block; }
+
+    /* Swagger overrides — hide confusing elements */
+    #swagger-container { margin-bottom: 0; }
     .swagger-ui { background: transparent; }
     .swagger-ui .topbar { display: none; }
-    .swagger-ui .info { margin: 20px 0; }
+    .swagger-ui .info { margin: 10px 0; }
     .swagger-ui .info .title { color: var(--text-heading); }
     .swagger-ui .info p, .swagger-ui .info li { color: var(--text); }
-    .swagger-ui .scheme-container { background: var(--bg-card); box-shadow: none; border: 1px solid var(--border); border-radius: var(--radius); }
+    .swagger-ui .scheme-container { display: none; }
+    .swagger-ui .auth-wrapper { display: none; }
     .swagger-ui .opblock-tag { color: var(--text-heading); border-bottom-color: var(--border); }
     .swagger-ui .opblock { border-color: var(--border); background: var(--bg-card); }
     .swagger-ui .opblock .opblock-summary { border-color: var(--border); }
@@ -887,8 +1210,8 @@ export function renderAdminPage(specJson: string): string {
     .swagger-ui section.models h4 { color: var(--text-heading); }
     .swagger-ui .model-title { color: var(--text-heading); }
 
-    .mcp-tools-section { margin-top: 2rem; }
-
+    /* MCP tools section */
+    .mcp-tools-section { margin-top: 0; }
     .mcp-tools-section h3 {
       font-size: 1rem;
       font-weight: 600;
@@ -917,6 +1240,23 @@ export function renderAdminPage(specJson: string): string {
       font-size: 0.8rem;
       margin-top: 0.3rem;
     }
+
+    .tool-card .tool-params {
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid var(--border);
+    }
+    .tool-card .tool-params .param {
+      display: inline-block;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.7rem;
+      background: var(--bg-input);
+      padding: 0.15rem 0.4rem;
+      border-radius: 3px;
+      margin: 0.15rem 0.15rem 0.15rem 0;
+      color: var(--text-muted);
+    }
+    .tool-card .tool-params .param.required { color: var(--accent); border: 1px solid rgba(99,102,241,0.2); }
 
     /* ── Responsive ──────────────────────────────────────────────── */
     @media (max-width: 768px) {
@@ -972,6 +1312,77 @@ export function renderAdminPage(specJson: string): string {
       <p style="text-align:center;margin-top:16px;font-size:13px;color:#8b949e;">
         <a href="/auth/login" style="color:#58a6ff;">Sign in with email</a> &nbsp;|&nbsp; <a href="/auth/login" style="color:#58a6ff;">Register</a>
       </p>
+    </div>
+  </div>
+
+  <!-- ── Disclaimer Modal Overlay ──────────────────────────── -->
+  <div id="disclaimer-overlay">
+    <div class="disclaimer-modal">
+      <h1>Platform Usage Disclaimer</h1>
+      <p class="subtitle">Please read and accept before continuing</p>
+
+      <div class="disclaimer-error" id="disclaimer-error"></div>
+
+      <div class="disclaimer-scroll">
+        <h2>1. Operator Responsibility</h2>
+        <p>You are solely responsible for all communications made through this platform, including phone calls, SMS, emails, and messages via messaging services (WhatsApp, Telegram, LINE, etc.) initiated by your AI agents. The platform provides communication infrastructure; how you use it is your responsibility.</p>
+
+        <h2>2. AI Disclosure Requirements</h2>
+        <p>Federal Communications Commission (FCC) rules require disclosure that calls are AI-generated. You must:</p>
+        <ul>
+          <li>Comply with the FCC's February 2024 ruling classifying AI-generated voice calls as "artificial" under the TCPA</li>
+          <li>Ensure all AI voice calls disclose they are AI-generated at the start of the call</li>
+          <li>Comply with state-level robocall and AI disclosure laws in every jurisdiction you operate</li>
+          <li>Not disable the platform's built-in AI disclosure feature unless you have implemented an equivalent or stronger disclosure mechanism</li>
+        </ul>
+
+        <h2>3. Regulatory Compliance</h2>
+        <p>Compliance with telecommunications and data protection regulations is YOUR responsibility. The platform provides tools to assist, but does not guarantee compliance. You are responsible for:</p>
+        <ul>
+          <li><strong>TCPA</strong> — obtaining prior express consent for automated calls/texts</li>
+          <li><strong>FCC AI Voice Rules</strong> — disclosing AI-generated calls, maintaining accurate caller ID</li>
+          <li><strong>GDPR</strong> — lawful basis for processing, data subject rights, cross-border transfers</li>
+          <li><strong>CAN-SPAM / CASL</strong> — unsubscribe mechanisms, sender identification</li>
+          <li><strong>State Robocall Laws</strong> — varying state requirements for automated calls</li>
+          <li><strong>A2P 10DLC</strong> — campaign registration for US business messaging</li>
+          <li>All other applicable local, state, national, and international regulations</li>
+        </ul>
+
+        <h2>4. Content Responsibility</h2>
+        <p>You are responsible for all content your AI agents generate and transmit through this platform. This includes voice call conversations, text messages, emails, and any other communications. The platform does not review, approve, or take responsibility for AI-generated content.</p>
+
+        <h2>5. Consent Obligations</h2>
+        <p>Before contacting any individual through this platform, you must:</p>
+        <ul>
+          <li>Obtain and maintain proper consent as required by applicable law</li>
+          <li>Maintain records of consent that can be produced upon request</li>
+          <li>Honor opt-out and do-not-contact requests immediately</li>
+          <li>Not contact individuals on Do Not Call registries</li>
+        </ul>
+
+        <h2>6. Indemnification</h2>
+        <p>You agree to indemnify, defend, and hold harmless the platform operator (95percent.ai) and its affiliates, officers, directors, employees, and agents from and against any and all claims, liabilities, damages, losses, costs, and expenses (including reasonable legal fees) arising from or related to:</p>
+        <ul>
+          <li>Your use of the platform</li>
+          <li>Communications made through your account</li>
+          <li>AI-generated content transmitted via the platform</li>
+          <li>Any violation of applicable laws or regulations</li>
+          <li>Any third-party claims resulting from your communications</li>
+        </ul>
+
+        <h2>7. Data Processing</h2>
+        <p>For the purposes of data protection law, you are the <strong>data controller</strong> and the platform operator is the <strong>data processor</strong>. You determine the purposes and means of processing personal data through the platform. The platform processes data only as necessary to provide the communication services you configure.</p>
+
+        <h2>8. Recording Consent</h2>
+        <p>Voice call recording and transcription may require consent from all parties in many jurisdictions (two-party consent states/countries). You are responsible for obtaining recording consent where required and configuring appropriate announcements.</p>
+      </div>
+
+      <label class="disclaimer-checkbox-row">
+        <input type="checkbox" id="disclaimer-check" onchange="document.getElementById('disclaimer-accept-btn').disabled = !this.checked">
+        <label for="disclaimer-check">I have read and understand these terms. I accept full responsibility for my use of this platform.</label>
+      </label>
+
+      <button class="disclaimer-accept-btn" id="disclaimer-accept-btn" disabled onclick="acceptDisclaimer()">Accept &amp; Continue</button>
     </div>
   </div>
 
@@ -1420,6 +1831,30 @@ export function renderAdminPage(specJson: string): string {
           </div>
         </div>
 
+        <!-- Registration Group -->
+        <div class="group-heading">Registration</div>
+
+        <div class="card" id="card-email-verification">
+          <div class="card-header">
+            <span class="card-title">Email Verification</span>
+            <span class="badge badge-info" id="email-verification-badge">--</span>
+          </div>
+          <div class="card-desc">Require new users to verify their email with an OTP code before their account is created. Turn this on once you have an email service (Resend) configured.</div>
+          <div class="field">
+            <label>Require Email Verification</label>
+            <select id="email-verification-enabled">
+              <option value="false">Disabled (accounts created immediately)</option>
+              <option value="true">Enabled (OTP required)</option>
+            </select>
+          </div>
+          <div class="card-desc" style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;">
+            When disabled, new accounts are created immediately without email verification. Enable this after configuring Resend email above.
+          </div>
+          <div class="settings-actions">
+            <button class="btn btn-sm btn-primary" onclick="saveEmailVerification()">Save</button>
+          </div>
+        </div>
+
         <!-- Server Group -->
         <div class="group-heading">Server</div>
 
@@ -1540,13 +1975,148 @@ export function renderAdminPage(specJson: string): string {
       <!-- ── API Docs Tab ─────────────────────────────────────── -->
       <div id="tab-docs" class="tab-content">
         <h1 class="page-title">API Documentation</h1>
-        <div id="swagger-container"></div>
-        <div class="mcp-tools-section">
-          <h3>MCP Tools Reference</h3>
-          <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">
-            These tools are accessed via the MCP protocol over the <code>/sse</code> endpoint, not REST. Connect with any MCP client to use them.
-          </p>
-          <div id="mcp-tools"></div>
+
+        <!-- Section A: Quick Start Guide -->
+        <div class="docs-section">
+          <div class="docs-intro">
+            <p><strong>What is this?</strong> This platform lets AI agents send messages (SMS, email, WhatsApp, LINE) and make voice calls through a unified API. Connect via REST or MCP protocol.</p>
+            <p>Your API key is on the <strong>Dashboard</strong> tab. Include it as a Bearer token in every request.</p>
+          </div>
+
+          <div class="server-info">
+            <label>Server</label>
+            <code id="docs-server-url">Loading...</code>
+            <button class="copy-btn" onclick="copyText(document.getElementById('docs-server-url').textContent)">Copy</button>
+            <label>API Key</label>
+            <code id="docs-api-key" style="color:var(--text-muted);">Go to Dashboard tab</code>
+          </div>
+
+          <h2>How to Connect</h2>
+          <div class="connect-grid">
+            <div class="connect-card">
+              <h3>REST API</h3>
+              <p>Standard HTTP endpoints. Works with any language or tool that can make HTTP requests.</p>
+              <div class="code-block">
+                <button class="copy-btn" onclick="copyCodeBlock(this)">Copy</button>
+                <pre>curl -X POST <span id="curl-base-url">SERVER</span>/api/v1/send-message \\
+  -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "agentId": "my-agent",
+    "to": "+15551234567",
+    "body": "Hello from VOS!"
+  }'</pre>
+              </div>
+            </div>
+            <div class="connect-card">
+              <h3>MCP Protocol</h3>
+              <p>For AI agents that support Model Context Protocol. Connects via Server-Sent Events.</p>
+              <div class="code-block">
+                <button class="copy-btn" onclick="copyCodeBlock(this)">Copy</button>
+                <pre># Connect with any MCP client
+SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
+
+# In Claude Desktop config:
+{
+  "mcpServers": {
+    "vos": {
+      "url": "<span id="mcp-config-url">SERVER</span>/sse"
+    }
+  }
+}</pre>
+              </div>
+            </div>
+            <div class="connect-card">
+              <h3>Admin API</h3>
+              <p>Manage the platform: provision agents, check usage, configure billing. Requires admin token.</p>
+              <div class="code-block">
+                <button class="copy-btn" onclick="copyCodeBlock(this)">Copy</button>
+                <pre>curl <span id="admin-base-url">SERVER</span>/admin/api/status \\
+  -H "Authorization: Bearer ADMIN_TOKEN"</pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="auth-info">
+            <p><strong>Authentication:</strong> All API calls require a Bearer token in the <code>Authorization</code> header.</p>
+            <p>Two token levels: <strong>Master</strong> — controls the whole platform: create/remove agents, set billing, configure limits, plus send messages and make calls as any agent. <strong>Agent</strong> — can only send messages and make calls as itself, nothing else. Each agent gets its own token when provisioned.</p>
+          </div>
+        </div>
+
+        <!-- Section B: What You Can Do -->
+        <div class="docs-section">
+          <h2>What You Can Do</h2>
+          <div class="capability-grid">
+            <div class="capability-card">
+              <div class="cap-icon">&#9993;</div>
+              <h3>Send Messages</h3>
+              <p>Send SMS, email, WhatsApp, and LINE messages. Supports templates, auto-translation, and HTML email.</p>
+              <div class="cap-endpoints">
+                <span>POST /api/v1/send-message</span>
+                <span>GET /api/v1/messages</span>
+                <span>comms_send_message</span>
+              </div>
+            </div>
+            <div class="capability-card">
+              <div class="cap-icon">&#128222;</div>
+              <h3>Voice Calls</h3>
+              <p>Make AI voice calls, send voice messages, transfer live calls, or call on someone's behalf.</p>
+              <div class="cap-endpoints">
+                <span>POST /api/v1/make-call</span>
+                <span>POST /api/v1/call-on-behalf</span>
+                <span>POST /api/v1/send-voice-message</span>
+                <span>POST /api/v1/transfer-call</span>
+              </div>
+            </div>
+            <div class="capability-card">
+              <div class="cap-icon">&#128100;</div>
+              <h3>Manage Agents</h3>
+              <p>Provision and deprovision agents, check channel status, onboard new customers with all channels.</p>
+              <div class="cap-endpoints">
+                <span>POST /api/v1/provision</span>
+                <span>POST /api/v1/deprovision</span>
+                <span>GET /api/v1/channel-status</span>
+                <span>POST /api/v1/onboard</span>
+              </div>
+            </div>
+            <div class="capability-card">
+              <div class="cap-icon">&#128202;</div>
+              <h3>Monitor Usage</h3>
+              <p>Track usage stats, billing costs, set rate limits and spending caps per agent.</p>
+              <div class="cap-endpoints">
+                <span>GET /api/v1/usage</span>
+                <span>GET /api/v1/billing</span>
+                <span>POST /api/v1/billing/config</span>
+                <span>POST /api/v1/agent-limits</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section C: REST API Reference (collapsible) -->
+        <div class="collapsible-section">
+          <button class="collapsible-toggle" onclick="toggleCollapsible(this)">
+            <span class="chevron">&#9654;</span> REST API Reference
+          </button>
+          <div class="collapsible-content">
+            <div id="swagger-container"></div>
+          </div>
+        </div>
+
+        <!-- Section D: MCP Tools Reference (collapsible) -->
+        <div class="collapsible-section">
+          <button class="collapsible-toggle" onclick="toggleCollapsible(this)">
+            <span class="chevron">&#9654;</span> MCP Tools Reference
+          </button>
+          <div class="collapsible-content">
+            <div class="mcp-tools-section">
+              <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">
+                MCP (Model Context Protocol) lets AI agents call tools directly via a persistent SSE connection.
+                Connect to <code>/sse?agentId=YOUR_AGENT</code> with any MCP-compatible client.
+              </p>
+              <div id="mcp-tools"></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1694,9 +2264,10 @@ export function renderAdminPage(specJson: string): string {
       if (content) content.classList.add('active');
       if (link) link.classList.add('active');
 
-      /* Lazy load swagger on first visit */
-      if (tabId === 'docs' && !swaggerLoaded) {
-        initSwagger();
+      /* Initialize docs page on first visit */
+      if (tabId === 'docs') {
+        initDocsPage();
+        initMcpTools();
       }
 
       if (tabId === 'agents') {
@@ -1732,6 +2303,9 @@ export function renderAdminPage(specJson: string): string {
     let orgInfo = null;
 
     async function onAuthenticated() {
+      /* Check disclaimer status first — show modal if not accepted */
+      await checkDisclaimerStatus();
+
       switchTab(getInitialTab());
       await checkDemoMode();
       await loadOrgInfo();
@@ -1749,6 +2323,48 @@ export function renderAdminPage(specJson: string): string {
       if (analyticsTimer) clearInterval(analyticsTimer);
       analyticsTimer = setInterval(loadAnalytics, 120000);
     }
+
+    /* ── Disclaimer Modal ─────────────────────────────────────── */
+    async function checkDisclaimerStatus() {
+      try {
+        const res = await fetch('/auth/api/disclaimer-status', { credentials: 'same-origin' });
+        if (!res.ok) return; // Not authenticated via cookie (super-admin token) — skip
+        const data = await res.json();
+        if (!data.accepted) {
+          document.getElementById('disclaimer-overlay').classList.add('visible');
+        }
+      } catch {}
+    }
+
+    window.acceptDisclaimer = async function() {
+      var btn = document.getElementById('disclaimer-accept-btn');
+      var errEl = document.getElementById('disclaimer-error');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Processing...';
+
+      try {
+        var resp = await fetch('/auth/api/accept-disclaimer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin'
+        });
+        var data = await resp.json();
+        if (data.success) {
+          document.getElementById('disclaimer-overlay').classList.remove('visible');
+        } else {
+          errEl.textContent = data.error || 'Failed to accept disclaimer';
+          errEl.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = 'Accept & Continue';
+        }
+      } catch (e) {
+        errEl.textContent = 'Network error. Please try again.';
+        errEl.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Accept & Continue';
+      }
+    };
 
     /* ── Demo Mode Check ──────────────────────────────────────── */
     async function checkDemoMode() {
@@ -2446,6 +3062,15 @@ export function renderAdminPage(specJson: string): string {
             }
           }
         }
+        /* Email verification status */
+        if (status.registration) {
+          document.getElementById('email-verification-enabled').value = status.registration.requireEmailVerification ? 'true' : 'false';
+          const evBadge = document.getElementById('email-verification-badge');
+          if (evBadge) {
+            evBadge.textContent = status.registration.requireEmailVerification ? 'Required' : 'Off';
+            evBadge.className = 'badge ' + (status.registration.requireEmailVerification ? 'badge-success' : 'badge-info');
+          }
+        }
       } catch (err) {
         console.error('Status load error:', err);
       }
@@ -3105,6 +3730,62 @@ export function renderAdminPage(specJson: string): string {
       }
     }
 
+    /* ── Settings: Email Verification Toggle ─────────────────── */
+    async function saveEmailVerification() {
+      const enabled = document.getElementById('email-verification-enabled').value;
+      try {
+        const res = await apiFetch('/admin/api/save', {
+          method: 'POST',
+          body: JSON.stringify({ credentials: { REQUIRE_EMAIL_VERIFICATION: enabled } })
+        });
+        const data = await res.json();
+        showToast(data.success ? 'Email verification ' + (enabled === 'true' ? 'enabled' : 'disabled') : (data.message || 'Failed'), data.success ? 'success' : 'error');
+        document.getElementById('email-verification-badge').textContent = enabled === 'true' ? 'Required' : 'Off';
+        document.getElementById('email-verification-badge').className = 'badge ' + (enabled === 'true' ? 'badge-success' : 'badge-info');
+      } catch {
+        showToast('Network error', 'error');
+      }
+    }
+
+    /* ── Docs Page Helpers ────────────────────────────────────── */
+    function copyText(text) {
+      navigator.clipboard.writeText(text).then(function() {
+        showToast('Copied!', 'success');
+      });
+    }
+
+    function copyCodeBlock(btn) {
+      const pre = btn.parentElement.querySelector('pre');
+      const text = pre.textContent;
+      navigator.clipboard.writeText(text).then(function() {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+      });
+    }
+
+    function toggleCollapsible(btn) {
+      const content = btn.nextElementSibling;
+      const isOpen = btn.classList.toggle('open');
+      content.classList.toggle('open', isOpen);
+
+      /* Lazy-load swagger the first time REST API section is opened */
+      if (isOpen && content.querySelector('#swagger-container') && !swaggerLoaded) {
+        initSwagger();
+      }
+    }
+
+    function initDocsPage() {
+      /* Fill server URLs */
+      const baseUrl = (API_SPEC.servers && API_SPEC.servers[0]) ? API_SPEC.servers[0].url : window.location.origin;
+      document.getElementById('docs-server-url').textContent = baseUrl;
+      var urlSpans = ['curl-base-url', 'mcp-base-url', 'mcp-config-url', 'admin-base-url'];
+      urlSpans.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.textContent = baseUrl;
+      });
+    }
+
     /* ── Swagger UI ───────────────────────────────────────────── */
     function initSwagger() {
       if (swaggerLoaded) return;
@@ -3116,25 +3797,34 @@ export function renderAdminPage(specJson: string): string {
           dom_id: '#swagger-container',
           deepLinking: true,
           presets: [SwaggerUIBundle.presets.apis],
-          layout: 'BaseLayout'
+          layout: 'BaseLayout',
+          supportedSubmitMethods: []
         });
       } catch (err) {
         document.getElementById('swagger-container').innerHTML =
           '<div class="card" style="color:var(--error);">Failed to load Swagger UI: ' + escHtml(String(err)) + '</div>';
       }
+    }
 
-      /* Render MCP tools */
-      const toolsContainer = document.getElementById('mcp-tools');
-      const tools = API_SPEC['x-mcp-tools'] || [];
+    function initMcpTools() {
+      var toolsContainer = document.getElementById('mcp-tools');
+      var tools = API_SPEC['x-mcp-tools'] || [];
       if (tools.length === 0) {
         toolsContainer.innerHTML = '<p style="color:var(--text-muted);">No MCP tools found in spec.</p>';
         return;
       }
 
       toolsContainer.innerHTML = tools.map(function(tool) {
+        var params = tool.parameters || {};
+        var paramHtml = Object.keys(params).map(function(key) {
+          var p = params[key];
+          var isRequired = p.required === true;
+          return '<span class="param' + (isRequired ? ' required' : '') + '">' + escHtml(key) + (isRequired ? '*' : '') + '</span>';
+        }).join('');
         return '<div class="tool-card">' +
           '<div class="tool-name">' + escHtml(tool.name || '') + '</div>' +
           '<div class="tool-desc">' + escHtml(tool.description || '') + '</div>' +
+          (paramHtml ? '<div class="tool-params">' + paramHtml + '</div>' : '') +
           '</div>';
       }).join('');
     }

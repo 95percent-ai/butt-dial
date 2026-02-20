@@ -1,27 +1,27 @@
 /**
  * Registration + Auth flow tests — runs against server with DEMO_MODE=true, REGISTRATION_ENABLED=true.
+ * Default: REQUIRE_EMAIL_VERIFICATION=false (accounts created immediately).
  *
  * Tests:
  * 1.  POST /auth/api/register with valid data returns success
- * 2.  POST /auth/api/register returns email in response
- * 3.  POST /auth/api/register with duplicate email returns 409
- * 4.  POST /auth/api/register without email returns 400
- * 5.  POST /auth/api/register with short password returns 400
- * 6.  POST /auth/api/register without org name returns 400
- * 7.  POST /auth/api/verify-email without code returns 400
- * 8.  POST /auth/api/verify-email with wrong code returns 400
+ * 2.  POST /auth/api/register returns requiresVerification: false (no OTP)
+ * 3.  POST /auth/api/register returns redirect to /admin
+ * 4.  POST /auth/api/register with duplicate email returns 409
+ * 5.  POST /auth/api/register without email returns 400
+ * 6.  POST /auth/api/register with short password returns 400
+ * 7.  POST /auth/api/register without tosAccepted returns 400
+ * 8.  POST /auth/api/login with correct credentials returns success
  * 9.  POST /auth/api/login with wrong password returns 401
- * 10. POST /auth/api/login with unverified account returns 403
- * 11. POST /auth/api/login brute-force lockout after 5 failures
- * 12. POST /auth/api/forgot-password returns success (no leak)
- * 13. POST /auth/api/forgot-password with unknown email still returns success
- * 14. POST /auth/api/reset-password without code returns 400
+ * 10. POST /auth/api/login brute-force lockout after 5 failures
+ * 11. POST /auth/api/forgot-password returns success (no leak)
+ * 12. POST /auth/api/forgot-password with unknown email still returns success
+ * 13. POST /auth/api/reset-password without code returns 400
  *
  * Unit tests (no server):
- * 15. hashPassword returns hash and salt
- * 16. verifyPassword validates correct password
- * 17. verifyPassword rejects wrong password
- * 18. hash and salt are different each time
+ * 14. hashPassword returns hash and salt
+ * 15. verifyPassword validates correct password
+ * 16. verifyPassword rejects wrong password
+ * 17. hash and salt are different each time
  *
  * Usage: npx tsx tests/registration.test.ts
  */
@@ -43,7 +43,8 @@ function assert(condition: boolean, label: string) {
 
 const testEmail = `test-${Date.now()}@example.com`;
 const testPassword = "securepass123";
-const testOrg = "Test Org";
+const testFullName = "Test User";
+const bruteEmail = `brute-${Date.now()}@example.com`;
 
 async function post(path: string, body: Record<string, unknown>): Promise<{ status: number; data: Record<string, unknown> }> {
   const res = await fetch(`${SERVER_URL}${path}`, {
@@ -62,73 +63,82 @@ async function testPasswordModule() {
   const { hashPassword, verifyPassword } = await import("../src/public/password.js");
 
   const result = hashPassword("testpass");
-  assert(typeof result.hash === "string" && result.hash.length > 0, "15. hashPassword returns hash and salt");
+  assert(typeof result.hash === "string" && result.hash.length > 0, "14. hashPassword returns hash and salt");
 
-  assert(verifyPassword("testpass", result.hash, result.salt) === true, "16. verifyPassword validates correct password");
-  assert(verifyPassword("wrongpass", result.hash, result.salt) === false, "17. verifyPassword rejects wrong password");
+  assert(verifyPassword("testpass", result.hash, result.salt) === true, "15. verifyPassword validates correct password");
+  assert(verifyPassword("wrongpass", result.hash, result.salt) === false, "16. verifyPassword rejects wrong password");
 
   const result2 = hashPassword("testpass");
-  assert(result.salt !== result2.salt, "18. hash and salt are different each time");
+  assert(result.salt !== result2.salt, "17. hash and salt are different each time");
 }
 
 // ── Integration tests ────────────────────────────────────────────
 async function testRegistration() {
-  console.log("\n--- Registration ---");
+  console.log("\n--- Registration (no OTP) ---");
 
-  // Valid registration
-  const reg = await post("/auth/api/register", { email: testEmail, password: testPassword, orgName: testOrg });
+  // Valid registration — should create account immediately (orgName auto-derived from email)
+  const reg = await post("/auth/api/register", {
+    email: testEmail, password: testPassword,
+    tosAccepted: true, fullName: testFullName, phone: "+1234567890",
+  });
   assert(reg.status === 200 && reg.data.success === true, "1. Register with valid data returns success");
-  assert(reg.data.email === testEmail.toLowerCase(), "2. Register returns email in response");
+  assert(reg.data.requiresVerification === false, "2. Register returns requiresVerification: false");
+  assert(reg.data.redirect === "/admin", "3. Register returns redirect to /admin");
 
   // Duplicate email
-  const dup = await post("/auth/api/register", { email: testEmail, password: testPassword, orgName: "Dup Org" });
-  assert(dup.status === 409, "3. Duplicate email returns 409");
+  const dup = await post("/auth/api/register", {
+    email: testEmail, password: testPassword, tosAccepted: true, fullName: "Dup User",
+  });
+  assert(dup.status === 409, "4. Duplicate email returns 409");
 
   // Missing email
-  const noEmail = await post("/auth/api/register", { password: testPassword, orgName: testOrg });
-  assert(noEmail.status === 400, "4. No email returns 400");
+  const noEmail = await post("/auth/api/register", {
+    password: testPassword, tosAccepted: true, fullName: testFullName,
+  });
+  assert(noEmail.status === 400, "5. No email returns 400");
 
   // Short password
-  const shortPw = await post("/auth/api/register", { email: "short@test.com", password: "abc", orgName: testOrg });
-  assert(shortPw.status === 400, "5. Short password returns 400");
+  const shortPw = await post("/auth/api/register", {
+    email: "short@test.com", password: "abc", tosAccepted: true, fullName: testFullName,
+  });
+  assert(shortPw.status === 400, "6. Short password returns 400");
 
-  // Missing org name
-  const noOrg = await post("/auth/api/register", { email: "noorg@test.com", password: testPassword });
-  assert(noOrg.status === 400, "6. No org name returns 400");
+  // Missing TOS
+  const noTos = await post("/auth/api/register", {
+    email: "notos@test.com", password: testPassword, fullName: testFullName,
+  });
+  assert(noTos.status === 400, "7. No tosAccepted returns 400");
+
 }
 
-async function testVerification() {
-  console.log("\n--- Email Verification ---");
-
-  // No code
-  const noCode = await post("/auth/api/verify-email", { email: testEmail });
-  assert(noCode.status === 400, "7. Verify without code returns 400");
-
-  // Wrong code
-  const wrongCode = await post("/auth/api/verify-email", { email: testEmail, code: "000000" });
-  assert(wrongCode.status === 400, "8. Verify with wrong code returns 400");
+// Register brute-force account early (before rate limit exhaustion)
+async function registerBruteForceAccount() {
+  // This consumes a rate-limit slot, so call it before duplicate/validation tests
+  const reg = await post("/auth/api/register", {
+    email: bruteEmail, password: testPassword, tosAccepted: true, fullName: "Brute User",
+  });
+  if (reg.status !== 200) {
+    console.warn(`  [warn] Brute-force account registration returned ${reg.status}: ${JSON.stringify(reg.data)}`);
+  }
 }
 
 async function testLogin() {
   console.log("\n--- Login ---");
 
+  // Login with correct credentials (account was created without OTP, should work)
+  const login = await post("/auth/api/login", { email: testEmail, password: testPassword });
+  assert(login.status === 200 && login.data.success === true, "8. Login with correct credentials returns success");
+
   // Wrong password
   const wrongPw = await post("/auth/api/login", { email: testEmail, password: "wrongpassword" });
-  assert(wrongPw.status === 401 || wrongPw.status === 403, "9. Wrong password returns 401/403");
+  assert(wrongPw.status === 401, "9. Wrong password returns 401");
 
-  // Unverified account (email not verified yet)
-  const unverified = await post("/auth/api/login", { email: testEmail, password: testPassword });
-  assert(unverified.status === 403, "10. Unverified account returns 403");
-
-  // Brute force: 5 wrong attempts → lockout
-  const bruteEmail = `brute-${Date.now()}@example.com`;
-  await post("/auth/api/register", { email: bruteEmail, password: testPassword, orgName: "Brute Org" });
-
+  // Brute force: 5 wrong attempts → lockout (account pre-registered)
   for (let i = 0; i < 5; i++) {
     await post("/auth/api/login", { email: bruteEmail, password: "wrong" });
   }
   const locked = await post("/auth/api/login", { email: bruteEmail, password: "wrong" });
-  assert(locked.status === 423, "11. Brute-force lockout after 5 failures");
+  assert(locked.status === 423, "10. Brute-force lockout after 5 failures");
 }
 
 async function testForgotPassword() {
@@ -136,15 +146,15 @@ async function testForgotPassword() {
 
   // Forgot password
   const forgot = await post("/auth/api/forgot-password", { email: testEmail });
-  assert(forgot.status === 200 && forgot.data.success === true, "12. Forgot password returns success");
+  assert(forgot.status === 200 && forgot.data.success === true, "11. Forgot password returns success");
 
   // Unknown email — still succeeds (no information leak)
   const unknown = await post("/auth/api/forgot-password", { email: "nobody@nowhere.com" });
-  assert(unknown.status === 200 && unknown.data.success === true, "13. Unknown email still returns success");
+  assert(unknown.status === 200 && unknown.data.success === true, "12. Unknown email still returns success");
 
   // Reset without code
   const noCode = await post("/auth/api/reset-password", { email: testEmail, newPassword: "newpass123" });
-  assert(noCode.status === 400, "14. Reset without code returns 400");
+  assert(noCode.status === 400, "13. Reset without code returns 400");
 }
 
 // ── Run ─────────────────────────────────────────────────────────
@@ -154,8 +164,8 @@ async function main() {
 
   try {
     await testPasswordModule();
+    await registerBruteForceAccount();
     await testRegistration();
-    await testVerification();
     await testLogin();
     await testForgotPassword();
   } catch (err) {

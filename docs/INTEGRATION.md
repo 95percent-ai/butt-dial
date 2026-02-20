@@ -1,4 +1,4 @@
-<!-- version: 1.0 | updated: 2026-02-19 -->
+<!-- version: 1.1 | updated: 2026-02-21 -->
 
 # Butt-Dial MCP — Integration Guide
 
@@ -43,11 +43,11 @@ After login, go to `http://localhost:3100/admin`. Your API token is displayed at
 ### Step 4: Send Your First Message
 
 ```bash
+# With an agent token, agentId is auto-detected — you don't need to pass it:
 curl -X POST http://localhost:3100/api/v1/send-message \
-  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Authorization: Bearer YOUR_AGENT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "agentId": "test-agent-001",
     "to": "+15559876543",
     "body": "Hello from my AI agent!",
     "channel": "sms"
@@ -170,23 +170,6 @@ curl -X POST http://localhost:3100/api/v1/provision \
   -d '{"agentId":"my-agent","displayName":"My Agent","capabilities":["sms","voice","email"]}'
 ```
 
-### Other Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/health` | Health check |
-| GET | `/api/v1/messages` | Get message history |
-| POST | `/api/v1/send-message` | Send SMS/email/WhatsApp/LINE |
-| POST | `/api/v1/make-call` | Outbound AI voice call |
-| POST | `/api/v1/send-voice-message` | TTS voice message |
-| POST | `/api/v1/transfer-call` | Transfer live call |
-| POST | `/api/v1/provision` | Provision agent channels |
-| POST | `/api/v1/deprovision` | Tear down agent |
-| GET | `/api/v1/channel-status` | Check agent channel status |
-| GET | `/api/v1/usage` | Usage dashboard |
-| GET | `/api/v1/billing` | Billing summary |
-| GET | `/api/v1/openapi.json` | OpenAPI 3.1 spec |
-
 ---
 
 ## 6. MCP Connection
@@ -216,11 +199,10 @@ await client.connect(transport);
 const tools = await client.listTools();
 console.log(tools.tools.map(t => t.name));
 
-// Send an SMS
+// Send an SMS — agentId auto-detected from token, no need to pass it
 const result = await client.callTool({
   name: "comms_send_message",
   arguments: {
-    agentId: "my-agent",
     to: "+15559876543",
     body: "Hello from my AI agent!",
     channel: "sms"
@@ -241,24 +223,63 @@ console.log(JSON.parse(result.content[0].text));
 }
 ```
 
-### Available MCP Tools
+---
 
-| Tool | Description |
-|------|-------------|
-| `comms_ping` | Health check |
-| `comms_send_message` | Send SMS, email, WhatsApp, or LINE |
-| `comms_make_call` | Outbound AI voice call |
-| `comms_send_voice_message` | TTS voice message |
-| `comms_get_messages` | Get message history |
-| `comms_transfer_call` | Transfer live call |
-| `comms_provision_channels` | Provision agent |
-| `comms_deprovision_channels` | Tear down agent |
-| `comms_get_channel_status` | Channel health |
-| `comms_get_usage_dashboard` | Usage stats |
-| `comms_set_agent_limits` | Configure rate limits |
-| `comms_register_provider` | Register credentials |
-| `comms_get_billing_summary` | Billing info |
-| `comms_set_billing_config` | Set billing tier |
+## Feature Reference
+
+Every feature is available through both REST and MCP. Agent tokens auto-detect `agentId` — you don't need to pass it.
+
+### Communication
+
+| What | REST Endpoint | MCP Tool |
+|------|--------------|----------|
+| Send SMS / email / WhatsApp / LINE | `POST /send-message` | `comms_send_message` |
+| Make an AI voice call | `POST /make-call` | `comms_make_call` |
+| Call someone on your behalf | `POST /call-on-behalf` | `comms_call_on_behalf` |
+| Send a TTS voice message | `POST /send-voice-message` | `comms_send_voice_message` |
+| Transfer a live call | `POST /transfer-call` | `comms_transfer_call` |
+| Get message history | `GET /messages` | `comms_get_messages` |
+| Send verification code | — | `comms_send_otp` |
+| Verify a code | — | `comms_verify_otp` |
+
+### Agent Management
+
+| What | REST Endpoint | MCP Tool |
+|------|--------------|----------|
+| Check channel status | `GET /channel-status` | `comms_get_channel_status` |
+| Provision agent (admin) | `POST /provision` | `comms_provision_channels` |
+| Remove agent (admin) | `POST /deprovision` | `comms_deprovision_channels` |
+| Full onboarding (admin) | `POST /onboard` | `comms_onboard_customer` |
+| Set rate limits (admin) | `POST /agent-limits` | `comms_set_agent_limits` |
+| Expand agent pool (admin) | — | `comms_expand_agent_pool` |
+| Register provider (admin) | — | `comms_register_provider` |
+
+### Billing & Usage
+
+| What | REST Endpoint | MCP Tool |
+|------|--------------|----------|
+| Usage stats | `GET /usage` | `comms_get_usage_dashboard` |
+| Billing summary | `GET /billing` | `comms_get_billing_summary` |
+| Set billing config (admin) | `POST /billing/config` | `comms_set_billing_config` |
+
+### Compliance
+
+| What | MCP Tool |
+|------|----------|
+| Record contact consent | `comms_record_consent` |
+| Revoke consent | `comms_revoke_consent` |
+| Check consent status | `comms_check_consent` |
+
+### System
+
+| What | REST Endpoint | MCP Tool |
+|------|--------------|----------|
+| Health check | `GET /health` | `comms_ping` |
+| OpenAPI spec | `GET /openapi.json` | — |
+| Integration guide | `GET /integration-guide` | — |
+| Bridge calls (admin) | — | `comms_bridge_call` |
+| Create organization | — | `comms_create_organization` |
+| List organizations | — | `comms_list_organizations` |
 
 ---
 

@@ -8,7 +8,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
 import { config } from "../lib/config.js";
-import { requireAgent, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, resolveAgentId, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { requireAgentInOrg } from "../security/org-scope.js";
 import { generateOtp, verifyOtp } from "../security/otp.js";
 
@@ -18,12 +18,17 @@ export function registerOtpTools(server: McpServer): void {
     "comms_send_otp",
     "Send a one-time verification code to a contact via SMS, email, or WhatsApp. The code expires in 5 minutes.",
     {
-      agentId: z.string().describe("The agent sending the verification"),
+      agentId: z.string().optional().describe("Agent ID (auto-detected from agent token if omitted)"),
       to: z.string().describe("Recipient address (phone E.164 or email)"),
       channel: z.enum(["sms", "email", "whatsapp"]).describe("Delivery channel"),
       purpose: z.string().optional().describe("Optional description like 'account verification'"),
     },
-    async ({ agentId, to, channel, purpose }, extra) => {
+    async ({ agentId: explicitAgentId, to, channel, purpose }, extra) => {
+      const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
+      if (!agentId) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
+      }
+
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
       } catch (err) {
@@ -128,11 +133,16 @@ export function registerOtpTools(server: McpServer): void {
     "comms_verify_otp",
     "Verify a one-time code provided by a contact. Returns whether the code is valid.",
     {
-      agentId: z.string().describe("The agent requesting verification"),
+      agentId: z.string().optional().describe("Agent ID (auto-detected from agent token if omitted)"),
       contactAddress: z.string().describe("The contact's phone or email that received the code"),
       code: z.string().describe("The 6-digit code to verify"),
     },
-    async ({ agentId, contactAddress, code }, extra) => {
+    async ({ agentId: explicitAgentId, contactAddress, code }, extra) => {
+      const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
+      if (!agentId) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
+      }
+
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
       } catch (err) {

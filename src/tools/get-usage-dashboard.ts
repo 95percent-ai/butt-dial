@@ -7,7 +7,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
-import { requireAgent, getOrgId, isSuperAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, resolveAgentId, getOrgId, isSuperAdmin, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { orgFilter } from "../security/org-scope.js";
 import { getAgentLimits } from "../security/rate-limiter.js";
 import { config } from "../lib/config.js";
@@ -24,8 +24,9 @@ export function registerGetUsageDashboardTool(server: McpServer): void {
       agentId: z.string().optional().describe("Agent ID (required for agents, optional for admin — omit to see all)"),
       period: z.enum(["today", "week", "month", "all"]).default("today").describe("Time period for stats"),
     },
-    async ({ agentId, period }, extra) => {
+    async ({ agentId: explicitAgentId, period }, extra) => {
       const authInfo = extra.authInfo as AuthInfo | undefined;
+      const agentId = resolveAgentId(authInfo, explicitAgentId);
       const isAdmin = config.demoMode || authInfo?.scopes?.includes("admin");
 
       // If agentId provided, check access

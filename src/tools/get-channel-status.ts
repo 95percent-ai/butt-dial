@@ -7,7 +7,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
-import { requireAgent, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, resolveAgentId, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { requireAgentInOrg } from "../security/org-scope.js";
 
 interface AgentRow {
@@ -36,9 +36,14 @@ export function registerGetChannelStatusTool(server: McpServer): void {
     "comms_get_channel_status",
     "Get the current channel status for an agent — phone, WhatsApp, email, voice, message counts, and pool info.",
     {
-      agentId: z.string().describe("The agent ID to query"),
+      agentId: z.string().optional().describe("Agent ID (auto-detected from agent token if omitted)"),
     },
-    async ({ agentId }, extra) => {
+    async ({ agentId: explicitAgentId }, extra) => {
+      const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
+      if (!agentId) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
+      }
+
       // Auth: agent can only view their own status
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);

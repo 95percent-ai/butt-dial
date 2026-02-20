@@ -54,6 +54,8 @@ interface PendingRegistration {
   passwordHash: string;
   passwordSalt: string;
   orgName: string;
+  fullName?: string;
+  phone?: string;
   companyName?: string;
   website?: string;
   useCase?: string;
@@ -106,7 +108,7 @@ authApiRouter.post("/register", (req: Request, res: Response) => {
       return;
     }
 
-    const { email, password, orgName, tosAccepted, companyName, website, useCase } = req.body ?? {};
+    const { email, password, orgName, tosAccepted, fullName, phone, companyName, website, useCase } = req.body ?? {};
 
     // Validate input
     if (!email || typeof email !== "string" || !email.includes("@")) {
@@ -115,10 +117,6 @@ authApiRouter.post("/register", (req: Request, res: Response) => {
     }
     if (!password || typeof password !== "string" || password.length < 8) {
       res.status(400).json({ error: "Password must be at least 8 characters" });
-      return;
-    }
-    if (!orgName || typeof orgName !== "string" || orgName.trim().length < 2) {
-      res.status(400).json({ error: "Account name is required (min 2 characters)" });
       return;
     }
     if (!tosAccepted) {
@@ -146,13 +144,49 @@ authApiRouter.post("/register", (req: Request, res: Response) => {
       return;
     }
 
-    // Hash password and store in memory (account created only after OTP verification)
     const { hash, salt } = hashPassword(password);
+    const trimmedFullName = fullName ? String(fullName).trim() : undefined;
+    const trimmedPhone = phone ? String(phone).trim() : undefined;
+    const resolvedOrgName = (orgName && typeof orgName === "string" && orgName.trim().length >= 2)
+      ? orgName.trim()
+      : normalizedEmail.split("@")[0];
+
+    // ── Branch: skip OTP when email verification is OFF ──
+    if (!config.requireEmailVerification) {
+      // Create org + account immediately
+      const trimmedOrg = resolvedOrgName;
+      const slug = trimmedOrg.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      const { org, rawToken } = createOrganization(db, trimmedOrg, slug + "-" + randomUUID().slice(0, 8));
+
+      const userId = randomUUID();
+      const accountStatus = config.edition === "saas" ? "pending_review" : "approved";
+      db.run(
+        `INSERT INTO user_accounts (id, email, password_hash, password_salt, org_id, email_verified, tos_accepted_at, account_status, full_name, phone, company_name, website, use_case_description)
+         VALUES (?, ?, ?, ?, ?, 1, datetime('now'), ?, ?, ?, ?, ?, ?)`,
+        [userId, normalizedEmail, hash, salt, org.id, accountStatus, trimmedFullName || null, trimmedPhone || null, companyName ? String(companyName).trim() : null, website ? String(website).trim() : null, useCase ? String(useCase).trim() : null],
+      );
+
+      // Set session cookie
+      setSessionCookie(res, {
+        orgId: org.id,
+        userId,
+        orgToken: rawToken,
+        expiresAt: Date.now() + COOKIE_MAX_AGE_MS,
+      });
+
+      logger.info("account_created", { email: normalizedEmail, orgId: org.id, skipOtp: true });
+      res.json({ success: true, requiresVerification: false, redirect: "/admin" });
+      return;
+    }
+
+    // ── OTP flow (requireEmailVerification is ON) ──
     pendingRegistrations.set(normalizedEmail, {
       email: normalizedEmail,
       passwordHash: hash,
       passwordSalt: salt,
-      orgName: orgName.trim(),
+      orgName: resolvedOrgName,
+      fullName: trimmedFullName,
+      phone: trimmedPhone,
       companyName: companyName ? String(companyName).trim() : undefined,
       website: website ? String(website).trim() : undefined,
       useCase: useCase ? String(useCase).trim() : undefined,
@@ -173,7 +207,7 @@ authApiRouter.post("/register", (req: Request, res: Response) => {
     }
 
     logger.info("registration_pending", { email: normalizedEmail });
-    res.json({ success: true, email: normalizedEmail });
+    res.json({ success: true, requiresVerification: true, email: normalizedEmail });
   } catch (err) {
     logger.error("register_error", { error: String(err) });
     res.status(500).json({ error: "Registration failed. Please try again." });
@@ -263,9 +297,9 @@ authApiRouter.post("/verify-email", (req: Request, res: Response) => {
     // Community/enterprise: auto-approve. SaaS: pending review.
     const accountStatus = config.edition === "saas" ? "pending_review" : "approved";
     db.run(
-      `INSERT INTO user_accounts (id, email, password_hash, password_salt, org_id, email_verified, tos_accepted_at, account_status, company_name, website, use_case_description)
-       VALUES (?, ?, ?, ?, ?, 1, datetime('now'), ?, ?, ?, ?)`,
-      [userId, normalizedEmail, pending.passwordHash, pending.passwordSalt, org.id, accountStatus, pending.companyName || null, pending.website || null, pending.useCase || null],
+      `INSERT INTO user_accounts (id, email, password_hash, password_salt, org_id, email_verified, tos_accepted_at, account_status, full_name, phone, company_name, website, use_case_description)
+       VALUES (?, ?, ?, ?, ?, 1, datetime('now'), ?, ?, ?, ?, ?, ?)`,
+      [userId, normalizedEmail, pending.passwordHash, pending.passwordSalt, org.id, accountStatus, pending.fullName || null, pending.phone || null, pending.companyName || null, pending.website || null, pending.useCase || null],
     );
 
     // Clean up pending registration
@@ -280,8 +314,8 @@ authApiRouter.post("/verify-email", (req: Request, res: Response) => {
     });
 
     logger.info("account_created", { email: normalizedEmail, orgId: org.id });
-    // New accounts always need to accept the disclaimer first
-    res.json({ success: true, orgToken: rawToken, orgId: org.id, redirect: "/disclaimer" });
+    // Disclaimer modal will show on admin page if not yet accepted
+    res.json({ success: true, orgToken: rawToken, orgId: org.id, redirect: "/admin" });
   } catch (err) {
     logger.error("verify_email_error", { error: String(err) });
     res.status(500).json({ error: "Verification failed. Please try again." });
@@ -347,8 +381,8 @@ authApiRouter.post("/login", (req: Request, res: Response) => {
       return;
     }
 
-    // Check email verified
-    if (user.email_verified !== 1) {
+    // Check email verified (only enforced when email verification is required)
+    if (config.requireEmailVerification && user.email_verified !== 1) {
       res.status(403).json({ error: "Please verify your email before logging in" });
       return;
     }
@@ -370,23 +404,9 @@ authApiRouter.post("/login", (req: Request, res: Response) => {
       expiresAt: Date.now() + COOKIE_MAX_AGE_MS,
     });
 
-    // Check if user has accepted current disclaimer version
-    let loginRedirect = "/admin";
-    try {
-      const disclaimerRows = db.query<{ version: string }>(
-        "SELECT version FROM disclaimer_acceptances WHERE user_id = ? AND disclaimer_type = 'platform_usage' ORDER BY accepted_at DESC LIMIT 1",
-        [user.id],
-      );
-      if (disclaimerRows.length === 0 || disclaimerRows[0].version !== DISCLAIMER_VERSION) {
-        loginRedirect = "/disclaimer";
-      }
-    } catch {
-      // Table might not exist yet — send to disclaimer to be safe
-      loginRedirect = "/disclaimer";
-    }
-
+    // Disclaimer modal will show on admin page if not yet accepted
     logger.info("user_login", { email: normalizedEmail, orgId: user.org_id });
-    res.json({ success: true, orgToken: freshToken, orgId: user.org_id, redirect: loginRedirect });
+    res.json({ success: true, orgToken: freshToken, orgId: user.org_id, redirect: "/admin" });
   } catch (err) {
     logger.error("login_error", { error: String(err) });
     res.status(500).json({ error: "Login failed. Please try again." });

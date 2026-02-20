@@ -35,6 +35,9 @@ interface ProviderStatus {
     enabled: boolean;
     hasApiKey: boolean;
   };
+  registration: {
+    requireEmailVerification: boolean;
+  };
 }
 
 /** Mask a value — show only last 4 characters */
@@ -85,6 +88,7 @@ export function getProviderStatus(): ProviderStatus {
   const ttsProvider = env["PROVIDER_TTS"];
   const translationEnabled = env["TRANSLATION_ENABLED"];
   const anthropicKey = env["ANTHROPIC_API_KEY"];
+  const requireEmailVerification = env["REQUIRE_EMAIL_VERIFICATION"];
 
   return {
     twilio: {
@@ -116,6 +120,9 @@ export function getProviderStatus(): ProviderStatus {
     translation: {
       enabled: translationEnabled === "true",
       hasApiKey: !!anthropicKey,
+    },
+    registration: {
+      requireEmailVerification: requireEmailVerification === "true",
     },
   };
 }

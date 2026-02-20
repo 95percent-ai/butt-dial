@@ -7,7 +7,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
-import { requireAgent, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, resolveAgentId, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { requireAgentInOrg } from "../security/org-scope.js";
 
 interface MessageRow {
@@ -31,12 +31,17 @@ export function registerGetMessagesTool(server: McpServer): void {
     "comms_get_messages",
     "List messages for an agent, newest first. Optionally filter by channel.",
     {
-      agentId: z.string().describe("The agent ID to list messages for"),
+      agentId: z.string().optional().describe("Agent ID (auto-detected from agent token if omitted)"),
       limit: z.number().default(20).describe("Max number of messages to return (default 20)"),
       channel: z.enum(["sms", "whatsapp", "email", "voice", "line"]).optional().describe("Filter by channel"),
       contactAddress: z.string().optional().describe("Filter by contact address (phone/email) — shows conversation thread"),
     },
-    async ({ agentId, limit, channel, contactAddress }, extra) => {
+    async ({ agentId: explicitAgentId, limit, channel, contactAddress }, extra) => {
+      const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
+      if (!agentId) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
+      }
+
       // Auth: agent can only view their own messages
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);

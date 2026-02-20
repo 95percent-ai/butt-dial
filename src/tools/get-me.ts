@@ -1,5 +1,5 @@
 /**
- * comms_get_me — MCP tool for "get me" secretary calls.
+ * comms_call_on_behalf — MCP tool for "call on behalf" secretary calls.
  *
  * Calls a target person on your behalf. An AI secretary asks if it's a
  * good time to talk. If yes — bridges the requester in via transfer_call.
@@ -14,7 +14,7 @@ import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 import { storeCallConfig } from "../webhooks/voice-sessions.js";
 import { getAgentLanguage } from "../lib/translator.js";
-import { requireAgent, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAgent, resolveAgentId, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { requireAgentInOrg } from "../security/org-scope.js";
 import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
@@ -62,10 +62,10 @@ function buildGreeting(requesterName: string, targetName: string, message?: stri
 
 export function registerGetMeTool(server: McpServer): void {
   server.tool(
-    "comms_get_me",
+    "comms_call_on_behalf",
     "Secretary call — calls someone on your behalf. An AI asks if they're available, and if yes, bridges you into the call. If no, asks when would be better and logs it.",
     {
-      agentId: z.string().describe("The agent ID that owns the calling phone number"),
+      agentId: z.string().optional().describe("Agent ID (auto-detected from agent token if omitted)"),
       target: z.string().describe("Phone number to call in E.164 format (e.g. +972587050190)"),
       targetName: z.string().optional().describe("Name of the person being called (e.g. Guy)"),
       requesterPhone: z.string().describe("Your phone number — where to bridge the call if they say yes"),
@@ -73,7 +73,12 @@ export function registerGetMeTool(server: McpServer): void {
       message: z.string().optional().describe("Reason for the call — included in the greeting (e.g. 'He wants to discuss the proposal')"),
       recipientTimezone: z.string().optional().describe("Recipient's IANA timezone. Auto-detected from phone prefix if omitted."),
     },
-    async ({ agentId, target, targetName, requesterPhone, requesterName, message, recipientTimezone }, extra) => {
+    async ({ agentId: explicitAgentId, target, targetName, requesterPhone, requesterName, message, recipientTimezone }, extra) => {
+      const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
+      if (!agentId) {
+        return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
+      }
+
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
       } catch (err) {
@@ -173,7 +178,7 @@ export function registerGetMeTool(server: McpServer): void {
       db.run(
         `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id)
          VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?, ?)`,
-        [messageId, agentId, fromNumber, target, `[Get Me] ${callerName} → ${calleeName || target}`, result.callSid, result.status, orgId]
+        [messageId, agentId, fromNumber, target, `[Call On Behalf] ${callerName} → ${calleeName || target}`, result.callSid, result.status, orgId]
       );
 
       // Log to call_logs
@@ -207,5 +212,5 @@ export function registerGetMeTool(server: McpServer): void {
     }
   );
 
-  logger.info("tool_registered", { name: "comms_get_me" });
+  logger.info("tool_registered", { name: "comms_call_on_behalf" });
 }

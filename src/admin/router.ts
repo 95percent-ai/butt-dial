@@ -121,27 +121,19 @@ function adminAuth(req: Request, res: Response, next: NextFunction): void {
 }
 
 // ── Disclaimer gate middleware for admin API endpoints ─────────────
+// Disclaimer is now handled as a modal inside the admin page.
+// API endpoints still block if disclaimer not accepted (returns JSON hint).
 function disclaimerGate(req: Request, res: Response, next: NextFunction): void {
   if ((req as any).disclaimerRequired) {
-    // For API calls, return JSON redirect
-    const accept = req.headers.accept || "";
-    if (accept.includes("application/json") || req.xhr || req.path.startsWith("/admin/api/")) {
-      res.status(403).json({ requiresDisclaimer: true, redirectUrl: "/disclaimer" });
-      return;
-    }
-    // For HTML requests, redirect
-    res.redirect("/disclaimer");
+    res.status(403).json({ requiresDisclaimer: true });
     return;
   }
   next();
 }
 
 // ── Unified Admin Page ────────────────────────────────────────────
+// Disclaimer is shown as a modal overlay inside the admin page itself.
 adminRouter.get("/admin", adminAuth, (req: Request, res: Response) => {
-  if ((req as any).disclaimerRequired) {
-    res.redirect("/disclaimer");
-    return;
-  }
   const spec = generateOpenApiSpec();
   res.type("html").send(renderAdminPage(JSON.stringify(spec)));
 });
@@ -769,6 +761,7 @@ adminRouter.post("/admin/api/save", adminAuth, (req: Request, res: Response) => 
     "TRANSLATION_ENABLED",
     "VOICE_AI_DISCLOSURE",
     "VOICE_AI_DISCLOSURE_TEXT",
+    "REQUIRE_EMAIL_VERIFICATION",
   ]);
 
   const filtered: Record<string, string> = {};

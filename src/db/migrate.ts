@@ -154,6 +154,14 @@ export function runMigrations(): void {
     db.run("ALTER TABLE user_accounts ADD COLUMN account_status TEXT DEFAULT 'pending_review'");
   } catch {}
 
+  // Add full_name and phone to user_accounts
+  try {
+    db.run("ALTER TABLE user_accounts ADD COLUMN full_name TEXT");
+  } catch {}
+  try {
+    db.run("ALTER TABLE user_accounts ADD COLUMN phone TEXT");
+  } catch {}
+
   // Ensure default organization exists
   try {
     const existing = db.query<{ id: string }>("SELECT id FROM organizations WHERE id = 'default'");
