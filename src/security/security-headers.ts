@@ -26,7 +26,7 @@ export function securityHeaders(req: Request, res: Response, next: NextFunction)
     // Admin pages need CDN access for Chart.js and Swagger UI
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data:; connect-src 'self'"
+      "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com"
     );
   } else if (isPublicPage) {
     res.setHeader(
