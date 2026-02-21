@@ -258,7 +258,7 @@ async function main() {
   assert(toolNames.includes("comms_send_message"), "comms_send_message tool available");
   assert(toolNames.includes("comms_make_call"), "comms_make_call tool available");
   assert(toolNames.includes("comms_provision_channels"), "comms_provision_channels tool available");
-  assert(toolNames.includes("comms_get_messages"), "comms_get_messages tool available");
+  assert(toolNames.includes("comms_get_waiting_messages"), "comms_get_waiting_messages tool available");
   assert(toolNames.includes("comms_transfer_call"), "comms_transfer_call tool available");
 
   // Config has edition field
@@ -272,10 +272,9 @@ async function main() {
   const { runDataRetentionCleanup, loadRetentionConfig } = await import("../dist/lib/data-retention.js");
 
   const retentionConfig = loadRetentionConfig();
-  assert(retentionConfig.messagesRetentionDays === 90, "Default messages retention is 90 days");
   assert(retentionConfig.usageLogsRetentionDays === 365, "Default usage logs retention is 365 days");
   assert(retentionConfig.callLogsRetentionDays === 365, "Default call logs retention is 365 days");
-  assert(retentionConfig.voicemailRetentionDays === 30, "Default voicemail retention is 30 days");
+  assert(retentionConfig.deadLetterRetentionDays === 7, "Default dead letter retention is 7 days");
   assert(retentionConfig.otpRetentionDays === 1, "Default OTP retention is 1 day");
   assert(retentionConfig.revokedConsentRetentionDays === 730, "Default revoked consent retention is 730 days");
   assert(retentionConfig.enabled === true, "Data retention is enabled by default");
@@ -317,12 +316,11 @@ async function main() {
   });
   assert(send.parsed.success === true || send.parsed.messageId, "comms_send_message works");
 
-  // Get messages
-  const msgs = await callTool(client, "comms_get_messages", {
+  // Get waiting messages
+  const msgs = await callTool(client, "comms_get_waiting_messages", {
     agentId: "test-agent-001",
-    limit: 5,
   });
-  assert(Array.isArray(msgs.parsed.messages), "comms_get_messages returns array");
+  assert(Array.isArray(msgs.parsed.messages), "comms_get_waiting_messages returns array");
 
   // Health endpoint
   const health = await fetch(`${SERVER_URL}/health`);

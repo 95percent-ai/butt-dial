@@ -21,23 +21,6 @@ CREATE TABLE IF NOT EXISTS agent_channels (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
--- Message log (metadata only — no body stored by default)
-CREATE TABLE IF NOT EXISTS messages (
-  id TEXT PRIMARY KEY,
-  agent_id TEXT NOT NULL REFERENCES agent_channels(agent_id),
-  channel TEXT NOT NULL,
-  direction TEXT NOT NULL,
-  from_address TEXT NOT NULL,
-  to_address TEXT NOT NULL,
-  body TEXT,
-  media_url TEXT,
-  media_type TEXT,
-  external_id TEXT,
-  status TEXT DEFAULT 'sent',
-  cost REAL,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-
 -- Agent pool management
 CREATE TABLE IF NOT EXISTS agent_pool (
   id TEXT PRIMARY KEY,
@@ -57,7 +40,6 @@ CREATE TABLE IF NOT EXISTS whatsapp_pool (
 );
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_messages_agent_date ON messages(agent_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_agent_channels_agent_id ON agent_channels(agent_id);
 
 -- Seed the agent pool with default values

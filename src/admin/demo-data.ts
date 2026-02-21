@@ -79,7 +79,6 @@ export function getDemoDashboard() {
       whatsapp: "ok",
       voice: "ok",
       assistant: "ok",
-      translation: "ok",
     },
 
     recentActivity: [

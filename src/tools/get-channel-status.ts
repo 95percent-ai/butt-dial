@@ -72,17 +72,17 @@ export function registerGetChannelStatusTool(server: McpServer): void {
 
       const agent = rows[0];
 
-      // Message counts per channel
+      // Action counts per channel (from usage_logs)
       const smsCounts = db.query<CountRow>(
-        "SELECT COUNT(*) as cnt FROM messages WHERE agent_id = ? AND channel = 'sms'",
+        "SELECT COUNT(*) as cnt FROM usage_logs WHERE agent_id = ? AND channel = 'sms'",
         [agentId]
       );
       const emailCounts = db.query<CountRow>(
-        "SELECT COUNT(*) as cnt FROM messages WHERE agent_id = ? AND channel = 'email'",
+        "SELECT COUNT(*) as cnt FROM usage_logs WHERE agent_id = ? AND channel = 'email'",
         [agentId]
       );
       const whatsappCounts = db.query<CountRow>(
-        "SELECT COUNT(*) as cnt FROM messages WHERE agent_id = ? AND channel = 'whatsapp'",
+        "SELECT COUNT(*) as cnt FROM usage_logs WHERE agent_id = ? AND channel = 'whatsapp'",
         [agentId]
       );
 

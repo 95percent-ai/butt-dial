@@ -187,22 +187,20 @@ export function processErasureRequest(db: IDBProvider, identifier: string, ident
   // Determine column to match
   const columnMap: Record<string, Array<{ table: string; column: string }>> = {
     phone: [
-      { table: "messages", column: "from_address" },
-      { table: "messages", column: "to_address" },
+      { table: "dead_letters", column: "from_address" },
+      { table: "dead_letters", column: "to_address" },
       { table: "call_logs", column: "from_address" },
       { table: "call_logs", column: "to_address" },
       { table: "dnc_list", column: "phone_number" },
-      { table: "voicemail_messages", column: "caller_from" },
     ],
     email: [
-      { table: "messages", column: "from_address" },
-      { table: "messages", column: "to_address" },
+      { table: "dead_letters", column: "from_address" },
+      { table: "dead_letters", column: "to_address" },
       { table: "dnc_list", column: "email_address" },
     ],
     agent_id: [
-      { table: "messages", column: "agent_id" },
+      { table: "dead_letters", column: "agent_id" },
       { table: "call_logs", column: "agent_id" },
-      { table: "voicemail_messages", column: "agent_id" },
       { table: "usage_logs", column: "agent_id" },
     ],
   };

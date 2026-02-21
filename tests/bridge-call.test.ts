@@ -353,7 +353,7 @@ async function main() {
   // ------------------------------------------------------------------
   try { verifyDb.prepare("DELETE FROM bridge_calls WHERE org_id = 'default'").run(); } catch {}
   try { verifyDb.prepare("DELETE FROM bridge_registry WHERE label LIKE 'test-%'").run(); } catch {}
-  try { verifyDb.prepare("DELETE FROM messages WHERE agent_id = 'test-bridge-agent'").run(); } catch {}
+  try { verifyDb.prepare("DELETE FROM dead_letters WHERE agent_id = 'test-bridge-agent'").run(); } catch {}
   try { verifyDb.prepare("DELETE FROM call_logs WHERE agent_id = 'test-bridge-agent'").run(); } catch {}
   try { verifyDb.prepare("DELETE FROM usage_logs WHERE agent_id = 'test-bridge-agent'").run(); } catch {}
   try { verifyDb.prepare("DELETE FROM usage_logs WHERE agent_id = 'bridge'").run(); } catch {}

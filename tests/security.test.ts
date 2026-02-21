@@ -382,7 +382,7 @@ async function testDemoModeRegression() {
 
   // Clean up
   const setupDb = new Database(DB_PATH);
-  setupDb.prepare("DELETE FROM messages WHERE agent_id = 'test-sec-provision'").run();
+  setupDb.prepare("DELETE FROM dead_letters WHERE agent_id = 'test-sec-provision'").run();
   setupDb.prepare("DELETE FROM agent_tokens WHERE agent_id = 'test-sec-provision'").run();
   setupDb.prepare("DELETE FROM agent_channels WHERE agent_id = 'test-sec-provision'").run();
   setupDb.close();
@@ -478,7 +478,7 @@ async function testDemoModeRegression() {
 
   // Cleanup
   const cleanDb = new Database(DB_PATH);
-  cleanDb.prepare("DELETE FROM messages WHERE agent_id = 'test-sec-provision'").run();
+  cleanDb.prepare("DELETE FROM dead_letters WHERE agent_id = 'test-sec-provision'").run();
   cleanDb.prepare("DELETE FROM agent_tokens WHERE agent_id = 'test-sec-provision'").run();
   cleanDb.prepare("DELETE FROM agent_channels WHERE agent_id = 'test-sec-provision'").run();
   cleanDb.close();

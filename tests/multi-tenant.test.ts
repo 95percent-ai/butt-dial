@@ -76,8 +76,8 @@ async function main() {
 
   // Verify org_id column on key tables
   const tablesToCheck = [
-    "agent_channels", "messages", "usage_logs", "audit_log",
-    "agent_pool", "call_logs", "spending_limits", "agent_tokens",
+    "agent_channels", "usage_logs", "audit_log",
+    "agent_pool", "call_logs", "dead_letters", "spending_limits", "agent_tokens",
     "billing_config", "dnc_list",
   ];
   for (const table of tablesToCheck) {
@@ -144,30 +144,30 @@ async function main() {
   assert(alphaAgents.length === 2, "Alpha has 2 agents");
   assert(betaAgents.length === 1, "Beta has 1 agent");
 
-  // ── 7. Message isolation ────────────────────────────────────────
-  console.log("\n7. Message Isolation");
+  // ── 7. Dead letter isolation ────────────────────────────────────
+  console.log("\n7. Dead Letter Isolation");
 
-  // Insert messages for each org
+  // Insert dead letters for each org
   db.prepare(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, status, org_id)
-     VALUES ('msg-alpha-1', 'alpha-agent-1', 'sms', 'outbound', '+15550001001', '+15559990001', 'Hello from Alpha', 'sent', ?)`
+    `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, status)
+     VALUES ('dl-alpha-1', 'alpha-agent-1', ?, 'sms', 'outbound', 'send_failed', '+15550001001', '+15559990001', 'Hello from Alpha', 'pending')`
   ).run(alphaOrgId);
 
   db.prepare(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, status, org_id)
-     VALUES ('msg-alpha-2', 'alpha-agent-2', 'sms', 'outbound', '+15550001002', '+15559990002', 'Alpha msg 2', 'sent', ?)`
+    `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, status)
+     VALUES ('dl-alpha-2', 'alpha-agent-2', ?, 'sms', 'outbound', 'send_failed', '+15550001002', '+15559990002', 'Alpha msg 2', 'pending')`
   ).run(alphaOrgId);
 
   db.prepare(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, status, org_id)
-     VALUES ('msg-beta-1', 'beta-agent-1', 'sms', 'outbound', '+15550002001', '+15559990003', 'Hello from Beta', 'sent', ?)`
+    `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, status)
+     VALUES ('dl-beta-1', 'beta-agent-1', ?, 'sms', 'outbound', 'send_failed', '+15550002001', '+15559990003', 'Hello from Beta', 'pending')`
   ).run(betaOrgId);
 
   // Verify org-scoped queries
-  const alphaMessages = db.prepare("SELECT * FROM messages WHERE org_id = ?").all(alphaOrgId);
-  const betaMessages = db.prepare("SELECT * FROM messages WHERE org_id = ?").all(betaOrgId);
-  assert(alphaMessages.length === 2, "Alpha sees only its 2 messages");
-  assert(betaMessages.length === 1, "Beta sees only its 1 message");
+  const alphaDeadLetters = db.prepare("SELECT * FROM dead_letters WHERE org_id = ?").all(alphaOrgId);
+  const betaDeadLetters = db.prepare("SELECT * FROM dead_letters WHERE org_id = ?").all(betaOrgId);
+  assert(alphaDeadLetters.length === 2, "Alpha sees only its 2 dead letters");
+  assert(betaDeadLetters.length === 1, "Beta sees only its 1 dead letter");
 
   // ── 8. Usage isolation ──────────────────────────────────────────
   console.log("\n8. Usage & Billing Isolation");
@@ -240,14 +240,14 @@ async function main() {
   });
   assert(dupResult.isError === true || dupResult.parsed.error !== undefined, "Duplicate slug rejected");
 
-  // ── 13. Org-scoped MCP tool — get_messages ──────────────────────
+  // ── 13. Org-scoped MCP tool — get_waiting_messages ──────────────
   console.log("\n13. MCP Tool Org Scoping");
 
-  // In demo mode, calling get_messages for alpha-agent-1 should work
-  const msgResult = await callTool(client, "comms_get_messages", {
+  // In demo mode, calling get_waiting_messages for alpha-agent-1 should work
+  const msgResult = await callTool(client, "comms_get_waiting_messages", {
     agentId: "alpha-agent-1",
   });
-  assert(!msgResult.isError, "get_messages for alpha-agent-1 succeeds");
+  assert(!msgResult.isError, "get_waiting_messages for alpha-agent-1 succeeds");
   if (msgResult.parsed.messages) {
     assert(Array.isArray(msgResult.parsed.messages), "Returns messages array");
   }
@@ -280,7 +280,7 @@ async function main() {
   console.log("\n── Cleanup ──");
 
   // Remove test data
-  db.prepare("DELETE FROM messages WHERE id LIKE 'msg-alpha-%' OR id LIKE 'msg-beta-%'").run();
+  db.prepare("DELETE FROM dead_letters WHERE id LIKE 'dl-alpha-%' OR id LIKE 'dl-beta-%'").run();
   db.prepare("DELETE FROM usage_logs WHERE id LIKE 'ul-alpha-%' OR id LIKE 'ul-beta-%'").run();
   db.prepare("DELETE FROM dnc_list WHERE id = 'dnc-alpha-1'").run();
   db.prepare("DELETE FROM audit_log WHERE id = 'audit-test-1'").run();

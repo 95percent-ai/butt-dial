@@ -49,7 +49,7 @@ async function main() {
 
   // Clean up from previous runs
   const setupDb = new Database(DB_PATH);
-  setupDb.prepare("DELETE FROM messages WHERE agent_id IN ('test-onboard-001', 'test-onboard-dup')").run();
+  setupDb.prepare("DELETE FROM dead_letters WHERE agent_id IN ('test-onboard-001', 'test-onboard-dup')").run();
   setupDb.prepare("DELETE FROM whatsapp_pool WHERE assigned_to_agent IN ('test-onboard-001', 'test-onboard-dup')").run();
   setupDb.prepare("DELETE FROM agent_channels WHERE agent_id IN ('test-onboard-001', 'test-onboard-dup')").run();
   try { setupDb.prepare("DELETE FROM spending_limits WHERE agent_id IN ('test-onboard-001', 'test-onboard-dup')").run(); } catch {}
@@ -182,7 +182,7 @@ async function main() {
   // ------------------------------------------------------------------
   console.log("\nCleanup...");
   const cleanDb = new Database(DB_PATH);
-  cleanDb.prepare("DELETE FROM messages WHERE agent_id = 'test-onboard-001'").run();
+  cleanDb.prepare("DELETE FROM dead_letters WHERE agent_id = 'test-onboard-001'").run();
   cleanDb.prepare("UPDATE whatsapp_pool SET assigned_to_agent = NULL, status = 'available' WHERE assigned_to_agent = 'test-onboard-001'").run();
   try { cleanDb.prepare("DELETE FROM agent_tokens WHERE agent_id = 'test-onboard-001'").run(); } catch {}
   try { cleanDb.prepare("DELETE FROM spending_limits WHERE agent_id = 'test-onboard-001'").run(); } catch {}

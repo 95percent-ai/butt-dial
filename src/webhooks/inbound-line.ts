@@ -2,7 +2,7 @@
  * Inbound LINE webhook handler.
  *
  * LINE POSTs here when someone sends a message to the agent's LINE Official Account.
- * Flow: verify x-line-signature → parse events → for each message event → find agent → store → forward → return 200.
+ * Flow: verify x-line-signature → parse events → for each message event → find agent → forward → queue dead letter on failure → return 200.
  */
 
 import { randomUUID, createHmac } from "crypto";
@@ -10,7 +10,6 @@ import type { Request, Response } from "express";
 import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
-import { detectLanguage, translate, needsTranslation, getAgentLanguage } from "../lib/translator.js";
 
 interface AgentRow {
   agent_id: string;
@@ -116,80 +115,57 @@ export async function handleInboundLine(req: Request, res: Response): Promise<vo
       if (orgRows.length > 0 && orgRows[0].org_id) orgId = orgRows[0].org_id;
     } catch {}
 
-    // Detect language and translate if needed
-    let translatedBody = messageText;
-    let sourceLanguage: string | null = null;
-    const agentLang = getAgentLanguage(db, String(agentId));
-
-    if (messageText && config.translationEnabled) {
-      sourceLanguage = await detectLanguage(messageText);
-      if (sourceLanguage && sourceLanguage !== "unknown" && needsTranslation(sourceLanguage, agentLang)) {
-        translatedBody = await translate(messageText, sourceLanguage, agentLang);
-        logger.info("inbound_line_translated", {
-          agentId,
-          from: userId,
-          sourceLanguage,
-          agentLanguage: agentLang,
-          originalLength: messageText.length,
-          translatedLength: translatedBody.length,
-        });
-      }
-    }
-
-    // Store message
-    const messageId = randomUUID();
-    db.run(
-      `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, body_original, source_language, external_id, status, org_id)
-       VALUES (?, ?, 'line', 'inbound', ?, ?, ?, ?, ?, ?, 'received', ?)`,
-      [
-        messageId,
-        agentId,
-        userId,
-        agentId,
-        translatedBody || null,
-        messageText !== translatedBody ? messageText : null,
-        sourceLanguage,
-        lineMessageId || null,
-        orgId,
-      ]
-    );
-
-    logger.info("inbound_line_stored", { messageId, agentId, from: userId });
-
-    // Forward to callback URL (best-effort)
+    // Forward to callback URL — queue to dead_letters on failure
     const callbackUrl = config.agentosCallbackUrl.replace("{agentId}", agentId as string);
     forwardToCallback(callbackUrl, {
-      messageId,
       agentId,
       channel: "line",
       direction: "inbound",
       from: userId,
       to: agentId,
-      body: translatedBody,
-      bodyOriginal: messageText !== translatedBody ? messageText : undefined,
-      sourceLanguage: sourceLanguage || undefined,
+      body: messageText,
       externalId: lineMessageId || null,
-    });
+    }, { db, agentId: agentId as string, orgId, channel: "line", from: userId, to: agentId as string, body: messageText, externalId: lineMessageId || null });
   }
 
   // LINE expects HTTP 200 with empty body
   res.status(200).send("");
 }
 
-/** Best-effort POST to the agent's callback URL. Logs failure but never throws. */
-function forwardToCallback(url: string, payload: Record<string, unknown>): void {
+/** POST to the agent's callback URL. On failure, queue to dead_letters. */
+function forwardToCallback(
+  url: string,
+  payload: Record<string, unknown>,
+  deadLetterCtx: { db: any; agentId: string; orgId: string; channel: string; from: string; to: string; body: string; externalId?: string | null },
+): void {
   fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   })
     .then((resp) => {
-      logger.info("inbound_line_callback_sent", { url, status: resp.status });
+      if (resp.ok) {
+        logger.info("inbound_line_callback_sent", { url, status: resp.status });
+      } else {
+        logger.warn("inbound_line_callback_error", { url, status: resp.status });
+        queueDeadLetter(deadLetterCtx, `Callback returned ${resp.status}`);
+      }
     })
     .catch((err) => {
-      logger.warn("inbound_line_callback_failed", {
-        url,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.warn("inbound_line_callback_failed", { url, error: errMsg });
+      queueDeadLetter(deadLetterCtx, errMsg);
     });
+}
+
+function queueDeadLetter(ctx: { db: any; agentId: string; orgId: string; channel: string; from: string; to: string; body: string; externalId?: string | null }, error: string): void {
+  try {
+    ctx.db.run(
+      `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, external_id, error_details, status)
+       VALUES (?, ?, ?, ?, 'inbound', 'agent_offline', ?, ?, ?, ?, ?, 'pending')`,
+      [randomUUID(), ctx.agentId, ctx.orgId, ctx.channel, ctx.from, ctx.to, ctx.body, ctx.externalId || null, error]
+    );
+  } catch (e) {
+    logger.error("dead_letter_queue_error", { agentId: ctx.agentId, error: String(e) });
+  }
 }

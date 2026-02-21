@@ -134,14 +134,6 @@ export async function handleInboundVoice(req: Request, res: Response): Promise<v
 
   // --- Normal AI voice flow (no bridge match) ---
 
-  // Store inbound call in messages table
-  const messageId = randomUUID();
-  db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id)
-     VALUES (?, ?, 'voice', 'inbound', ?, ?, ?, ?, 'received', ?)`,
-    [messageId, agentId, body.From, body.To, null, body.CallSid || null, orgId]
-  );
-
   // Build TwiML via voice orchestrator — use agent's language instead of global default
   const voiceOrch = getProvider("voiceOrchestration");
   const wsUrl = buildWsUrl(agentId);
@@ -155,7 +147,7 @@ export async function handleInboundVoice(req: Request, res: Response): Promise<v
     language: agentLang,
   });
 
-  logger.info("inbound_voice_twiml_sent", { agentId, messageId, wsUrl });
+  logger.info("inbound_voice_twiml_sent", { agentId, wsUrl });
 
   res.status(200).type("text/xml").send(twiml);
 }

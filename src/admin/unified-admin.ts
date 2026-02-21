@@ -1782,27 +1782,6 @@ export function renderAdminPage(specJson: string): string {
           </div>
         </div>
 
-        <div class="card" id="card-translation">
-          <div class="card-header">
-            <span class="card-title">Translation</span>
-            <span class="badge badge-info" id="translation-badge">--</span>
-          </div>
-          <div class="card-desc">Real-time message translation between agent and caller/sender languages. Requires Anthropic API key.</div>
-          <div class="field">
-            <label>Enable Translation</label>
-            <select id="translation-enabled">
-              <option value="false">Disabled</option>
-              <option value="true">Enabled</option>
-            </select>
-          </div>
-          <div class="card-desc" style="font-size:0.75rem;color:var(--text-muted);margin-top:0.5rem;">
-            Uses the Anthropic API key configured above. Each translation costs ~$0.001-0.005. Translation is applied when agent language differs from sender/caller language.
-          </div>
-          <div class="settings-actions">
-            <button class="btn btn-sm btn-primary" onclick="saveTranslation()">Save</button>
-          </div>
-        </div>
-
         <!-- Compliance Group -->
         <div class="group-heading">Compliance</div>
 
@@ -2050,10 +2029,10 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
             <div class="capability-card">
               <div class="cap-icon">&#9993;</div>
               <h3>Send Messages</h3>
-              <p>Send SMS, email, WhatsApp, and LINE messages. Supports templates, auto-translation, and HTML email.</p>
+              <p>Send SMS, email, WhatsApp, and LINE messages. Supports templates and HTML email.</p>
               <div class="cap-endpoints">
                 <span>POST /api/v1/send-message</span>
-                <span>GET /api/v1/messages</span>
+                <span>GET /api/v1/waiting-messages</span>
                 <span>comms_send_message</span>
               </div>
             </div>
@@ -3045,23 +3024,6 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         if (status.server?.isolationMode) {
           document.getElementById('server-isolation').value = status.server.isolationMode;
         }
-        /* Translation status */
-        if (status.translation) {
-          document.getElementById('translation-enabled').value = status.translation.enabled ? 'true' : 'false';
-          const tBadge = document.getElementById('translation-badge');
-          if (tBadge) {
-            if (status.translation.enabled && status.translation.hasApiKey) {
-              tBadge.textContent = 'Active';
-              tBadge.className = 'badge badge-success';
-            } else if (status.translation.enabled) {
-              tBadge.textContent = 'No API Key';
-              tBadge.className = 'badge badge-warning';
-            } else {
-              tBadge.textContent = 'Disabled';
-              tBadge.className = 'badge';
-            }
-          }
-        }
         /* Email verification status */
         if (status.registration) {
           document.getElementById('email-verification-enabled').value = status.registration.requireEmailVerification ? 'true' : 'false';
@@ -3692,20 +3654,6 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         const data = await res.json();
         showToast(data.success ? 'Language saved: ' + lang : (data.error || 'Failed'), data.success ? 'success' : 'error');
         if (data.success) loadAgents();
-      } catch {
-        showToast('Network error', 'error');
-      }
-    }
-
-    async function saveTranslation() {
-      const enabled = document.getElementById('translation-enabled').value;
-      try {
-        const res = await apiFetch('/admin/api/save', {
-          method: 'POST',
-          body: JSON.stringify({ credentials: { TRANSLATION_ENABLED: enabled } })
-        });
-        const data = await res.json();
-        showToast(data.success ? 'Translation ' + (enabled === 'true' ? 'enabled' : 'disabled') : (data.message || 'Failed'), data.success ? 'success' : 'error');
       } catch {
         showToast('Network error', 'error');
       }

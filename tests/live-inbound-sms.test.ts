@@ -1,13 +1,16 @@
 /**
- * Live test for Phase 3 — Inbound SMS via real Twilio webhook.
+ * Live test for inbound SMS via real Twilio webhook.
+ *
+ * NOTE (Phase 27): Inbound messages are no longer stored in DB — they're
+ * forwarded to the agent's callback URL. This test verifies Twilio webhook
+ * delivery by polling usage_logs for the inbound action entry.
  *
  * What this does:
- * 1. Starts ngrok tunnel to localhost:3100
+ * 1. Finds running ngrok tunnel to localhost:3100
  * 2. Configures Twilio phone number's SMS webhook to the ngrok URL
  * 3. Waits for you to text the Twilio number from your personal phone
- * 4. Checks the database for the inbound message
- * 5. Calls comms_get_messages via MCP to verify
- * 6. Restores the original webhook URL (cleanup)
+ * 4. Verifies the webhook was processed (server logs)
+ * 5. Restores the original webhook URL (cleanup)
  *
  * Prerequisites:
  *   - Server running (DEMO_MODE=false, real Twilio credentials in .env)
@@ -48,40 +51,27 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function getMessageCountBefore(): Promise<number> {
+async function getUsageLogCount(): Promise<number> {
   const db = new Database(DB_PATH, { readonly: true });
   const row = db.prepare(
-    "SELECT COUNT(*) as cnt FROM messages WHERE agent_id = ? AND direction = 'inbound'"
+    "SELECT COUNT(*) as cnt FROM usage_logs WHERE agent_id = ? AND action_type = 'inbound_sms'"
   ).get(AGENT_ID) as { cnt: number };
   db.close();
   return row.cnt;
 }
 
-async function waitForNewInboundMessage(
+async function waitForNewInbound(
   countBefore: number,
   timeoutSec: number
-): Promise<Record<string, unknown> | null> {
+): Promise<boolean> {
   const deadline = Date.now() + timeoutSec * 1000;
   while (Date.now() < deadline) {
-    const db = new Database(DB_PATH, { readonly: true });
-    const row = db.prepare(
-      "SELECT * FROM messages WHERE agent_id = ? AND direction = 'inbound' ORDER BY created_at DESC LIMIT 1"
-    ).get(AGENT_ID) as Record<string, unknown> | undefined;
-    const count = (
-      db.prepare(
-        "SELECT COUNT(*) as cnt FROM messages WHERE agent_id = ? AND direction = 'inbound'"
-      ).get(AGENT_ID) as { cnt: number }
-    ).cnt;
-    db.close();
-
-    if (count > countBefore && row) {
-      return row;
-    }
-
+    const count = await getUsageLogCount();
+    if (count > countBefore) return true;
     await sleep(2000);
     process.stdout.write(".");
   }
-  return null;
+  return false;
 }
 
 async function main() {
@@ -185,58 +175,19 @@ async function main() {
   console.log("Webhook configured!\n");
 
   // 4. Wait for user to send a text
-  const countBefore = await getMessageCountBefore();
+  const countBefore = await getUsageLogCount();
   console.log("╔══════════════════════════════════════════════════════╗");
   console.log(`║  Text ${agentPhone} from your personal phone now.  ║`);
   console.log("║  Waiting up to 60 seconds for the message...       ║");
   console.log("╚══════════════════════════════════════════════════════╝\n");
 
   process.stdout.write("Waiting");
-  const newMessage = await waitForNewInboundMessage(countBefore, 60);
+  const received = await waitForNewInbound(countBefore, 60);
   console.log("\n");
 
-  // 5. Verify
-  console.log("Test: inbound message received");
-  assert(newMessage !== null, "new inbound message appeared in database");
-
-  if (newMessage) {
-    assert(newMessage.agent_id === AGENT_ID, `agent_id is ${AGENT_ID}`);
-    assert(newMessage.channel === "sms", "channel is sms");
-    assert(newMessage.direction === "inbound", "direction is inbound");
-    assert(typeof newMessage.from_address === "string" && (newMessage.from_address as string).startsWith("+"), "from_address is E.164 phone");
-    assert(newMessage.to_address === agentPhone, "to_address matches agent phone");
-    assert(typeof newMessage.body === "string" && (newMessage.body as string).length > 0, "body is non-empty");
-    assert(typeof newMessage.external_id === "string" && (newMessage.external_id as string).startsWith("SM"), "external_id is a Twilio MessageSid");
-    assert(newMessage.status === "received", "status is received");
-
-    console.log(`\n  From: ${newMessage.from_address}`);
-    console.log(`  Body: "${newMessage.body}"`);
-    console.log(`  Twilio SID: ${newMessage.external_id}`);
-  }
-
-  // 6. Verify via MCP tool
-  console.log("\nTest: comms_get_messages shows inbound message");
-  const transport = new SSEClientTransport(new URL(`${SERVER_URL}/sse`));
-  const client = new Client({ name: "test-client", version: "1.0.0" });
-  await client.connect(transport);
-
-  const result = await client.callTool({
-    name: "comms_get_messages",
-    arguments: { agentId: AGENT_ID, limit: 5 },
-  });
-  const text = (result.content as Array<{ type: string; text: string }>)[0]?.text;
-  const parsed = JSON.parse(text);
-
-  assert(parsed.count > 0, "comms_get_messages returns messages");
-
-  if (newMessage) {
-    const found = parsed.messages.find(
-      (m: Record<string, unknown>) => m.externalId === newMessage.external_id
-    );
-    assert(found !== undefined, "inbound message found via comms_get_messages");
-  }
-
-  await client.close();
+  // 5. Verify webhook was processed (inbound messages forwarded to agent callback, not stored in DB)
+  console.log("Test: inbound SMS webhook processed");
+  assert(received, "new inbound SMS logged in usage_logs");
 
   // 7. Cleanup — restore original webhook URL
   console.log("\nCleaning up — restoring original webhook URL...");

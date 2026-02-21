@@ -56,7 +56,7 @@ async function main() {
   const setupDb = new Database(DB_PATH);
   // Clean up any leftover test data
   setupDb.prepare("DELETE FROM call_logs WHERE agent_id LIKE 'test-voice-%'").run();
-  setupDb.prepare("DELETE FROM messages WHERE agent_id = 'test-voice-transfer'").run();
+  setupDb.prepare("DELETE FROM dead_letters WHERE agent_id = 'test-voice-transfer'").run();
   setupDb.prepare("DELETE FROM agent_channels WHERE agent_id IN ('test-voice-transfer', 'test-voice-target')").run();
   try { setupDb.prepare("DELETE FROM spending_limits WHERE agent_id IN ('test-voice-transfer', 'test-voice-target')").run(); } catch {}
   try { setupDb.prepare("DELETE FROM agent_tokens WHERE agent_id IN ('test-voice-transfer', 'test-voice-target')").run(); } catch {}
@@ -257,7 +257,7 @@ async function main() {
   // ------------------------------------------------------------------
   console.log("\nCleanup...");
   verifyDb.prepare("DELETE FROM call_logs WHERE agent_id LIKE 'test-voice-%'").run();
-  verifyDb.prepare("DELETE FROM messages WHERE agent_id IN ('test-voice-transfer', 'test-voice-target')").run();
+  verifyDb.prepare("DELETE FROM dead_letters WHERE agent_id IN ('test-voice-transfer', 'test-voice-target')").run();
   verifyDb.prepare("DELETE FROM agent_channels WHERE agent_id IN ('test-voice-transfer', 'test-voice-target')").run();
   try { verifyDb.prepare("DELETE FROM spending_limits WHERE agent_id IN ('test-voice-transfer', 'test-voice-target')").run(); } catch {}
   try { verifyDb.prepare("DELETE FROM agent_tokens WHERE agent_id IN ('test-voice-transfer', 'test-voice-target')").run(); } catch {}

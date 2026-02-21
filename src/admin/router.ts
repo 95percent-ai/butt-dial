@@ -170,9 +170,9 @@ adminRouter.get("/admin/api/dashboard", adminAuth, disclaimerGate, (req: Request
       of.params
     );
 
-    // Usage summary (org-scoped)
+    // Usage summary (org-scoped) — count from usage_logs instead of messages
     const totalMessages = db.query<{ cnt: number }>(
-      `SELECT COUNT(*) as cnt FROM messages WHERE 1=1${of.clause}`,
+      `SELECT COUNT(*) as cnt FROM usage_logs WHERE 1=1${of.clause}`,
       of.params
     );
 
@@ -232,22 +232,22 @@ adminRouter.get("/admin/api/dashboard", adminAuth, disclaimerGate, (req: Request
       _todayCalls = tdc[0]?.cnt || 0;
     } catch {}
 
-    // Pending voicemails (org-scoped)
+    // Pending dead letters (org-scoped)
     let _pendingVoicemails = 0;
     try {
       const pv = db.query<{ cnt: number }>(
-        `SELECT COUNT(*) as cnt FROM voicemail_messages WHERE status = 'pending'${of.clause}`,
+        `SELECT COUNT(*) as cnt FROM dead_letters WHERE status = 'pending'${of.clause}`,
         of.params
       );
       _pendingVoicemails = pv[0]?.cnt || 0;
     } catch {}
 
-    // Delivery rate (30d) for top card
+    // Delivery rate (30d) for top card — based on usage_logs
     let _deliveryTotal = 0;
     let _deliverySuccess = 0;
     try {
       const dr = db.query<{ total: number; success: number }>(
-        `SELECT COUNT(*) as total, SUM(CASE WHEN status IN ('sent','delivered','received','completed') THEN 1 ELSE 0 END) as success FROM messages WHERE created_at >= datetime('now', '-30 days')${of.clause}`,
+        `SELECT COUNT(*) as total, SUM(CASE WHEN status IN ('sent','delivered','received','completed','queued') THEN 1 ELSE 0 END) as success FROM usage_logs WHERE created_at >= datetime('now', '-30 days')${of.clause}`,
         of.params
       );
       if (dr[0]) { _deliveryTotal = dr[0].total || 0; _deliverySuccess = dr[0].success || 0; }
@@ -287,7 +287,6 @@ adminRouter.get("/admin/api/dashboard", adminAuth, disclaimerGate, (req: Request
       whatsapp: providerStatus.twilio?.configured ? "ok" : "not_configured",
       voice: (providerStatus.elevenlabs?.configured || providerStatus.voice?.configured) ? "ok" : "not_configured",
       assistant: config.anthropicApiKey ? "ok" : "not_configured",
-      translation: (config.translationEnabled && config.anthropicApiKey) ? "ok" : config.translationEnabled ? "no_api_key" : "disabled",
     };
 
     // Recent audit log entries as "alerts" (org-scoped)
@@ -433,12 +432,12 @@ adminRouter.get("/admin/api/usage-history", adminAuth, (req: Request, res: Respo
     const db = getProvider("database");
     const of = orgFilter(getAuthInfo(req));
 
-    // Messages by day and channel (last 30 days, org-scoped)
+    // Actions by day and channel (last 30 days, org-scoped) — from usage_logs
     let messagesByDay: Array<Record<string, unknown>> = [];
     try {
       messagesByDay = db.query<Record<string, unknown>>(
         `SELECT date(created_at) as day, channel, COUNT(*) as count
-         FROM messages WHERE created_at >= date('now', '-30 days')${of.clause}
+         FROM usage_logs WHERE created_at >= date('now', '-30 days')${of.clause}
          GROUP BY day, channel ORDER BY day`,
         of.params
       );
@@ -758,7 +757,6 @@ adminRouter.post("/admin/api/save", adminAuth, (req: Request, res: Response) => 
     "OPENAI_API_KEY",
     "IDENTITY_MODE",
     "ISOLATION_MODE",
-    "TRANSLATION_ENABLED",
     "VOICE_AI_DISCLOSURE",
     "VOICE_AI_DISCLOSURE_TEXT",
     "REQUIRE_EMAIL_VERIFICATION",

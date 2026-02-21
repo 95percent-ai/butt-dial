@@ -195,15 +195,15 @@ async function main() {
   // ------------------------------------------------------------------
   console.log("\nTest: GDPR erasure");
 
-  // Insert a test message for a phone number
+  // Insert a test dead letter for a phone number
   const testPhone = "+15550000001";
   db.prepare(
-    "INSERT OR IGNORE INTO messages (id, agent_id, channel, direction, from_address, to_address, body, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-  ).run("erasure-msg-1", "test-agent-001", "sms", "outbound", "+15551111111", testPhone, "test", "sent");
+    "INSERT OR IGNORE INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, status) VALUES (?, ?, 'default', ?, ?, ?, ?, ?, ?, ?)"
+  ).run("erasure-dl-1", "test-agent-001", "sms", "outbound", "send_failed", "+15551111111", testPhone, "test", "pending");
 
   // Verify it exists
   const beforeErase = db.prepare(
-    "SELECT COUNT(*) as cnt FROM messages WHERE to_address = ?"
+    "SELECT COUNT(*) as cnt FROM dead_letters WHERE to_address = ?"
   ).get(testPhone) as { cnt: number };
   assert(beforeErase.cnt > 0, "Test data exists before erasure");
 
@@ -216,7 +216,7 @@ async function main() {
   // Just verify the erasure_requests table accepts inserts
   db.prepare(
     "INSERT INTO erasure_requests (id, subject_identifier, identifier_type, status, tables_affected, rows_deleted, completed_at) VALUES (?, ?, ?, 'completed', ?, ?, datetime('now'))"
-  ).run("erasure-req-1", testPhone, "phone", '["messages","dnc_list"]', 2);
+  ).run("erasure-req-1", testPhone, "phone", '["dead_letters","dnc_list"]', 2);
 
   const erasureReq = db.prepare(
     "SELECT * FROM erasure_requests WHERE id = ?"
@@ -227,7 +227,7 @@ async function main() {
 
   // Clean up
   db.prepare("DELETE FROM erasure_requests WHERE id = ?").run("erasure-req-1");
-  db.prepare("DELETE FROM messages WHERE id = ?").run("erasure-msg-1");
+  db.prepare("DELETE FROM dead_letters WHERE id = ?").run("erasure-dl-1");
   db.prepare("DELETE FROM dnc_list WHERE id = ?").run("dnc-erasure-1");
 
   // ------------------------------------------------------------------

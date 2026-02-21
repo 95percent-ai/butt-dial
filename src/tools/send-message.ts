@@ -1,7 +1,8 @@
 /**
- * comms_send_message — MCP tool for sending a message via SMS or email.
- * Looks up the agent, sends through the appropriate provider,
- * and logs the result in the messages table.
+ * comms_send_message — MCP tool for sending a message via SMS, email, WhatsApp, or LINE.
+ * Looks up the agent, sends through the appropriate provider.
+ * On success: nothing stored (usage_logs tracks counts/costs via logUsage).
+ * On failure: queues to dead_letters for retry.
  */
 
 import { randomUUID } from "crypto";
@@ -15,7 +16,6 @@ import { sanitize, SanitizationError, sanitizationErrorResponse } from "../secur
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 import { metrics } from "../observability/metrics.js";
 import { preSendCheck } from "../security/compliance.js";
-import { translate, needsTranslation, getAgentLanguage } from "../lib/translator.js";
 import { resolveFromNumber } from "../lib/number-pool.js";
 import { maybeTriggerSandboxReply } from "../lib/sandbox-responder.js";
 
@@ -26,6 +26,22 @@ interface AgentRow {
   whatsapp_sender_sid: string | null;
   line_channel_id: string | null;
   status: string;
+}
+
+/** Queue a failed outbound send to the dead_letters table */
+function queueDeadLetter(db: ReturnType<typeof getProvider<"database">>, params: {
+  agentId: string; orgId: string; channel: string; from: string; to: string;
+  body: string; error: string; originalRequest?: Record<string, unknown>;
+}): void {
+  try {
+    db.run(
+      `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, original_request, error_details, status)
+       VALUES (?, ?, ?, ?, 'outbound', 'send_failed', ?, ?, ?, ?, ?, 'pending')`,
+      [randomUUID(), params.agentId, params.orgId, params.channel, params.from, params.to, params.body, params.originalRequest ? JSON.stringify(params.originalRequest) : null, params.error]
+    );
+  } catch (err) {
+    logger.error("dead_letter_queue_error", { agentId: params.agentId, error: String(err) });
+  }
 }
 
 export function registerSendMessageTool(server: McpServer): void {
@@ -41,22 +57,19 @@ export function registerSendMessageTool(server: McpServer): void {
       html: z.string().optional().describe("Optional HTML body for email"),
       templateId: z.string().optional().describe("WhatsApp content template SID (e.g. HX...) for messages outside 24h window"),
       templateVars: z.record(z.string()).optional().describe("Template variable substitutions (e.g. {\"1\": \"John\"})"),
-      targetLanguage: z.string().optional().describe("Language of the recipient (e.g. he-IL, es-MX). When different from agent's language, the message body is translated before sending."),
     },
-    async ({ agentId: explicitAgentId, to, body, channel, subject, html, templateId, templateVars, targetLanguage }, extra) => {
+    async ({ agentId: explicitAgentId, to, body, channel, subject, html, templateId, templateVars }, extra) => {
       const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
       if (!agentId) {
         return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
       }
 
-      // Auth: agent can only send as themselves
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
       } catch (err) {
         return authErrorResponse(err);
       }
 
-      // Sanitize inputs
       try {
         sanitize(body, "body");
         sanitize(to, "to");
@@ -68,14 +81,12 @@ export function registerSendMessageTool(server: McpServer): void {
       const authInfo = extra.authInfo as AuthInfo | undefined;
       const orgId = getOrgId(authInfo);
 
-      // Org boundary check
       try {
         requireAgentInOrg(db, agentId, authInfo);
       } catch (err) {
         return authErrorResponse(err);
       }
 
-      // Look up the agent
       const rows = db.query<AgentRow>(
         "SELECT agent_id, phone_number, email_address, whatsapp_sender_sid, line_channel_id, status FROM agent_channels WHERE agent_id = ?",
         [agentId]
@@ -99,7 +110,6 @@ export function registerSendMessageTool(server: McpServer): void {
         };
       }
 
-      // Rate limit check (before any provider call)
       const actionType = channel === "sms" ? "sms" : channel === "email" ? "email" : channel === "whatsapp" ? "whatsapp" : "line";
       try {
         checkRateLimits(db, agentId, actionType, channel, to, extra.authInfo as AuthInfo | undefined);
@@ -108,7 +118,6 @@ export function registerSendMessageTool(server: McpServer): void {
         throw err;
       }
 
-      // Compliance check (content filter, DNC, TCPA, CAN-SPAM)
       const compliance = preSendCheck(db, { channel, to, body, html });
       if (!compliance.allowed) {
         logger.warn("send_message_compliance_blocked", { agentId, to, channel, reason: compliance.reason });
@@ -118,31 +127,14 @@ export function registerSendMessageTool(server: McpServer): void {
         };
       }
 
-      // Translate outbound message if targetLanguage differs from agent's language
-      let translatedBody = body;
-      let bodyOriginal: string | undefined;
-      const agentLang = getAgentLanguage(db, agentId);
-
-      if (targetLanguage && needsTranslation(agentLang, targetLanguage)) {
-        translatedBody = await translate(body, agentLang, targetLanguage);
-        if (translatedBody !== body) {
-          bodyOriginal = body;
-          logger.info("outbound_message_translated", {
-            agentId, channel, targetLanguage, agentLanguage: agentLang,
-            originalLength: body.length, translatedLength: translatedBody.length,
-          });
-        }
-      }
-
-      // Route based on channel
       if (channel === "email") {
-        return await sendEmail(db, agent, agentId, to, translatedBody, orgId, subject, html, bodyOriginal);
+        return await sendEmail(db, agent, agentId, to, body, orgId, subject, html);
       } else if (channel === "whatsapp") {
-        return await sendWhatsApp(db, agent, agentId, to, translatedBody, orgId, templateId, templateVars, bodyOriginal);
+        return await sendWhatsApp(db, agent, agentId, to, body, orgId, templateId, templateVars);
       } else if (channel === "line") {
-        return await sendLine(db, agent, agentId, to, translatedBody, orgId, bodyOriginal);
+        return await sendLine(db, agent, agentId, to, body, orgId);
       } else {
-        return await sendSms(db, agent, agentId, to, translatedBody, orgId, bodyOriginal);
+        return await sendSms(db, agent, agentId, to, body, orgId);
       }
     }
   );
@@ -157,9 +149,7 @@ async function sendSms(
   to: string,
   body: string,
   orgId: string,
-  bodyOriginal?: string,
 ) {
-  // Smart routing: try number pool first, fall back to agent's own number
   const fromNumber = resolveFromNumber(db, agent.phone_number, to, "sms", orgId);
   if (!fromNumber) {
     logger.warn("send_message_no_phone", { agentId });
@@ -173,35 +163,23 @@ async function sendSms(
 
   let result;
   try {
-    result = await telephony.sendSms({
-      from: fromNumber,
-      to,
-      body,
-    });
+    result = await telephony.sendSms({ from: fromNumber, to, body });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     logger.error("send_message_provider_error", { agentId, to, error: errMsg });
+    queueDeadLetter(db, { agentId, orgId, channel: "sms", from: fromNumber, to, body, error: errMsg, originalRequest: { to, body, channel: "sms" } });
     return {
       content: [{ type: "text" as const, text: JSON.stringify({ error: errMsg }) }],
       isError: true,
     };
   }
 
-  const messageId = randomUUID();
-  db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, body_original, external_id, status, cost, org_id)
-     VALUES (?, ?, 'sms', 'outbound', ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [messageId, agentId, fromNumber, to, body, bodyOriginal || null, result.messageId, result.status, result.cost ?? null, orgId]
-  );
-
   logUsage(db, { agentId, actionType: "sms", channel: "sms", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
   metrics.increment("mcp_messages_sent_total", { channel: "sms" });
-
-  // Trigger sandbox reply (fire-and-forget)
   maybeTriggerSandboxReply({ orgId, agentId, channel: "sms", to, from: fromNumber, body });
 
   logger.info("send_message_success", {
-    messageId, agentId, to, channel: "sms",
+    agentId, to, channel: "sms",
     externalId: result.messageId, status: result.status,
   });
 
@@ -209,7 +187,7 @@ async function sendSms(
     content: [{
       type: "text" as const,
       text: JSON.stringify({
-        success: true, messageId, externalId: result.messageId,
+        success: true, externalId: result.messageId,
         status: result.status, cost: result.cost ?? null,
         channel: "sms", from: fromNumber, to,
       }, null, 2),
@@ -226,10 +204,8 @@ async function sendEmail(
   orgId: string,
   subject?: string,
   html?: string,
-  bodyOriginal?: string,
 ) {
   if (!agent.email_address) {
-    logger.warn("send_message_no_email", { agentId });
     return {
       content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" has no email address assigned` }) }],
       isError: true,
@@ -247,37 +223,23 @@ async function sendEmail(
 
   let result;
   try {
-    result = await email.send({
-      from: agent.email_address,
-      to,
-      subject,
-      body,
-      html,
-    });
+    result = await email.send({ from: agent.email_address, to, subject, body, html });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     logger.error("send_message_provider_error", { agentId, to, channel: "email", error: errMsg });
+    queueDeadLetter(db, { agentId, orgId, channel: "email", from: agent.email_address, to, body: `[${subject}] ${body}`, error: errMsg, originalRequest: { to, body, channel: "email", subject, html } });
     return {
       content: [{ type: "text" as const, text: JSON.stringify({ error: errMsg }) }],
       isError: true,
     };
   }
 
-  const messageId = randomUUID();
-  db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, body_original, external_id, status, cost, org_id)
-     VALUES (?, ?, 'email', 'outbound', ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [messageId, agentId, agent.email_address, to, `[${subject}] ${body}`, bodyOriginal ? `[${subject}] ${bodyOriginal}` : null, result.messageId, result.status, result.cost ?? null, orgId]
-  );
-
   logUsage(db, { agentId, actionType: "email", channel: "email", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
   metrics.increment("mcp_messages_sent_total", { channel: "email" });
-
-  // Trigger sandbox reply (fire-and-forget)
   maybeTriggerSandboxReply({ orgId, agentId, channel: "email", to, from: agent.email_address!, body });
 
   logger.info("send_message_success", {
-    messageId, agentId, to, channel: "email",
+    agentId, to, channel: "email",
     externalId: result.messageId, status: result.status,
   });
 
@@ -285,7 +247,7 @@ async function sendEmail(
     content: [{
       type: "text" as const,
       text: JSON.stringify({
-        success: true, messageId, externalId: result.messageId,
+        success: true, externalId: result.messageId,
         status: result.status, cost: result.cost ?? null,
         channel: "email", from: agent.email_address, to, subject,
       }, null, 2),
@@ -302,10 +264,8 @@ async function sendWhatsApp(
   orgId: string,
   templateId?: string,
   templateVars?: Record<string, string>,
-  bodyOriginal?: string,
 ) {
   if (!agent.whatsapp_sender_sid) {
-    logger.warn("send_message_no_whatsapp", { agentId });
     return {
       content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" has no WhatsApp sender assigned` }) }],
       isError: true,
@@ -316,37 +276,23 @@ async function sendWhatsApp(
 
   let result;
   try {
-    result = await whatsapp.send({
-      from: agent.whatsapp_sender_sid,
-      to,
-      body,
-      templateId,
-      templateVars,
-    });
+    result = await whatsapp.send({ from: agent.whatsapp_sender_sid, to, body, templateId, templateVars });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     logger.error("send_message_provider_error", { agentId, to, channel: "whatsapp", error: errMsg });
+    queueDeadLetter(db, { agentId, orgId, channel: "whatsapp", from: agent.whatsapp_sender_sid, to, body, error: errMsg, originalRequest: { to, body, channel: "whatsapp", templateId, templateVars } });
     return {
       content: [{ type: "text" as const, text: JSON.stringify({ error: errMsg }) }],
       isError: true,
     };
   }
 
-  const messageId = randomUUID();
-  db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, body_original, external_id, status, cost, org_id)
-     VALUES (?, ?, 'whatsapp', 'outbound', ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [messageId, agentId, agent.whatsapp_sender_sid, to, body, bodyOriginal || null, result.messageId, result.status, result.cost ?? null, orgId]
-  );
-
   logUsage(db, { agentId, actionType: "whatsapp", channel: "whatsapp", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
   metrics.increment("mcp_messages_sent_total", { channel: "whatsapp" });
-
-  // Trigger sandbox reply (fire-and-forget)
   maybeTriggerSandboxReply({ orgId, agentId, channel: "whatsapp", to, from: agent.whatsapp_sender_sid!, body });
 
   logger.info("send_message_success", {
-    messageId, agentId, to, channel: "whatsapp",
+    agentId, to, channel: "whatsapp",
     externalId: result.messageId, status: result.status,
     hasTemplate: !!templateId,
   });
@@ -355,7 +301,7 @@ async function sendWhatsApp(
     content: [{
       type: "text" as const,
       text: JSON.stringify({
-        success: true, messageId, externalId: result.messageId,
+        success: true, externalId: result.messageId,
         status: result.status, cost: result.cost ?? null,
         channel: "whatsapp", from: agent.whatsapp_sender_sid, to,
       }, null, 2),
@@ -370,10 +316,8 @@ async function sendLine(
   to: string,
   body: string,
   orgId: string,
-  bodyOriginal?: string,
 ) {
   if (!agent.line_channel_id) {
-    logger.warn("send_message_no_line", { agentId });
     return {
       content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" has no LINE channel configured` }) }],
       isError: true,
@@ -384,35 +328,23 @@ async function sendLine(
 
   let result;
   try {
-    result = await line.send({
-      channelAccessToken: agent.line_channel_id,
-      to,
-      body,
-    });
+    result = await line.send({ channelAccessToken: agent.line_channel_id, to, body });
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     logger.error("send_message_provider_error", { agentId, to, channel: "line", error: errMsg });
+    queueDeadLetter(db, { agentId, orgId, channel: "line", from: agentId, to, body, error: errMsg, originalRequest: { to, body, channel: "line" } });
     return {
       content: [{ type: "text" as const, text: JSON.stringify({ error: errMsg }) }],
       isError: true,
     };
   }
 
-  const messageId = randomUUID();
-  db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, body_original, external_id, status, cost, org_id)
-     VALUES (?, ?, 'line', 'outbound', ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [messageId, agentId, agentId, to, body, bodyOriginal || null, result.messageId, result.status, result.cost ?? null, orgId]
-  );
-
   logUsage(db, { agentId, actionType: "line", channel: "line", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
   metrics.increment("mcp_messages_sent_total", { channel: "line" });
-
-  // Trigger sandbox reply (fire-and-forget)
   maybeTriggerSandboxReply({ orgId, agentId, channel: "line", to, from: agentId, body });
 
   logger.info("send_message_success", {
-    messageId, agentId, to, channel: "line",
+    agentId, to, channel: "line",
     externalId: result.messageId, status: result.status,
   });
 
@@ -420,7 +352,7 @@ async function sendLine(
     content: [{
       type: "text" as const,
       text: JSON.stringify({
-        success: true, messageId, externalId: result.messageId,
+        success: true, externalId: result.messageId,
         status: result.status, cost: result.cost ?? null,
         channel: "line", from: agentId, to,
       }, null, 2),

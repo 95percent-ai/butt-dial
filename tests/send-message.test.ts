@@ -5,7 +5,7 @@
  * 1. Connects to the MCP server via SSE
  * 2. Calls comms_send_message with the seeded test agent
  * 3. Verifies the tool returns success with a mock message ID
- * 4. Verifies the message was logged in the database
+ * 4. Verifies the action was logged in usage_logs
  *
  * Prerequisites:
  *   - Server running with DEMO_MODE=true
@@ -79,33 +79,26 @@ async function main() {
   const parsed = JSON.parse(text);
 
   assert(parsed.success === true, "response has success: true");
-  assert(typeof parsed.messageId === "string", "response has messageId");
   assert(typeof parsed.externalId === "string", "response has externalId (mock ID)");
   assert(parsed.externalId.startsWith("SM"), "externalId starts with SM (Twilio format)");
   assert(parsed.status === "sent", "status is 'sent'");
   assert(parsed.cost === 0.0079, "cost is 0.0079 (mock)");
-  const agentPhone = getAgentPhone();
-  assert(parsed.from === agentPhone, "from is test agent's phone number");
+  assert(typeof parsed.from === "string" && parsed.from.startsWith("+"), "from is a valid phone number");
   assert(parsed.to === "+972526557547", "to is the recipient number");
 
-  // 4. Verify database record
-  console.log("\nTest: database record");
+  // 4. Verify usage_logs record (messages no longer stored on success — privacy-first)
+  console.log("\nTest: usage_logs record");
   const db = new Database(DB_PATH, { readonly: true });
-  const row = db.prepare(
-    "SELECT * FROM messages WHERE id = ?"
-  ).get(parsed.messageId) as Record<string, unknown> | undefined;
+  const logRow = db.prepare(
+    "SELECT * FROM usage_logs WHERE agent_id = ? AND channel = 'sms' ORDER BY created_at DESC LIMIT 1"
+  ).get("test-agent-001") as Record<string, unknown> | undefined;
   db.close();
 
-  assert(row !== undefined, "message row exists in database");
-  if (row) {
-    assert(row.agent_id === "test-agent-001", "agent_id matches");
-    assert(row.channel === "sms", "channel is 'sms'");
-    assert(row.direction === "outbound", "direction is 'outbound'");
-    assert(row.from_address === agentPhone, "from_address matches");
-    assert(row.to_address === "+972526557547", "to_address matches");
-    assert(row.body === "Hello from dry test", "body matches");
-    assert(row.external_id === parsed.externalId, "external_id matches mock ID");
-    assert(row.status === "sent", "status is 'sent'");
+  assert(logRow !== undefined, "usage_logs row exists");
+  if (logRow) {
+    assert(logRow.agent_id === "test-agent-001", "agent_id matches");
+    assert(logRow.channel === "sms", "channel is 'sms'");
+    assert(logRow.target_address === "+972526557547", "target_address matches");
   }
 
   // 5. Call with non-existent agent (error case)

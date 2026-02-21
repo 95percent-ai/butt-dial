@@ -8,14 +8,12 @@ import { logger } from "./logger.js";
 import type { IDBProvider } from "../providers/interfaces.js";
 
 export interface RetentionConfig {
-  /** Days to keep message metadata (default: 90) */
-  messagesRetentionDays: number;
   /** Days to keep usage logs (default: 365) */
   usageLogsRetentionDays: number;
   /** Days to keep call logs (default: 365) */
   callLogsRetentionDays: number;
-  /** Days to keep voicemail messages (default: 30) */
-  voicemailRetentionDays: number;
+  /** Days to keep acknowledged dead letters (default: 7) */
+  deadLetterRetentionDays: number;
   /** Days to keep OTP codes (default: 1) */
   otpRetentionDays: number;
   /** Days to keep revoked consent records (default: 730 / 2 years) */
@@ -25,10 +23,9 @@ export interface RetentionConfig {
 }
 
 const DEFAULT_RETENTION: RetentionConfig = {
-  messagesRetentionDays: 90,
   usageLogsRetentionDays: 365,
   callLogsRetentionDays: 365,
-  voicemailRetentionDays: 30,
+  deadLetterRetentionDays: 7,
   otpRetentionDays: 1,
   revokedConsentRetentionDays: 730,
   enabled: true,
@@ -39,10 +36,9 @@ const DEFAULT_RETENTION: RetentionConfig = {
  */
 export function loadRetentionConfig(): RetentionConfig {
   return {
-    messagesRetentionDays: parseInt(process.env.RETENTION_MESSAGES_DAYS || "") || DEFAULT_RETENTION.messagesRetentionDays,
     usageLogsRetentionDays: parseInt(process.env.RETENTION_USAGE_LOGS_DAYS || "") || DEFAULT_RETENTION.usageLogsRetentionDays,
     callLogsRetentionDays: parseInt(process.env.RETENTION_CALL_LOGS_DAYS || "") || DEFAULT_RETENTION.callLogsRetentionDays,
-    voicemailRetentionDays: parseInt(process.env.RETENTION_VOICEMAIL_DAYS || "") || DEFAULT_RETENTION.voicemailRetentionDays,
+    deadLetterRetentionDays: parseInt(process.env.RETENTION_DEAD_LETTER_DAYS || "") || DEFAULT_RETENTION.deadLetterRetentionDays,
     otpRetentionDays: parseInt(process.env.RETENTION_OTP_DAYS || "") || DEFAULT_RETENTION.otpRetentionDays,
     revokedConsentRetentionDays: parseInt(process.env.RETENTION_REVOKED_CONSENT_DAYS || "") || DEFAULT_RETENTION.revokedConsentRetentionDays,
     enabled: process.env.DATA_RETENTION_ENABLED !== "false",
@@ -74,10 +70,9 @@ export function runDataRetentionCleanup(db: IDBProvider, config?: Partial<Retent
     days: number;
     extraCondition?: string;
   }> = [
-    { name: "messages", table: "messages", column: "created_at", days: cfg.messagesRetentionDays },
     { name: "usage_logs", table: "usage_logs", column: "created_at", days: cfg.usageLogsRetentionDays },
     { name: "call_logs", table: "call_logs", column: "created_at", days: cfg.callLogsRetentionDays },
-    { name: "voicemail_messages", table: "voicemail_messages", column: "created_at", days: cfg.voicemailRetentionDays },
+    { name: "dead_letters_acknowledged", table: "dead_letters", column: "acknowledged_at", days: cfg.deadLetterRetentionDays, extraCondition: "AND status = 'acknowledged'" },
     { name: "otp_codes", table: "otp_codes", column: "created_at", days: cfg.otpRetentionDays },
     {
       name: "revoked_consent",

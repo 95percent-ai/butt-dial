@@ -78,7 +78,7 @@ async function main() {
   const expectedTools = [
     "comms_ping",
     "comms_send_message",
-    "comms_get_messages",
+    "comms_get_waiting_messages",
     "comms_send_voice_message",
     "comms_make_call",
     "comms_transfer_call",
@@ -135,22 +135,13 @@ async function main() {
   });
   assert(wa.parsed.success === true, "WhatsApp sent");
 
-  // ── 9. Get Messages ─────────────────────────────────────────────
-  console.log("\n9. Get Messages");
-  const msgs = await callTool(client, "comms_get_messages", {
+  // ── 9. Get Waiting Messages (dead letters) ──────────────────────
+  console.log("\n9. Get Waiting Messages");
+  const msgs = await callTool(client, "comms_get_waiting_messages", {
     agentId: "test-agent-001",
-    limit: 5,
   });
-  assert(msgs.parsed.messages.length > 0, "Messages returned");
-
-  // ── 10. Get Messages with contact filter ─────────────────────────
-  console.log("\n10. Conversation Threading");
-  const thread = await callTool(client, "comms_get_messages", {
-    agentId: "test-agent-001",
-    contactAddress: "+15551234567",
-    limit: 10,
-  });
-  assert(Array.isArray(thread.parsed.messages), "Thread messages returned");
+  assert(Array.isArray(msgs.parsed.messages), "Waiting messages returned");
+  assert(typeof msgs.parsed.count === "number", "Waiting messages count returned");
 
   // ── 11. Make Call ───────────────────────────────────────────────
   console.log("\n11. Make Call");

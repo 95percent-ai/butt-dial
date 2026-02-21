@@ -96,8 +96,8 @@ export function deleteOrganization(db: IDBProvider, orgId: string): { tablesAffe
   }
 
   const tables = [
-    "org_tokens", "agent_tokens", "messages", "usage_logs", "audit_log",
-    "call_logs", "voicemail_messages", "spending_limits", "billing_config",
+    "org_tokens", "agent_tokens", "usage_logs", "audit_log",
+    "call_logs", "dead_letters", "spending_limits", "billing_config",
     "dnc_list", "otp_codes", "erasure_requests", "provider_credentials",
     "agent_channels", "agent_pool", "whatsapp_pool",
   ];

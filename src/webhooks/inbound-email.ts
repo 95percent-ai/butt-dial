@@ -2,7 +2,7 @@
  * Inbound email webhook handler.
  *
  * Resend POSTs here when someone sends an email to an agent's address.
- * Flow: parse body → find agent → store message → forward to callback → return 200.
+ * Flow: parse body → find agent → forward to callback → queue dead letter on failure → return 200.
  */
 
 import { randomUUID } from "crypto";
@@ -77,32 +77,13 @@ export async function handleInboundEmail(req: Request, res: Response): Promise<v
     if (orgRows.length > 0 && orgRows[0].org_id) orgId = orgRows[0].org_id;
   } catch {}
 
-  // Store message in database
-  const messageId = randomUUID();
   const bodyText = payload.data.subject
     ? `[${payload.data.subject}] ${payload.data.text || ""}`
     : payload.data.text || "";
 
-  db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id)
-     VALUES (?, ?, 'email', 'inbound', ?, ?, ?, ?, 'received', ?)`,
-    [
-      messageId,
-      agentId,
-      payload.data.from,
-      payload.data.to,
-      bodyText,
-      payload.data.email_id || null,
-      orgId,
-    ]
-  );
-
-  logger.info("inbound_email_stored", { messageId, agentId, from: payload.data.from });
-
-  // Forward to callback URL (best-effort)
+  // Forward to callback URL — queue to dead_letters on failure
   const callbackUrl = config.agentosCallbackUrl.replace("{agentId}", agentId as string);
   forwardToCallback(callbackUrl, {
-    messageId,
     agentId,
     channel: "email",
     direction: "inbound",
@@ -112,26 +93,46 @@ export async function handleInboundEmail(req: Request, res: Response): Promise<v
     body: payload.data.text || "",
     html: payload.data.html || null,
     externalId: payload.data.email_id || null,
-  });
+  }, { db, agentId: agentId as string, orgId, channel: "email", from: payload.data.from, to: payload.data.to, body: bodyText, externalId: payload.data.email_id || null });
 
   // Resend expects 200 OK
   res.status(200).json({ ok: true });
 }
 
-/** Best-effort POST to the agent's callback URL. Logs failure but never throws. */
-function forwardToCallback(url: string, payload: Record<string, unknown>): void {
+/** POST to the agent's callback URL. On failure, queue to dead_letters. */
+function forwardToCallback(
+  url: string,
+  payload: Record<string, unknown>,
+  deadLetterCtx: { db: any; agentId: string; orgId: string; channel: string; from: string; to: string; body: string; externalId?: string | null },
+): void {
   fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   })
     .then((resp) => {
-      logger.info("inbound_email_callback_sent", { url, status: resp.status });
+      if (resp.ok) {
+        logger.info("inbound_email_callback_sent", { url, status: resp.status });
+      } else {
+        logger.warn("inbound_email_callback_error", { url, status: resp.status });
+        queueDeadLetter(deadLetterCtx, `Callback returned ${resp.status}`);
+      }
     })
     .catch((err) => {
-      logger.warn("inbound_email_callback_failed", {
-        url,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.warn("inbound_email_callback_failed", { url, error: errMsg });
+      queueDeadLetter(deadLetterCtx, errMsg);
     });
+}
+
+function queueDeadLetter(ctx: { db: any; agentId: string; orgId: string; channel: string; from: string; to: string; body: string; externalId?: string | null }, error: string): void {
+  try {
+    ctx.db.run(
+      `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, external_id, error_details, status)
+       VALUES (?, ?, ?, ?, 'inbound', 'agent_offline', ?, ?, ?, ?, ?, 'pending')`,
+      [randomUUID(), ctx.agentId, ctx.orgId, ctx.channel, ctx.from, ctx.to, ctx.body, ctx.externalId || null, error]
+    );
+  } catch (e) {
+    logger.error("dead_letter_queue_error", { agentId: ctx.agentId, error: String(e) });
+  }
 }

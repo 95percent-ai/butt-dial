@@ -27,7 +27,7 @@ export function needsTranslation(lang1: string, lang2: string): boolean {
  * Returns "unknown" if detection fails or translation is disabled.
  */
 export async function detectLanguage(text: string): Promise<string> {
-  if (!config.translationEnabled || !config.anthropicApiKey) return "unknown";
+  if (!config.anthropicApiKey) return "unknown";
   if (!text || text.trim().length < 3) return "unknown";
 
   try {
@@ -70,7 +70,7 @@ export async function translate(
   fromLang: string,
   toLang: string
 ): Promise<string> {
-  if (!config.translationEnabled || !config.anthropicApiKey) return text;
+  if (!config.anthropicApiKey) return text;
   if (!text || text.trim().length === 0) return text;
   if (!needsTranslation(fromLang, toLang)) return text;
 

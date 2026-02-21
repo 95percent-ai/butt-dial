@@ -28,7 +28,7 @@ import {
   getAgentLimits,
 } from "../security/rate-limiter.js";
 import { preSendCheck, checkTcpaTimeOfDay, checkDnc, checkContentFilter } from "../security/compliance.js";
-import { translate, needsTranslation, getAgentLanguage } from "../lib/translator.js";
+import { getAgentLanguage } from "../lib/translator.js";
 import { resolveFromNumber } from "../lib/number-pool.js";
 import { maybeTriggerSandboxReply } from "../lib/sandbox-responder.js";
 import { storeCallConfig } from "../webhooks/voice-sessions.js";
@@ -111,7 +111,7 @@ function handleAuthError(res: any, err: unknown) {
 // POST /api/v1/send-message
 restRouter.post("/send-message", async (req, res) => {
   try {
-    const { to, body, channel = "sms", subject, html, templateId, templateVars, targetLanguage } = req.body;
+    const { to, body, channel = "sms", subject, html, templateId, templateVars } = req.body;
     const agentId = resolveAgentId(authInfo(req), req.body.agentId);
 
     if (!agentId || !to || !body) {
@@ -145,78 +145,51 @@ restRouter.post("/send-message", async (req, res) => {
     const compliance = preSendCheck(db, { channel, to, body, html });
     if (!compliance.allowed) return errorJson(res, 403, `Compliance: ${compliance.reason}`);
 
-    // Translation
-    let translatedBody = body;
-    const agentLang = getAgentLanguage(db, agentId);
-    if (targetLanguage && needsTranslation(agentLang, targetLanguage)) {
-      translatedBody = await translate(body, agentLang, targetLanguage);
-    }
-
-    // Route by channel
+    // Route by channel — no message storage on success, queue dead_letters on failure
     let result: any;
 
     if (channel === "email") {
       if (!agent.email_address) return errorJson(res, 400, `Agent "${agentId}" has no email address`);
       if (!subject) return errorJson(res, 400, "Subject is required for email channel");
       const email = getProvider("email");
-      result = await email.send({ from: agent.email_address, to, subject, body: translatedBody, html });
-      const messageId = randomUUID();
-      db.run(
-        `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost, org_id) VALUES (?, ?, 'email', 'outbound', ?, ?, ?, ?, ?, ?, ?)`,
-        [messageId, agentId, agent.email_address, to, `[${subject}] ${translatedBody}`, result.messageId, result.status, result.cost ?? null, orgId],
-      );
+      result = await email.send({ from: agent.email_address, to, subject, body, html });
       logUsage(db, { agentId, actionType: "email", channel: "email", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
       metrics.increment("mcp_messages_sent_total", { channel: "email" });
-      maybeTriggerSandboxReply({ orgId, agentId, channel: "email", to, from: agent.email_address, body: translatedBody });
-      return res.json({ success: true, messageId, externalId: result.messageId, status: result.status, channel: "email", from: agent.email_address, to });
+      maybeTriggerSandboxReply({ orgId, agentId, channel: "email", to, from: agent.email_address, body });
+      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "email", from: agent.email_address, to });
     }
 
     if (channel === "whatsapp") {
       if (!agent.whatsapp_sender_sid) return errorJson(res, 400, `Agent "${agentId}" has no WhatsApp sender`);
       const whatsapp = getProvider("whatsapp");
-      result = await whatsapp.send({ from: agent.whatsapp_sender_sid, to, body: translatedBody, templateId, templateVars });
-      const messageId = randomUUID();
-      db.run(
-        `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost, org_id) VALUES (?, ?, 'whatsapp', 'outbound', ?, ?, ?, ?, ?, ?, ?)`,
-        [messageId, agentId, agent.whatsapp_sender_sid, to, translatedBody, result.messageId, result.status, result.cost ?? null, orgId],
-      );
+      result = await whatsapp.send({ from: agent.whatsapp_sender_sid, to, body, templateId, templateVars });
       logUsage(db, { agentId, actionType: "whatsapp", channel: "whatsapp", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
       metrics.increment("mcp_messages_sent_total", { channel: "whatsapp" });
-      maybeTriggerSandboxReply({ orgId, agentId, channel: "whatsapp", to, from: agent.whatsapp_sender_sid, body: translatedBody });
-      return res.json({ success: true, messageId, externalId: result.messageId, status: result.status, channel: "whatsapp", from: agent.whatsapp_sender_sid, to });
+      maybeTriggerSandboxReply({ orgId, agentId, channel: "whatsapp", to, from: agent.whatsapp_sender_sid, body });
+      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "whatsapp", from: agent.whatsapp_sender_sid, to });
     }
 
     if (channel === "line") {
       if (!agent.line_channel_id) return errorJson(res, 400, `Agent "${agentId}" has no LINE channel`);
       const line = getProvider("line");
-      result = await line.send({ channelAccessToken: agent.line_channel_id, to, body: translatedBody });
-      const messageId = randomUUID();
-      db.run(
-        `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost, org_id) VALUES (?, ?, 'line', 'outbound', ?, ?, ?, ?, ?, ?, ?)`,
-        [messageId, agentId, agentId, to, translatedBody, result.messageId, result.status, result.cost ?? null, orgId],
-      );
+      result = await line.send({ channelAccessToken: agent.line_channel_id, to, body });
       logUsage(db, { agentId, actionType: "line", channel: "line", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
       metrics.increment("mcp_messages_sent_total", { channel: "line" });
-      maybeTriggerSandboxReply({ orgId, agentId, channel: "line", to, from: agentId, body: translatedBody });
-      return res.json({ success: true, messageId, externalId: result.messageId, status: result.status, channel: "line", from: agentId, to });
+      maybeTriggerSandboxReply({ orgId, agentId, channel: "line", to, from: agentId, body });
+      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "line", from: agentId, to });
     }
 
     // Default: SMS
     const fromNumber = resolveFromNumber(db, agent.phone_number, to, "sms", orgId);
     if (!fromNumber) return errorJson(res, 400, `Agent "${agentId}" has no phone number available`);
     const telephony = getProvider("telephony");
-    result = await telephony.sendSms({ from: fromNumber, to, body: translatedBody });
-    const messageId = randomUUID();
-    db.run(
-      `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost, org_id) VALUES (?, ?, 'sms', 'outbound', ?, ?, ?, ?, ?, ?, ?)`,
-      [messageId, agentId, fromNumber, to, translatedBody, result.messageId, result.status, result.cost ?? null, orgId],
-    );
+    result = await telephony.sendSms({ from: fromNumber, to, body });
     logUsage(db, { agentId, actionType: "sms", channel: "sms", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
     metrics.increment("mcp_messages_sent_total", { channel: "sms" });
-    maybeTriggerSandboxReply({ orgId, agentId, channel: "sms", to, from: fromNumber, body: translatedBody });
+    maybeTriggerSandboxReply({ orgId, agentId, channel: "sms", to, from: fromNumber, body });
 
-    logger.info("rest_send_message", { messageId, agentId, to, channel: "sms" });
-    return res.json({ success: true, messageId, externalId: result.messageId, status: result.status, channel: "sms", from: fromNumber, to });
+    logger.info("rest_send_message", { agentId, to, channel: "sms" });
+    return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "sms", from: fromNumber, to });
   } catch (err) {
     return handleRestError(res, err);
   }
@@ -225,7 +198,7 @@ restRouter.post("/send-message", async (req, res) => {
 // POST /api/v1/make-call
 restRouter.post("/make-call", async (req, res) => {
   try {
-    const { to, systemPrompt, greeting, voice, language, targetLanguage, recipientTimezone } = req.body;
+    const { to, systemPrompt, greeting, voice, language, recipientTimezone } = req.body;
     const agentId = resolveAgentId(authInfo(req), req.body.agentId);
     if (!agentId || !to) return errorJson(res, 400, "Required: agentId (or use an agent token), to");
 
@@ -269,26 +242,32 @@ restRouter.post("/make-call", async (req, res) => {
 
     const sessionId = randomUUID();
     const agentLang = getAgentLanguage(db, agentId);
-    const callLang = targetLanguage || language || agentLang;
+    const callLang = language || agentLang;
     storeCallConfig(sessionId, {
       agentId,
       systemPrompt: applyGuardrails(systemPrompt || config.voiceDefaultSystemPrompt),
       greeting: applyDisclosure(greeting || config.voiceDefaultGreeting),
       voice: voice || config.voiceDefaultVoice,
       language: callLang,
-      callerLanguage: targetLanguage || undefined,
       agentLanguage: agentLang,
     });
 
     const webhookUrl = `${config.webhookBaseUrl}/webhooks/${agentId}/outbound-voice?session=${sessionId}`;
     const telephony = getProvider("telephony");
-    const result = await telephony.makeCall({ from: fromNumber, to, webhookUrl });
 
-    const messageId = randomUUID();
-    db.run(
-      `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id) VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?, ?)`,
-      [messageId, agentId, fromNumber, to, systemPrompt || null, result.callSid, result.status, orgId],
-    );
+    let result;
+    try {
+      result = await telephony.makeCall({ from: fromNumber, to, webhookUrl });
+    } catch (callErr) {
+      const errMsg = callErr instanceof Error ? callErr.message : String(callErr);
+      try {
+        db.run(
+          `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, original_request, error_details, status) VALUES (?, ?, ?, 'voice', 'outbound', 'send_failed', ?, ?, ?, ?, ?, 'pending')`,
+          [randomUUID(), agentId, orgId, fromNumber, to, systemPrompt || null, JSON.stringify({ to, systemPrompt, greeting, voice, language }), errMsg],
+        );
+      } catch {}
+      return errorJson(res, 500, errMsg);
+    }
 
     try {
       db.run(
@@ -299,8 +278,8 @@ restRouter.post("/make-call", async (req, res) => {
 
     logUsage(db, { agentId, actionType: "voice_call", channel: "voice", targetAddress: to, cost: 0, externalId: result.callSid });
 
-    logger.info("rest_make_call", { messageId, agentId, to, callSid: result.callSid });
-    return res.json({ success: true, messageId, callSid: result.callSid, sessionId, status: result.status, from: fromNumber, to });
+    logger.info("rest_make_call", { agentId, to, callSid: result.callSid });
+    return res.json({ success: true, callSid: result.callSid, sessionId, status: result.status, from: fromNumber, to });
   } catch (err) {
     return handleRestError(res, err);
   }
@@ -379,13 +358,20 @@ Keep it natural and brief — this is a phone call.`;
 
     const webhookUrl = `${config.webhookBaseUrl}/webhooks/${agentId}/outbound-voice?session=${sessionId}`;
     const telephony = getProvider("telephony");
-    const result = await telephony.makeCall({ from: fromNumber, to: target, webhookUrl });
 
-    const messageId = randomUUID();
-    db.run(
-      `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id) VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?, ?)`,
-      [messageId, agentId, fromNumber, target, `[Call On Behalf] ${callerName} → ${calleeName || target}`, result.callSid, result.status, orgId],
-    );
+    let result;
+    try {
+      result = await telephony.makeCall({ from: fromNumber, to: target, webhookUrl });
+    } catch (callErr) {
+      const errMsg = callErr instanceof Error ? callErr.message : String(callErr);
+      try {
+        db.run(
+          `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, original_request, error_details, status) VALUES (?, ?, ?, 'voice', 'outbound', 'send_failed', ?, ?, ?, ?, ?, 'pending')`,
+          [randomUUID(), agentId, orgId, fromNumber, target, `[Call On Behalf] ${callerName} → ${calleeName || target}`, JSON.stringify({ target, targetName, requesterPhone, requesterName, message }), errMsg],
+        );
+      } catch {}
+      return errorJson(res, 500, errMsg);
+    }
 
     try {
       db.run(
@@ -396,9 +382,9 @@ Keep it natural and brief — this is a phone call.`;
 
     logUsage(db, { agentId, actionType: "voice_call", channel: "voice", targetAddress: target, cost: 0, externalId: result.callSid });
 
-    logger.info("rest_call_on_behalf", { messageId, agentId, target, targetName, requesterPhone, requesterName, callSid: result.callSid });
+    logger.info("rest_call_on_behalf", { agentId, target, targetName, requesterPhone, requesterName, callSid: result.callSid });
     return res.json({
-      success: true, messageId, callSid: result.callSid, sessionId, status: result.status,
+      success: true, callSid: result.callSid, sessionId, status: result.status,
       from: fromNumber, to: target,
       description: `Calling ${calleeName || target} on behalf of ${callerName}. If available, will be connected to ${requesterPhone}.`,
     });
@@ -448,17 +434,25 @@ restRouter.post("/send-voice-message", async (req, res) => {
     // Call
     const twiml = `<Response><Play>${audioUrl}</Play></Response>`;
     const telephony = getProvider("telephony");
-    const callResult = await telephony.makeCall({ from: fromNumber, to, twiml });
 
-    const messageId = randomUUID();
-    db.run(
-      `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id) VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?, ?)`,
-      [messageId, agentId, fromNumber, to, text, callResult.callSid, callResult.status, orgId],
-    );
+    let callResult;
+    try {
+      callResult = await telephony.makeCall({ from: fromNumber, to, twiml });
+    } catch (callErr) {
+      const errMsg = callErr instanceof Error ? callErr.message : String(callErr);
+      try {
+        db.run(
+          `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, original_request, error_details, status) VALUES (?, ?, ?, 'voice', 'outbound', 'send_failed', ?, ?, ?, ?, ?, 'pending')`,
+          [randomUUID(), agentId, orgId, fromNumber, to, text, JSON.stringify({ to, text, voice }), errMsg],
+        );
+      } catch {}
+      return errorJson(res, 500, errMsg);
+    }
+
     logUsage(db, { agentId, actionType: "voice_message", channel: "voice", targetAddress: to, cost: 0, externalId: callResult.callSid });
 
-    logger.info("rest_send_voice_message", { messageId, agentId, to, callSid: callResult.callSid });
-    return res.json({ success: true, messageId, callSid: callResult.callSid, status: callResult.status, from: fromNumber, to, audioUrl, durationSeconds: ttsResult.durationSeconds });
+    logger.info("rest_send_voice_message", { agentId, to, callSid: callResult.callSid });
+    return res.json({ success: true, callSid: callResult.callSid, status: callResult.status, from: fromNumber, to, audioUrl, durationSeconds: ttsResult.durationSeconds });
   } catch (err) {
     return handleRestError(res, err);
   }
@@ -520,13 +514,12 @@ restRouter.post("/transfer-call", async (req, res) => {
   }
 });
 
-// GET /api/v1/messages
-restRouter.get("/messages", async (req, res) => {
+// GET /api/v1/waiting-messages
+restRouter.get("/waiting-messages", async (req, res) => {
   try {
     const agentId = resolveAgentId(authInfo(req), req.query.agentId as string);
-    const limit = parseInt(req.query.limit as string) || 20;
+    const limit = parseInt(req.query.limit as string) || 50;
     const channel = req.query.channel as string | undefined;
-    const contactAddress = req.query.contactAddress as string | undefined;
 
     if (!agentId) return errorJson(res, 400, "Required query param: agentId (or use an agent token)");
 
@@ -536,36 +529,41 @@ restRouter.get("/messages", async (req, res) => {
     const db = getProvider("database");
     requireAgentInOrg(db, agentId, auth);
 
-    let sql = "SELECT * FROM messages WHERE agent_id = ?";
+    let sql = "SELECT * FROM dead_letters WHERE agent_id = ? AND status = 'pending'";
     const params: unknown[] = [agentId];
 
     if (channel) {
       sql += " AND channel = ?";
       params.push(channel);
     }
-    if (contactAddress) {
-      sql += " AND (from_address = ? OR to_address = ?)";
-      params.push(contactAddress, contactAddress);
-    }
 
-    sql += " ORDER BY created_at DESC LIMIT ?";
+    sql += " ORDER BY created_at ASC LIMIT ?";
     params.push(limit);
 
     const rows = db.query<any>(sql, params);
+
+    // Auto-acknowledge fetched messages
+    const ids = rows.map((r: any) => r.id);
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => "?").join(",");
+      db.run(
+        `UPDATE dead_letters SET status = 'acknowledged', acknowledged_at = datetime('now') WHERE id IN (${placeholders})`,
+        ids,
+      );
+    }
 
     const messages = rows.map((r: any) => ({
       id: r.id,
       agentId: r.agent_id,
       channel: r.channel,
       direction: r.direction,
+      reason: r.reason,
       from: r.from_address,
       to: r.to_address,
       body: r.body,
       mediaUrl: r.media_url,
-      mediaType: r.media_type,
+      errorDetails: r.error_details,
       externalId: r.external_id,
-      status: r.status,
-      cost: r.cost,
       createdAt: r.created_at,
     }));
 
@@ -746,9 +744,9 @@ restRouter.get("/channel-status", async (req, res) => {
     if (rows.length === 0) return errorJson(res, 404, `Agent "${agentId}" not found`);
     const agent = rows[0];
 
-    const smsCnt = db.query<any>("SELECT COUNT(*) as cnt FROM messages WHERE agent_id = ? AND channel = 'sms'", [agentId])[0]?.cnt ?? 0;
-    const emailCnt = db.query<any>("SELECT COUNT(*) as cnt FROM messages WHERE agent_id = ? AND channel = 'email'", [agentId])[0]?.cnt ?? 0;
-    const waCnt = db.query<any>("SELECT COUNT(*) as cnt FROM messages WHERE agent_id = ? AND channel = 'whatsapp'", [agentId])[0]?.cnt ?? 0;
+    const smsCnt = db.query<any>("SELECT COUNT(*) as cnt FROM usage_logs WHERE agent_id = ? AND channel = 'sms'", [agentId])[0]?.cnt ?? 0;
+    const emailCnt = db.query<any>("SELECT COUNT(*) as cnt FROM usage_logs WHERE agent_id = ? AND channel = 'email'", [agentId])[0]?.cnt ?? 0;
+    const waCnt = db.query<any>("SELECT COUNT(*) as cnt FROM usage_logs WHERE agent_id = ? AND channel = 'whatsapp'", [agentId])[0]?.cnt ?? 0;
 
     const poolRows = db.query<any>("SELECT max_agents, active_agents FROM agent_pool WHERE id = 'default'");
     const pool = poolRows[0] || { max_agents: 0, active_agents: 0 };
@@ -1185,7 +1183,6 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
                     html: { type: "string", description: "Optional HTML body for email" },
                     templateId: { type: "string", description: "WhatsApp template SID" },
                     templateVars: { type: "object", additionalProperties: { type: "string" }, description: "Template variables" },
-                    targetLanguage: { type: "string", description: "Recipient language for auto-translation" },
                   },
                 },
               },
@@ -1217,7 +1214,6 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
                     greeting: { type: "string" },
                     voice: { type: "string" },
                     language: { type: "string" },
-                    targetLanguage: { type: "string" },
                     recipientTimezone: { type: "string" },
                   },
                 },
@@ -1316,18 +1312,17 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
           },
         },
       },
-      "/messages": {
+      "/waiting-messages": {
         get: {
-          summary: "List messages for an agent",
+          summary: "Get waiting (undelivered) messages for an agent — auto-acknowledges on fetch",
           tags: ["Communication"],
           parameters: [
             { name: "agentId", in: "query", schema: { type: "string" }, description: "Agent ID (optional if using an agent token)" },
-            { name: "limit", in: "query", schema: { type: "integer", default: 20 } },
+            { name: "limit", in: "query", schema: { type: "integer", default: 50 } },
             { name: "channel", in: "query", schema: { type: "string", enum: ["sms", "email", "whatsapp", "voice", "line"] } },
-            { name: "contactAddress", in: "query", schema: { type: "string" }, description: "Filter by contact phone/email" },
           ],
           responses: {
-            "200": { description: "Messages list", content: { "application/json": { schema: { $ref: "#/components/schemas/MessagesResponse" } } } },
+            "200": { description: "Waiting messages list", content: { "application/json": { schema: { $ref: "#/components/schemas/WaitingMessagesResponse" } } } },
           },
         },
       },
@@ -1514,7 +1509,6 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
           type: "object",
           properties: {
             success: { type: "boolean" },
-            messageId: { type: "string" },
             externalId: { type: "string" },
             status: { type: "string" },
             channel: { type: "string" },
@@ -1526,7 +1520,6 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
           type: "object",
           properties: {
             success: { type: "boolean" },
-            messageId: { type: "string" },
             callSid: { type: "string" },
             sessionId: { type: "string" },
             status: { type: "string" },
@@ -1534,26 +1527,27 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
             to: { type: "string" },
           },
         },
-        MessagesResponse: {
+        WaitingMessagesResponse: {
           type: "object",
           properties: {
-            messages: { type: "array", items: { $ref: "#/components/schemas/Message" } },
+            messages: { type: "array", items: { $ref: "#/components/schemas/WaitingMessage" } },
             count: { type: "integer" },
           },
         },
-        Message: {
+        WaitingMessage: {
           type: "object",
           properties: {
             id: { type: "string" },
             agentId: { type: "string" },
             channel: { type: "string" },
             direction: { type: "string" },
+            reason: { type: "string" },
             from: { type: "string" },
             to: { type: "string" },
             body: { type: "string", nullable: true },
+            mediaUrl: { type: "string", nullable: true },
+            errorDetails: { type: "string", nullable: true },
             externalId: { type: "string", nullable: true },
-            status: { type: "string" },
-            cost: { type: "number", nullable: true },
             createdAt: { type: "string" },
           },
         },

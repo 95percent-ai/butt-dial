@@ -31,10 +31,6 @@ interface ProviderStatus {
     systemPrompt: string | null;
     ttsProvider: string | null;
   };
-  translation: {
-    enabled: boolean;
-    hasApiKey: boolean;
-  };
   registration: {
     requireEmailVerification: boolean;
   };
@@ -86,7 +82,6 @@ export function getProviderStatus(): ProviderStatus {
   const voiceLang = env["VOICE_DEFAULT_LANGUAGE"];
   const voiceSystemPrompt = env["VOICE_DEFAULT_SYSTEM_PROMPT"];
   const ttsProvider = env["PROVIDER_TTS"];
-  const translationEnabled = env["TRANSLATION_ENABLED"];
   const anthropicKey = env["ANTHROPIC_API_KEY"];
   const requireEmailVerification = env["REQUIRE_EMAIL_VERIFICATION"];
 
@@ -116,10 +111,6 @@ export function getProviderStatus(): ProviderStatus {
       language: voiceLang || null,
       systemPrompt: voiceSystemPrompt || null,
       ttsProvider: ttsProvider || null,
-    },
-    translation: {
-      enabled: translationEnabled === "true",
-      hasApiKey: !!anthropicKey,
     },
     registration: {
       requireEmailVerification: requireEmailVerification === "true",

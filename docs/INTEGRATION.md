@@ -1,4 +1,4 @@
-<!-- version: 1.1 | updated: 2026-02-21 -->
+<!-- version: 1.2 | updated: 2026-02-21 -->
 
 # Butt-Dial MCP — Integration Guide
 
@@ -56,14 +56,16 @@ curl -X POST http://localhost:3100/api/v1/send-message \
 
 In sandbox mode, this uses mock providers — no real SMS is sent, but you get a realistic response.
 
-### Step 5: Check the Result
+### Step 5: Check for Waiting Messages
 
 ```bash
-curl http://localhost:3100/api/v1/messages?agentId=test-agent-001 \
+curl http://localhost:3100/api/v1/waiting-messages?agentId=test-agent-001 \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-If an LLM key is configured (Anthropic, OpenAI, or custom), you'll also see a simulated reply message after ~2 seconds.
+This returns any messages that couldn't be delivered while your agent was offline. Fetching acknowledges them automatically.
+
+If an LLM key is configured (Anthropic, OpenAI, or custom), sandbox sends also generate a simulated reply after ~2 seconds.
 
 ---
 
@@ -99,8 +101,8 @@ New accounts start in **sandbox mode**. All API calls work, but use mock provide
 
 - SMS, email, WhatsApp, LINE all return realistic responses with Twilio-format IDs
 - Calls return `queued` status with realistic call SIDs
-- All messages are stored in the database
 - Usage tracking and compliance checks run normally
+- No message content is stored (privacy-first — only usage logs track action counts)
 
 ### LLM-Powered Reply Simulation
 
@@ -154,10 +156,11 @@ curl -X POST http://localhost:3100/api/v1/make-call \
   -d '{"agentId":"my-agent","to":"+15559876543","greeting":"Hello!"}'
 ```
 
-### Get Messages
+### Get Waiting Messages
 
 ```bash
-curl http://localhost:3100/api/v1/messages?agentId=my-agent \
+# Fetch messages that arrived while your agent was offline (auto-acknowledges on fetch)
+curl http://localhost:3100/api/v1/waiting-messages?agentId=my-agent \
   -H "Authorization: Bearer TOKEN"
 ```
 
@@ -238,7 +241,7 @@ Every feature is available through both REST and MCP. Agent tokens auto-detect `
 | Call someone on your behalf | `POST /call-on-behalf` | `comms_call_on_behalf` |
 | Send a TTS voice message | `POST /send-voice-message` | `comms_send_voice_message` |
 | Transfer a live call | `POST /transfer-call` | `comms_transfer_call` |
-| Get message history | `GET /messages` | `comms_get_messages` |
+| Get waiting messages | `GET /waiting-messages` | `comms_get_waiting_messages` |
 | Send verification code | — | `comms_send_otp` |
 | Verify a code | — | `comms_verify_otp` |
 
@@ -329,7 +332,40 @@ For community/enterprise editions, accounts are auto-approved. For SaaS, admin r
 
 ---
 
-## 9. Troubleshooting
+## 9. Message Handling — Privacy-First Design
+
+The server does **not** store messages by default. It's infrastructure — conversation memory belongs to your agent.
+
+### What Gets Stored
+
+| Scenario | Stored? | Where |
+|----------|---------|-------|
+| Successful outbound send | No | Only a usage log entry (count + cost, no content) |
+| Successful inbound delivery | No | Forwarded to your agent's callback, not stored |
+| Failed outbound send | Yes | `dead_letters` table — so you can retry |
+| Inbound when agent offline | Yes | `dead_letters` table — delivered when agent reconnects |
+
+### Dead Letter Queue
+
+When a message can't be delivered, it's saved in the `dead_letters` table with:
+- Channel, direction, from/to addresses
+- Message body and any media URL
+- Reason: `agent_offline`, `send_failed`, or `provider_error`
+- Original request payload (so you can retry failed sends)
+
+### Fetching Pending Messages
+
+When your agent connects (or reconnects), call `comms_get_waiting_messages` to get any messages that arrived while offline. **Fetching automatically acknowledges them** — no separate acknowledge step needed.
+
+Acknowledged dead letters are auto-purged after 7 days (configurable via `DEAD_LETTER_RETENTION_DAYS`).
+
+### Your Agent's Responsibility
+
+Since the server doesn't store conversation history, **your agent must manage its own memory**. If your agent needs to recall past conversations, store them in your own database. The server only handles delivery — not persistence.
+
+---
+
+## 10. Troubleshooting
 
 | Problem | Fix |
 |---------|-----|

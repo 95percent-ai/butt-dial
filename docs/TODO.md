@@ -1,4 +1,4 @@
-<!-- version: 4.9 | updated: 2026-02-19 -->
+<!-- version: 5.1 | updated: 2026-02-21 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -411,6 +411,45 @@ Dead-simple developer onboarding: register → get token → test in sandbox →
 
 ### Tests
 - [x] **40/40** assertions pass (`tests/third-party-integration.test.ts`)
+
+---
+
+## Phase 27 — Message Queue + Remove Translation (DEC-072, DEC-073)
+
+### A. Dead Letter Queue (expand voicemail_messages → all channels)
+- [x] **A1.** Rename/expand `voicemail_messages` → `dead_letters` table: covers all channels, only stores on failure
+- [x] **A2.** Schema: `id`, `agent_id`, `org_id`, `channel`, `reason` (agent_offline/send_failed/provider_error), `direction`, `from_address`, `to_address`, `body`, `media_url`, `original_request`, `error_details`, `status` (pending/acknowledged), `created_at`, `acknowledged_at`
+- [x] **A3.** `comms_get_waiting_messages` tool — returns unacknowledged dead letters for the agent (fetch = acknowledge)
+- [x] **A4.** Acknowledge on fetch — agent fetches pending messages, status auto-set to acknowledged
+- [x] **A5.** Auto-purge: acknowledged dead letters deleted after configurable TTL (default 7 days)
+- [x] **A6.** Outbound send failures → write to `dead_letters` with original request (so agent can retry)
+- [x] **A7.** Inbound messages when agent is offline → write to `dead_letters` (deliver on reconnect)
+- [x] **A8.** Successful sends and successful inbound deliveries → nothing stored
+- [x] **A9.** Remove `messages` table as conversation store (usage stats stay in `usage_logs`)
+- [x] **A10.** Migrate existing `voicemail_messages` dispatch-on-reconnect logic to use `dead_letters`
+- [x] **A11.** Update INTEGRATION.md — explain dead letter model, instruct integrators that conversation memory is the agent's responsibility
+- [x] **A12.** Update admin dashboard — usage stats from `usage_logs`, not `messages`
+
+### B. Remove Server-Side Translation
+- [x] **B1.** Remove `targetLanguage` param from `comms_send_message` and `comms_make_call`
+- [x] **B2.** Remove `translate()`, `needsTranslation()`, `getAgentLanguage()` calls from tool handlers
+- [x] **B3.** Remove `body_original`, `source_language` columns (or keep for queue metadata)
+- [x] **B4.** Keep `src/lib/translator.ts` module available for future human-to-human bridging
+- [x] **B5.** Remove translation UI from admin settings panel
+- [x] **B6.** Update INTEGRATION.md and capability cards — remove translation references
+
+### C. Future: Conversation Persistence Module (Paid)
+- [ ] **C1.** Design per-agent-target persistence as an optional paid module
+- [ ] **C2.** Separate storage from the queue (persistent store vs temp queue)
+- [ ] **C3.** API for querying conversation history (only if module enabled)
+
+### D. Future: Human-to-Human Translation
+- [ ] **D1.** Evaluate text translation for bridged SMS conversations
+- [ ] **D2.** Research real-time voice interpretation for bridged calls (product-level effort)
+
+### Tests
+- [x] Update existing tests to reflect queue model (12 test files, 335+ assertions pass)
+- [x] Remove translation-related test assertions (translation test rewritten for removal verification)
 
 ---
 

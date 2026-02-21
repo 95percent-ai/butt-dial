@@ -3,9 +3,8 @@
  *
  * Tests:
  * 1. comms_send_message with channel: "email" — verify mock success
- * 2. Verify message stored in DB (channel: email, direction: outbound)
- * 3. POST simulated Resend inbound webhook — verify stored in DB
- * 4. comms_get_messages with channel filter "email" — verify both directions
+ * 2. Verify action logged in usage_logs
+ * 3. POST simulated Resend inbound webhook — verify 200 response
  * 5. Error cases: agent without email, missing subject
  * 6. Regression: SMS still works
  *
@@ -90,23 +89,19 @@ async function main() {
   assert(emailParsed.status === "sent", "status is sent");
 
   // ------------------------------------------------------------------
-  // 3. Verify outbound email in DB
+  // 3. Verify outbound email logged in usage_logs
   // ------------------------------------------------------------------
-  console.log("\nTest: outbound email in database");
+  console.log("\nTest: outbound email in usage_logs");
 
   const db = new Database(DB_PATH, { readonly: true });
-  const outbound = db.prepare(
-    "SELECT * FROM messages WHERE agent_id = ? AND channel = 'email' AND direction = 'outbound' ORDER BY created_at DESC LIMIT 1"
+  const logRow = db.prepare(
+    "SELECT * FROM usage_logs WHERE agent_id = ? AND channel = 'email' ORDER BY created_at DESC LIMIT 1"
   ).get("test-agent-001") as Record<string, unknown> | undefined;
 
-  assert(outbound !== undefined, "outbound email row exists in database");
-  if (outbound) {
-    assert(outbound.channel === "email", "channel is email");
-    assert(outbound.direction === "outbound", "direction is outbound");
-    assert(outbound.from_address === "agent@test.example.com", "from_address is agent email");
-    assert(outbound.to_address === "human@example.com", "to_address is recipient");
-    assert((outbound.body as string).includes("Test Email Subject"), "body includes subject");
-    assert((outbound.body as string).includes("Hello from Phase 6 dry test"), "body includes message text");
+  assert(logRow !== undefined, "email usage_logs row exists");
+  if (logRow) {
+    assert(logRow.channel === "email", "channel is email");
+    assert(logRow.target_address === "human@example.com", "target_address is recipient");
   }
 
   // ------------------------------------------------------------------
@@ -134,52 +129,8 @@ async function main() {
   const webhookBody = await webhookResp.json();
   assert((webhookBody as { ok: boolean }).ok === true, "webhook body is { ok: true }");
 
-  // Verify inbound email in DB
-  console.log("\nTest: inbound email in database");
-
-  const db2 = new Database(DB_PATH, { readonly: true });
-  const inbound = db2.prepare(
-    "SELECT * FROM messages WHERE external_id = ? AND direction = 'inbound'"
-  ).get("resend_test_inbound_001") as Record<string, unknown> | undefined;
-
-  assert(inbound !== undefined, "inbound email row exists in database");
-  if (inbound) {
-    assert(inbound.agent_id === "test-agent-001", "agent_id matches");
-    assert(inbound.channel === "email", "channel is email");
-    assert(inbound.direction === "inbound", "direction is inbound");
-    assert(inbound.from_address === "human@example.com", "from_address is sender");
-    assert(inbound.to_address === "agent@test.example.com", "to_address is agent email");
-    assert((inbound.body as string).includes("Reply from human"), "body includes subject");
-    assert((inbound.body as string).includes("This is a reply to the agent"), "body includes text");
-    assert(inbound.status === "received", "status is received");
-  }
-  db2.close();
-
-  // ------------------------------------------------------------------
-  // 5. Get messages with email filter
-  // ------------------------------------------------------------------
-  console.log("\nTest: comms_get_messages with email filter");
-
-  const getResult = await client.callTool({
-    name: "comms_get_messages",
-    arguments: { agentId: "test-agent-001", limit: 50, channel: "email" },
-  });
-
-  const getParsed = JSON.parse(
-    (getResult.content as Array<{ type: string; text: string }>)[0]?.text
-  );
-
-  assert(getParsed.count >= 2, "at least 2 email messages (outbound + inbound)");
-
-  const outboundMsg = getParsed.messages.find(
-    (m: Record<string, unknown>) => m.direction === "outbound" && m.channel === "email"
-  );
-  assert(outboundMsg !== undefined, "outbound email found via get_messages");
-
-  const inboundMsg = getParsed.messages.find(
-    (m: Record<string, unknown>) => m.direction === "inbound" && m.externalId === "resend_test_inbound_001"
-  );
-  assert(inboundMsg !== undefined, "inbound email found via get_messages");
+  // Inbound webhooks no longer store to DB (forwarded to agent callback)
+  // The 200 response above confirms the webhook was processed successfully
 
   // ------------------------------------------------------------------
   // 6. Error cases

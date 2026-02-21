@@ -28,7 +28,7 @@ import {
   getCallConfig,
   type VoiceConversation,
 } from "./voice-sessions.js";
-import { translate, needsTranslation, getAgentLanguage } from "../lib/translator.js";
+import { getAgentLanguage } from "../lib/translator.js";
 import { applyGuardrails, checkResponseContent } from "../security/communication-guardrails.js";
 
 /** Extract agentId from the WebSocket URL path: /webhooks/:agentId/voice-ws */
@@ -336,7 +336,7 @@ async function tryAnsweringMachine(
   }
 }
 
-/** Store voicemail in DB after an answering-machine call ends */
+/** Store voicemail in dead_letters after an answering-machine call ends */
 function storeVoicemail(conv: VoiceConversation): void {
   if (!conv.voicemailCollected?.callerMessage) return;
 
@@ -356,19 +356,23 @@ function storeVoicemail(conv: VoiceConversation): void {
       .map((m) => `${m.role}: ${m.content}`)
       .join("\n");
 
+    const body = [
+      conv.voicemailCollected.callerMessage,
+      conv.voicemailCollected.callerPreferences ? `Preferences: ${conv.voicemailCollected.callerPreferences}` : null,
+      transcript ? `\n---\nTranscript:\n${transcript}` : null,
+    ].filter(Boolean).join("\n");
+
     db.run(
-      `INSERT INTO voicemail_messages (id, agent_id, call_sid, caller_from, caller_to, transcript, caller_message, caller_preferences, status, org_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+      `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, external_id, status)
+       VALUES (?, ?, ?, 'voice', 'inbound', 'agent_offline', ?, ?, ?, ?, 'pending')`,
       [
         id,
         conv.agentId,
-        conv.callSid,
+        orgId,
         conv.from,
         conv.to,
-        transcript,
-        conv.voicemailCollected.callerMessage,
-        conv.voicemailCollected.callerPreferences || null,
-        orgId,
+        body,
+        conv.callSid,
       ]
     );
 
@@ -422,10 +426,9 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
         const agentSession = agentId ? getAgentSession(agentId) : undefined;
         const mode = callConfig?.forceMode || (agentSession ? "agent" : "answering-machine");
 
-        // Resolve languages for translation bridge
+        // Resolve language for TTS
         const db = getProvider("database");
         const agentLang = agentId ? getAgentLanguage(db, agentId) : config.voiceDefaultLanguage;
-        const callerLang = callConfig?.callerLanguage || agentLang;
 
         const conv: VoiceConversation = {
           agentId: agentId || "unknown",
@@ -436,7 +439,7 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
           history: [],
           abortController: null,
           mode,
-          callerLanguage: callerLang,
+          callerLanguage: agentLang,
           agentLanguage: agentLang,
         };
 
@@ -503,21 +506,8 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
           promptLength: voicePrompt.length,
         });
 
-        // Translate inbound transcription: caller's language → agent's language
-        let translatedPrompt = voicePrompt;
-        if (conv.callerLanguage && conv.agentLanguage && needsTranslation(conv.callerLanguage, conv.agentLanguage)) {
-          translatedPrompt = await translate(voicePrompt, conv.callerLanguage, conv.agentLanguage);
-          logger.info("voice_inbound_translated", {
-            callSid,
-            from: conv.callerLanguage,
-            to: conv.agentLanguage,
-            originalLength: voicePrompt.length,
-            translatedLength: translatedPrompt.length,
-          });
-        }
-
-        // Add translated message to history (agent sees their language)
-        conv.history.push({ role: "user", content: translatedPrompt });
+        // Add caller's transcription to history
+        conv.history.push({ role: "user", content: voicePrompt });
 
         // Track caller messages for voicemail collection in answering-machine mode
         if (conv.mode === "answering-machine") {
@@ -571,22 +561,9 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
           responseText = contentCheck.sanitized;
         }
 
-        // Translate outbound response: agent's language → caller's language
-        let spokenText = responseText;
-        if (conv.callerLanguage && conv.agentLanguage && needsTranslation(conv.agentLanguage, conv.callerLanguage)) {
-          spokenText = await translate(responseText, conv.agentLanguage, conv.callerLanguage);
-          logger.info("voice_outbound_translated", {
-            callSid,
-            from: conv.agentLanguage,
-            to: conv.callerLanguage,
-            originalLength: responseText.length,
-            translatedLength: spokenText.length,
-          });
-        }
-
-        // Send translated response to Twilio (caller hears their language)
+        // Send response to Twilio
         if (ws.readyState === ws.OPEN) {
-          ws.send(JSON.stringify({ type: "text", token: spokenText, last: true }));
+          ws.send(JSON.stringify({ type: "text", token: responseText, last: true }));
         }
 
         // Store agent's original response in history (untranslated)

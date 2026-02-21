@@ -153,24 +153,24 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         logger.error("send_voice_call_error", { agentId, to, error: errMsg });
+        // Queue to dead letters
+        try {
+          db.run(
+            `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, original_request, error_details, status)
+             VALUES (?, ?, ?, 'voice', 'outbound', 'send_failed', ?, ?, ?, ?, ?, 'pending')`,
+            [randomUUID(), agentId, orgId, fromNumber, to, text, JSON.stringify({ to, text, voice }), errMsg]
+          );
+        } catch {}
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ error: `Call failed: ${errMsg}` }) }],
           isError: true,
         };
       }
 
-      // 6. Log to messages table
-      const messageId = randomUUID();
-      db.run(
-        `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id)
-         VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?, ?)`,
-        [messageId, agentId, fromNumber, to, text, callSid, callStatus, orgId]
-      );
-
+      // 6. Log usage (no message storage — usage_logs tracks counts)
       logUsage(db, { agentId, actionType: "voice_message", channel: "voice", targetAddress: to, cost: 0, externalId: callSid });
 
       logger.info("send_voice_success", {
-        messageId,
         agentId,
         to,
         callSid,
@@ -185,7 +185,6 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
             type: "text" as const,
             text: JSON.stringify({
               success: true,
-              messageId,
               callSid,
               status: callStatus,
               from: fromNumber,

@@ -1,6 +1,25 @@
-<!-- version: 4.0 | updated: 2026-02-19 -->
+<!-- version: 4.2 | updated: 2026-02-21 -->
 
 # Decisions Log
+
+## DEC-072: Dead Letter Queue — Store Only on Failure (Privacy-First)
+**Date:** 2026-02-21
+**What:** The server does NOT store messages by default. Messages are only stored when delivery fails:
+- **Failed outbound** — send attempt fails → stored so the agent can retry or inform the user
+- **Undeliverable inbound** — message arrives but the agent is offline/unreachable → stored until agent reconnects
+- **Successful delivery = nothing stored** — if the message reaches its destination, the server holds no copy
+The `messages` table is removed as a conversation store. Usage/billing stats stay in `usage_logs` (counts, costs — no message content).
+**Why:** Privacy-first. Don't store what you don't need. The server is infrastructure — conversation memory belongs to the agent. Only hold messages temporarily when we can't deliver them.
+**Design:** Expand `voicemail_messages` → `dead_letters` table. Covers all channels. Agent calls `comms_get_pending` on connect, acknowledges with `comms_acknowledge`. Auto-purge after TTL.
+**Future:** Offer a paid "Conversation Persistence" module per agent-target pair for customers who want server-side history.
+**Alternatives considered:** Store all messages then purge (unnecessary data held), inbox model storing everything until acknowledged (stores too much), no storage at all (agent loses failed messages).
+
+## DEC-073: Remove Server-Side Translation (Agent's Responsibility)
+**Date:** 2026-02-21
+**What:** Remove the `targetLanguage` parameter and server-side translation from `comms_send_message` and `comms_make_call`. Translation is the agent's job, not the server's.
+**Why:** AI agents already understand multiple languages natively. When an agent receives a message in Hebrew, it understands it and decides how to reply. The server knows nothing about the target's language — only the agent does from its conversation context. Server-side translation is redundant for all agent communication flows.
+**Remaining use case:** Human-to-human bridged calls (call-on-behalf) where the server sits between two humans speaking different languages. For text this is feasible; for voice it requires real-time interpretation (a product, not a feature). Deferred to future.
+**Alternatives considered:** Keep translation as optional (adds complexity for a redundant feature), build real-time voice translation (too complex for now).
 
 ## DEC-067: Edition-Aware Registration & Auto-Approval
 **Date:** 2026-02-19

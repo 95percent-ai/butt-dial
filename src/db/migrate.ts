@@ -27,9 +27,31 @@ export function runMigrations(): void {
   const observabilitySchema = fs.readFileSync(observabilitySchemaPath, "utf-8");
   db.exec(observabilitySchema);
 
-  const voicemailSchemaPath = path.join(projectRoot, "src", "db", "schema-voicemail.sql");
-  const voicemailSchema = fs.readFileSync(voicemailSchemaPath, "utf-8");
-  db.exec(voicemailSchema);
+  // Dead Letter Queue (replaces voicemail_messages)
+  const deadLettersSchemaPath = path.join(projectRoot, "src", "db", "schema-dead-letters.sql");
+  const deadLettersSchema = fs.readFileSync(deadLettersSchemaPath, "utf-8");
+  db.exec(deadLettersSchema);
+
+  // Migrate voicemail_messages → dead_letters (if old table exists)
+  try {
+    const oldVoicemails = db.query<{ id: string; agent_id: string; call_sid: string; caller_from: string; caller_to: string; transcript: string | null; caller_message: string | null; caller_preferences: string | null; status: string; created_at: string; org_id?: string }>(
+      "SELECT * FROM voicemail_messages"
+    );
+    for (const vm of oldVoicemails) {
+      const body = [vm.caller_message, vm.caller_preferences ? `Preferences: ${vm.caller_preferences}` : null, vm.transcript ? `Transcript: ${vm.transcript}` : null].filter(Boolean).join("\n");
+      try {
+        db.run(
+          `INSERT OR IGNORE INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, external_id, status, created_at)
+           VALUES (?, ?, ?, 'voice', 'inbound', 'agent_offline', ?, ?, ?, ?, ?, ?)`,
+          [vm.id, vm.agent_id, vm.org_id || "default", vm.caller_from, vm.caller_to, body, vm.call_sid, vm.status === "dispatched" ? "acknowledged" : "pending", vm.created_at]
+        );
+      } catch {
+        // Duplicate or other error — skip
+      }
+    }
+  } catch {
+    // voicemail_messages table doesn't exist or already migrated — fine
+  }
 
   const callLogsSchemaPath = path.join(projectRoot, "src", "db", "schema-call-logs.sql");
   const callLogsSchema = fs.readFileSync(callLogsSchemaPath, "utf-8");
@@ -54,8 +76,8 @@ export function runMigrations(): void {
 
   // Add org_id column to all data tables (idempotent — wrapped in try/catch)
   const orgTables = [
-    "agent_channels", "messages", "usage_logs", "audit_log", "agent_pool",
-    "whatsapp_pool", "call_logs", "voicemail_messages", "spending_limits",
+    "agent_channels", "usage_logs", "audit_log", "agent_pool",
+    "whatsapp_pool", "call_logs", "dead_letters", "spending_limits",
     "agent_tokens", "provider_credentials", "billing_config",
     "dnc_list", "otp_codes", "erasure_requests",
   ];
@@ -82,19 +104,9 @@ export function runMigrations(): void {
   const numberPoolSchema = fs.readFileSync(numberPoolSchemaPath, "utf-8");
   db.exec(numberPoolSchema);
 
-  // Phase 22: Translation — add language column to agent_channels, body_original + source_language to messages
+  // Add language column to agent_channels (for voice STT/TTS language)
   try {
     db.run("ALTER TABLE agent_channels ADD COLUMN language TEXT DEFAULT 'en-US'");
-  } catch {
-    // Column already exists
-  }
-  try {
-    db.run("ALTER TABLE messages ADD COLUMN body_original TEXT");
-  } catch {
-    // Column already exists
-  }
-  try {
-    db.run("ALTER TABLE messages ADD COLUMN source_language TEXT");
   } catch {
     // Column already exists
   }

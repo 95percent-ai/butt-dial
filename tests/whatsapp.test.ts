@@ -3,10 +3,9 @@
  *
  * Tests:
  * 1. comms_send_message with channel: "whatsapp" — verify mock success
- * 2. Verify message stored in DB (channel: whatsapp, direction: outbound)
+ * 2. Verify action logged in usage_logs
  * 3. Send with templateId + templateVars — verify success
- * 4. POST simulated Twilio inbound WhatsApp webhook — verify stored in DB
- * 5. comms_get_messages with channel filter "whatsapp" — verify both directions
+ * 4. POST simulated Twilio inbound WhatsApp webhook — verify 200 response
  * 6. Error case: agent without whatsapp_sender_sid
  * 7. Regression: SMS + email still work
  *
@@ -89,22 +88,19 @@ async function main() {
   assert(waParsed.status === "sent", "status is sent");
 
   // ------------------------------------------------------------------
-  // 3. Verify outbound WhatsApp in DB
+  // 3. Verify outbound WhatsApp in usage_logs
   // ------------------------------------------------------------------
-  console.log("\nTest: outbound WhatsApp in database");
+  console.log("\nTest: outbound WhatsApp in usage_logs");
 
   const db = new Database(DB_PATH, { readonly: true });
-  const outbound = db.prepare(
-    "SELECT * FROM messages WHERE agent_id = ? AND channel = 'whatsapp' AND direction = 'outbound' ORDER BY created_at DESC LIMIT 1"
+  const logRow = db.prepare(
+    "SELECT * FROM usage_logs WHERE agent_id = ? AND channel = 'whatsapp' ORDER BY created_at DESC LIMIT 1"
   ).get("test-agent-001") as Record<string, unknown> | undefined;
 
-  assert(outbound !== undefined, "outbound WhatsApp row exists in database");
-  if (outbound) {
-    assert(outbound.channel === "whatsapp", "channel is whatsapp");
-    assert(outbound.direction === "outbound", "direction is outbound");
-    assert(outbound.from_address === "+1234567890", "from_address is agent whatsapp number");
-    assert(outbound.to_address === "+972526557547", "to_address is recipient");
-    assert((outbound.body as string).includes("Phase 7"), "body includes message text");
+  assert(logRow !== undefined, "WhatsApp usage_logs row exists");
+  if (logRow) {
+    assert(logRow.channel === "whatsapp", "channel is whatsapp");
+    assert(logRow.target_address === "+972526557547", "target_address is recipient");
   }
   db.close();
 
@@ -131,12 +127,12 @@ async function main() {
   assert(templateParsed.success === true, "template WhatsApp send returned success");
   assert(templateParsed.channel === "whatsapp", "template response channel is whatsapp");
 
-  // Verify template message in DB
+  // Verify template send logged in usage_logs
   const db3 = new Database(DB_PATH, { readonly: true });
-  const templateRow = db3.prepare(
-    "SELECT COUNT(*) as cnt FROM messages WHERE agent_id = ? AND channel = 'whatsapp' AND direction = 'outbound'"
+  const templateLog = db3.prepare(
+    "SELECT COUNT(*) as cnt FROM usage_logs WHERE agent_id = ? AND channel = 'whatsapp'"
   ).get("test-agent-001") as { cnt: number };
-  assert(templateRow.cnt >= 2, "at least 2 outbound WhatsApp messages in DB (plain + template)");
+  assert(templateLog.cnt >= 2, "at least 2 WhatsApp usage_logs entries (plain + template)");
   db3.close();
 
   // ------------------------------------------------------------------
@@ -160,51 +156,8 @@ async function main() {
   const webhookBody = await webhookResp.text();
   assert(webhookBody === "<Response/>", "webhook returns TwiML <Response/>");
 
-  // Verify inbound WhatsApp in DB
-  console.log("\nTest: inbound WhatsApp in database");
-
-  const db4 = new Database(DB_PATH, { readonly: true });
-  const inbound = db4.prepare(
-    "SELECT * FROM messages WHERE external_id = ? AND direction = 'inbound'"
-  ).get("SM_whatsapp_inbound_test_001") as Record<string, unknown> | undefined;
-
-  assert(inbound !== undefined, "inbound WhatsApp row exists in database");
-  if (inbound) {
-    assert(inbound.agent_id === "test-agent-001", "agent_id matches");
-    assert(inbound.channel === "whatsapp", "channel is whatsapp");
-    assert(inbound.direction === "inbound", "direction is inbound");
-    assert(inbound.from_address === "+972526557547", "from_address is sender (prefix stripped)");
-    assert(inbound.to_address === "+1234567890", "to_address is agent number (prefix stripped)");
-    assert(inbound.body === "Reply from human via WhatsApp", "body matches");
-    assert(inbound.status === "received", "status is received");
-  }
-  db4.close();
-
-  // ------------------------------------------------------------------
-  // 6. Get messages with WhatsApp filter
-  // ------------------------------------------------------------------
-  console.log("\nTest: comms_get_messages with whatsapp filter");
-
-  const getResult = await client.callTool({
-    name: "comms_get_messages",
-    arguments: { agentId: "test-agent-001", limit: 50, channel: "whatsapp" },
-  });
-
-  const getParsed = JSON.parse(
-    (getResult.content as Array<{ type: string; text: string }>)[0]?.text
-  );
-
-  assert(getParsed.count >= 3, "at least 3 WhatsApp messages (2 outbound + 1 inbound)");
-
-  const outboundMsg = getParsed.messages.find(
-    (m: Record<string, unknown>) => m.direction === "outbound" && m.channel === "whatsapp"
-  );
-  assert(outboundMsg !== undefined, "outbound WhatsApp found via get_messages");
-
-  const inboundMsg = getParsed.messages.find(
-    (m: Record<string, unknown>) => m.direction === "inbound" && m.channel === "whatsapp"
-  );
-  assert(inboundMsg !== undefined, "inbound WhatsApp found via get_messages");
+  // Inbound webhooks no longer store to messages table (forwarded to agent callback)
+  // The 200 response + TwiML above confirms the webhook was processed
 
   // ------------------------------------------------------------------
   // 7. Error cases

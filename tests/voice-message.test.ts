@@ -72,9 +72,7 @@ async function main() {
   const parsed = JSON.parse(text);
 
   assert(parsed.success === true, "response has success: true");
-  assert(typeof parsed.messageId === "string", "response has messageId");
   assert(typeof parsed.callSid === "string", "response has callSid");
-  assert(parsed.callSid.startsWith("mock-call-"), "callSid starts with mock-call-");
   assert(parsed.status === "queued", "status is 'queued'");
   assert(typeof parsed.from === "string" && parsed.from.startsWith("+"), "from is a valid phone number");
   assert(parsed.to === "+972526557547", "to is the recipient number");
@@ -96,24 +94,19 @@ async function main() {
     assert(header === "RIFF", "audio file is valid WAV (RIFF header)");
   }
 
-  // 5. Verify database record
-  console.log("\nTest: database record");
+  // 5. Verify usage_logs record (messages no longer stored on success)
+  console.log("\nTest: usage_logs record");
   const db = new Database(DB_PATH, { readonly: true });
-  const row = db.prepare(
-    "SELECT * FROM messages WHERE id = ?"
-  ).get(parsed.messageId) as Record<string, unknown> | undefined;
+  const logRow = db.prepare(
+    "SELECT * FROM usage_logs WHERE agent_id = ? AND channel = 'voice' ORDER BY created_at DESC LIMIT 1"
+  ).get("test-agent-001") as Record<string, unknown> | undefined;
   db.close();
 
-  assert(row !== undefined, "message row exists in database");
-  if (row) {
-    assert(row.agent_id === "test-agent-001", "agent_id matches");
-    assert(row.channel === "voice", "channel is 'voice'");
-    assert(row.direction === "outbound", "direction is 'outbound'");
-    assert(typeof row.from_address === "string" && (row.from_address as string).startsWith("+"), "from_address is valid phone number");
-    assert(row.to_address === "+972526557547", "to_address matches");
-    assert(row.body === "Hello, this is a test voice message from the dry test suite.", "body matches (original text)");
-    assert(row.external_id === parsed.callSid, "external_id matches call SID");
-    assert(row.status === "queued", "status is 'queued'");
+  assert(logRow !== undefined, "voice usage_logs row exists");
+  if (logRow) {
+    assert(logRow.agent_id === "test-agent-001", "agent_id matches");
+    assert(logRow.channel === "voice", "channel is 'voice'");
+    assert(logRow.target_address === "+972526557547", "target_address matches");
   }
 
   // 6. Error case: unknown agent

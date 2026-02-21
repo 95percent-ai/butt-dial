@@ -170,16 +170,15 @@ export function registerGetMeTool(server: McpServer): void {
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         logger.error("get_me_call_error", { agentId, target, error: errMsg });
+        try {
+          db.run(
+            `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, original_request, error_details, status)
+             VALUES (?, ?, ?, 'voice', 'outbound', 'send_failed', ?, ?, ?, ?, ?, 'pending')`,
+            [randomUUID(), agentId, orgId, fromNumber, target, `[Call On Behalf] ${callerName} → ${calleeName || target}`, JSON.stringify({ target, targetName, requesterPhone, requesterName, message }), errMsg]
+          );
+        } catch {}
         return { content: [{ type: "text" as const, text: JSON.stringify({ error: errMsg }) }], isError: true };
       }
-
-      // Log to messages table
-      const messageId = randomUUID();
-      db.run(
-        `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id)
-         VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?, ?)`,
-        [messageId, agentId, fromNumber, target, `[Call On Behalf] ${callerName} → ${calleeName || target}`, result.callSid, result.status, orgId]
-      );
 
       // Log to call_logs
       try {
@@ -192,14 +191,13 @@ export function registerGetMeTool(server: McpServer): void {
 
       logUsage(db, { agentId, actionType: "voice_call", channel: "voice", targetAddress: target, cost: 0, externalId: result.callSid });
 
-      logger.info("get_me_call_placed", { messageId, agentId, target, targetName, requesterPhone, requesterName, callSid: result.callSid, sessionId });
+      logger.info("get_me_call_placed", { agentId, target, targetName, requesterPhone, requesterName, callSid: result.callSid, sessionId });
 
       return {
         content: [{
           type: "text" as const,
           text: JSON.stringify({
             success: true,
-            messageId,
             callSid: result.callSid,
             sessionId,
             status: result.status,

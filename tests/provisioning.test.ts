@@ -54,7 +54,7 @@ async function main() {
 
   // Clean up any leftovers from previous runs
   const setupDb = new Database(DB_PATH);
-  setupDb.prepare("DELETE FROM messages WHERE agent_id IN ('test-provision-001', 'test-fill-pool', 'test-after-space')").run();
+  setupDb.prepare("DELETE FROM dead_letters WHERE agent_id IN ('test-provision-001', 'test-fill-pool', 'test-after-space')").run();
   setupDb.prepare("DELETE FROM agent_tokens WHERE agent_id IN ('test-provision-001', 'test-fill-pool', 'test-after-space')").run();
   setupDb.prepare("DELETE FROM spending_limits WHERE agent_id IN ('test-provision-001', 'test-fill-pool', 'test-after-space')").run();
   setupDb.prepare("DELETE FROM whatsapp_pool WHERE assigned_to_agent IN ('test-provision-001', 'test-fill-pool', 'test-after-space')").run();
@@ -444,7 +444,7 @@ async function main() {
 
   const cleanDb = new Database(DB_PATH);
   // Remove FK dependents for test agents first
-  cleanDb.prepare("DELETE FROM messages WHERE agent_id IN (?, ?, ?)").run(
+  cleanDb.prepare("DELETE FROM dead_letters WHERE agent_id IN (?, ?, ?)").run(
     "test-provision-001", "test-fill-pool", "test-after-space"
   );
   cleanDb.prepare("DELETE FROM agent_tokens WHERE agent_id IN (?, ?, ?)").run(

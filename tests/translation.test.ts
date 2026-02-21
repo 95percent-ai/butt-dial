@@ -1,6 +1,7 @@
 /**
- * Translation feature tests — verifies translator module, config, DB migration,
- * admin API, and tool integration for the language/translation bridge.
+ * Translation feature tests — verifies translator module still works (kept for
+ * future human-to-human translation) and that server-side translation has been
+ * removed from tools and admin UI (Phase 27).
  */
 
 const SERVER_URL = "http://localhost:3100";
@@ -19,9 +20,9 @@ function assert(condition: boolean, label: string): void {
 }
 
 async function main() {
-  console.log("\n=== Translation Feature Tests ===\n");
+  console.log("\n=== Translation Feature Tests (Phase 27) ===\n");
 
-  // ── 1. Translator module unit tests ──
+  // ── 1. Translator module still works (kept for future use) ──
   console.log("── Translator Module ──");
 
   const { needsTranslation } = await import("../src/lib/translator.js");
@@ -34,29 +35,13 @@ async function main() {
   assert(needsTranslation("en", "") === false, "empty string returns false (reverse)");
   assert(needsTranslation("zh", "ja") === true, "zh vs ja needs translation");
 
-  // ── 2. Config has translationEnabled ──
-  console.log("\n── Config ──");
-
-  const { config } = await import("../src/lib/config.js");
-  assert(typeof config.translationEnabled === "boolean", "translationEnabled is a boolean in config");
-  assert(config.translationEnabled === false || config.translationEnabled === true, "translationEnabled has a valid value");
-
-  // ── 3. Health check still works ──
+  // ── 2. Health check still works ──
   console.log("\n── Health Check ──");
 
   const healthResp = await fetch(`${SERVER_URL}/health`);
   assert(healthResp.status === 200, "Health check returns 200");
 
-  // ── 4. Admin API — status endpoint includes translation ──
-  console.log("\n── Admin API: Status ──");
-
-  const statusResp = await fetch(`${SERVER_URL}/admin/api/status`);
-  const status = await statusResp.json() as Record<string, any>;
-  assert(status.translation !== undefined, "Status response includes translation field");
-  assert(typeof status.translation?.enabled === "boolean", "translation.enabled is boolean");
-  assert(typeof status.translation?.hasApiKey === "boolean", "translation.hasApiKey is boolean");
-
-  // ── 5. Admin API — agents endpoint includes language ──
+  // ── 3. Admin API — agents endpoint includes language (for voice STT/TTS) ──
   console.log("\n── Admin API: Agents ──");
 
   const agentsResp = await fetch(`${SERVER_URL}/admin/api/agents`, {
@@ -67,29 +52,12 @@ async function main() {
 
   if (agentsData.agents && agentsData.agents.length > 0) {
     const firstAgent = agentsData.agents[0];
-    // language might be null for agents created before migration, but the field should exist
     assert("language" in firstAgent || firstAgent.language === undefined, "Agent response has language field");
   }
 
-  // ── 6. Admin API — save translation setting ──
-  console.log("\n── Admin API: Save Translation Setting ──");
-
-  const saveResp = await fetch(`${SERVER_URL}/admin/api/save`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer demo",
-    },
-    body: JSON.stringify({ credentials: { TRANSLATION_ENABLED: "false" } }),
-  });
-  const saveData = await saveResp.json() as Record<string, any>;
-  assert(saveResp.status === 200, "Save translation setting returns 200");
-  assert(saveData.success === true, "Save translation setting succeeds");
-
-  // ── 7. Admin API — update agent language ──
+  // ── 4. Admin API — update agent language (still used for voice STT/TTS) ──
   console.log("\n── Admin API: Update Agent Language ──");
 
-  // First, provision a test agent via MCP tool
   const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
   const { SSEClientTransport } = await import("@modelcontextprotocol/sdk/client/sse.js");
 
@@ -97,8 +65,8 @@ async function main() {
   const client = new Client({ name: "translation-test", version: "1.0.0" });
   await client.connect(transport);
 
-  // Check that comms_send_message has targetLanguage param
-  console.log("\n── Tool Schema ──");
+  // ── 5. Verify targetLanguage removed from tools ──
+  console.log("\n── Tool Schema (Phase 27 Removal) ──");
   const tools = await client.listTools();
   const sendTool = tools.tools.find((t) => t.name === "comms_send_message");
   assert(sendTool !== undefined, "comms_send_message tool exists");
@@ -106,7 +74,7 @@ async function main() {
   if (sendTool?.inputSchema) {
     const schema = sendTool.inputSchema as Record<string, any>;
     const props = schema.properties || {};
-    assert("targetLanguage" in props, "comms_send_message has targetLanguage parameter");
+    assert(!("targetLanguage" in props), "comms_send_message no longer has targetLanguage parameter");
   }
 
   const makeTool = tools.tools.find((t) => t.name === "comms_make_call");
@@ -115,10 +83,10 @@ async function main() {
   if (makeTool?.inputSchema) {
     const schema = makeTool.inputSchema as Record<string, any>;
     const props = schema.properties || {};
-    assert("targetLanguage" in props, "comms_make_call has targetLanguage parameter");
+    assert(!("targetLanguage" in props), "comms_make_call no longer has targetLanguage parameter");
   }
 
-  // Update agent language via admin API
+  // Update agent language via admin API (still works for voice STT/TTS)
   const langResp = await fetch(`${SERVER_URL}/admin/api/agents/test-agent-001/language`, {
     method: "POST",
     headers: {
@@ -152,19 +120,16 @@ async function main() {
     body: JSON.stringify({ language: "en-US" }),
   });
 
-  // ── 8. Admin UI — page loads with translation card ──
-  console.log("\n── Admin UI ──");
+  // ── 6. Admin UI — translation card removed, language dropdown kept ──
+  console.log("\n── Admin UI (Phase 27 Removal) ──");
 
   const adminResp = await fetch(`${SERVER_URL}/admin`);
   const adminHtml = await adminResp.text();
   assert(adminResp.status === 200, "Admin page loads");
-  assert(adminHtml.includes("Translation"), "Admin page contains Translation card");
-  assert(adminHtml.includes("translation-enabled"), "Admin page has translation toggle");
   assert(adminHtml.includes("agent-lang-"), "Admin page has agent language dropdown");
-  assert(adminHtml.includes("saveTranslation"), "Admin page has saveTranslation function");
   assert(adminHtml.includes("saveAgentLanguage"), "Admin page has saveAgentLanguage function");
 
-  // ── 9. Dashboard includes translation service status ──
+  // ── 7. Dashboard — translation service removed ──
   console.log("\n── Dashboard Data ──");
 
   const dashResp = await fetch(`${SERVER_URL}/admin/api/dashboard`, {
@@ -172,7 +137,6 @@ async function main() {
   });
   const dashData = await dashResp.json() as Record<string, any>;
   assert(dashResp.status === 200, "Dashboard API returns 200");
-  assert(dashData.services?.translation !== undefined, "Dashboard services includes translation status");
 
   await client.close();
 

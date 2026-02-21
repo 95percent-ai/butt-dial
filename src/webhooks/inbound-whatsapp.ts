@@ -3,7 +3,7 @@
  *
  * Twilio POSTs here when someone sends a WhatsApp message to an agent's number.
  * Same format as SMS but From/To have `whatsapp:` prefix.
- * Flow: parse body → strip prefix → find agent → store message → forward to callback → return TwiML.
+ * Flow: parse body → strip prefix → find agent → forward to callback → queue dead letter on failure → return TwiML.
  */
 
 import { randomUUID } from "crypto";
@@ -11,7 +11,6 @@ import type { Request, Response } from "express";
 import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
-import { detectLanguage, translate, needsTranslation, getAgentLanguage } from "../lib/translator.js";
 
 interface AgentRow {
   agent_id: string;
@@ -84,87 +83,61 @@ export async function handleInboundWhatsApp(req: Request, res: Response): Promis
     if (orgRows.length > 0 && orgRows[0].org_id) orgId = orgRows[0].org_id;
   } catch {}
 
-  // Detect language and translate if needed
-  const originalBody = body.Body || "";
-  let translatedBody = originalBody;
-  let sourceLanguage: string | null = null;
-  const agentLang = getAgentLanguage(db, String(agentId));
-
-  if (originalBody && config.translationEnabled) {
-    sourceLanguage = await detectLanguage(originalBody);
-    if (sourceLanguage && sourceLanguage !== "unknown" && needsTranslation(sourceLanguage, agentLang)) {
-      translatedBody = await translate(originalBody, sourceLanguage, agentLang);
-      logger.info("inbound_whatsapp_translated", {
-        agentId,
-        from: fromNumber,
-        sourceLanguage,
-        agentLanguage: agentLang,
-        originalLength: originalBody.length,
-        translatedLength: translatedBody.length,
-      });
-    }
-  }
-
-  // Store message in database (translated body in body, original in body_original)
-  const messageId = randomUUID();
-  db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, body_original, source_language, media_url, media_type, external_id, status, org_id)
-     VALUES (?, ?, 'whatsapp', 'inbound', ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?)`,
-    [
-      messageId,
-      agentId,
-      fromNumber,
-      toNumber,
-      translatedBody || null,
-      originalBody !== translatedBody ? originalBody : null,
-      sourceLanguage,
-      body.MediaUrl0 || null,
-      body.MediaContentType0 || null,
-      body.MessageSid || null,
-      orgId,
-    ]
-  );
-
-  logger.info("inbound_whatsapp_stored", { messageId, agentId, from: fromNumber });
-
-  // Forward to callback URL (best-effort)
+  // Forward to callback URL — queue to dead_letters on failure
   const callbackUrl = config.agentosCallbackUrl.replace(
     "{agentId}",
     agentId as string
   );
   forwardToCallback(callbackUrl, {
-    messageId,
     agentId,
     channel: "whatsapp",
     direction: "inbound",
     from: fromNumber,
     to: toNumber,
-    body: translatedBody,
-    bodyOriginal: originalBody !== translatedBody ? originalBody : undefined,
-    sourceLanguage: sourceLanguage || undefined,
+    body: body.Body || "",
     mediaUrl: body.MediaUrl0 || null,
     mediaType: body.MediaContentType0 || null,
     externalId: body.MessageSid || null,
-  });
+  }, { db, agentId: agentId as string, orgId, channel: "whatsapp", from: fromNumber, to: toNumber, body: body.Body || "", mediaUrl: body.MediaUrl0 || null, externalId: body.MessageSid || null });
 
   // Return empty TwiML — Twilio expects this
   res.status(200).type("text/xml").send("<Response/>");
 }
 
-/** Best-effort POST to the agent's callback URL. Logs failure but never throws. */
-function forwardToCallback(url: string, payload: Record<string, unknown>): void {
+/** POST to the agent's callback URL. On failure, queue to dead_letters. */
+function forwardToCallback(
+  url: string,
+  payload: Record<string, unknown>,
+  deadLetterCtx: { db: any; agentId: string; orgId: string; channel: string; from: string; to: string; body: string; mediaUrl?: string | null; externalId?: string | null },
+): void {
   fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   })
     .then((resp) => {
-      logger.info("inbound_whatsapp_callback_sent", { url, status: resp.status });
+      if (resp.ok) {
+        logger.info("inbound_whatsapp_callback_sent", { url, status: resp.status });
+      } else {
+        logger.warn("inbound_whatsapp_callback_error", { url, status: resp.status });
+        queueDeadLetter(deadLetterCtx, `Callback returned ${resp.status}`);
+      }
     })
     .catch((err) => {
-      logger.warn("inbound_whatsapp_callback_failed", {
-        url,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      const errMsg = err instanceof Error ? err.message : String(err);
+      logger.warn("inbound_whatsapp_callback_failed", { url, error: errMsg });
+      queueDeadLetter(deadLetterCtx, errMsg);
     });
+}
+
+function queueDeadLetter(ctx: { db: any; agentId: string; orgId: string; channel: string; from: string; to: string; body: string; mediaUrl?: string | null; externalId?: string | null }, error: string): void {
+  try {
+    ctx.db.run(
+      `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, media_url, external_id, error_details, status)
+       VALUES (?, ?, ?, ?, 'inbound', 'agent_offline', ?, ?, ?, ?, ?, ?, 'pending')`,
+      [randomUUID(), ctx.agentId, ctx.orgId, ctx.channel, ctx.from, ctx.to, ctx.body, ctx.mediaUrl || null, ctx.externalId || null, error]
+    );
+  } catch (e) {
+    logger.error("dead_letter_queue_error", { agentId: ctx.agentId, error: String(e) });
+  }
 }

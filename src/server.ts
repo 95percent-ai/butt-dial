@@ -4,7 +4,7 @@ import { config } from "./lib/config.js";
 import { logger } from "./lib/logger.js";
 import { getProvider } from "./providers/factory.js";
 import { registerSendMessageTool } from "./tools/send-message.js";
-import { registerGetMessagesTool } from "./tools/get-messages.js";
+import { registerWaitingMessagesTool } from "./tools/waiting-messages.js";
 import { registerSendVoiceMessageTool } from "./tools/send-voice-message.js";
 import { registerMakeCallTool } from "./tools/make-call.js";
 import { registerProvisionChannelsTool } from "./tools/provision-channels.js";
@@ -79,8 +79,8 @@ export function createMcpServer(): McpServer {
   // Phase 2: Send SMS tool
   registerSendMessageTool(server);
 
-  // Phase 3: Get messages tool
-  registerGetMessagesTool(server);
+  // Phase 27: Waiting messages (dead letter queue)
+  registerWaitingMessagesTool(server);
 
   // Phase 4: Send voice message tool
   registerSendVoiceMessageTool(server);

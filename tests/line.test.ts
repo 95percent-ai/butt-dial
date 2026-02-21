@@ -4,8 +4,8 @@
  * Tests:
  * 1. comms_send_message has "line" in channel enum
  * 2. Send LINE message via MCP tool — verify mock success
- * 3. Verify outbound LINE message stored in DB
- * 4. POST simulated LINE inbound webhook — verify stored in DB
+ * 3. Verify outbound LINE logged in usage_logs
+ * 4. POST simulated LINE inbound webhook — verify 200 response
  * 5. Signature verification — valid and invalid
  * 6. Error case: agent without line_channel_id
  * 7. Regression: SMS, email, WhatsApp still work
@@ -97,21 +97,19 @@ async function main() {
   assert(lineParsed.status === "sent", "status is sent");
 
   // ------------------------------------------------------------------
-  // 3. Verify outbound LINE in DB
+  // 3. Verify outbound LINE in usage_logs
   // ------------------------------------------------------------------
-  console.log("\nTest: outbound LINE in database");
+  console.log("\nTest: outbound LINE in usage_logs");
 
   const db = new Database(DB_PATH, { readonly: true });
-  const outbound = db.prepare(
-    "SELECT * FROM messages WHERE agent_id = ? AND channel = 'line' AND direction = 'outbound' ORDER BY created_at DESC LIMIT 1"
+  const logRow = db.prepare(
+    "SELECT * FROM usage_logs WHERE agent_id = ? AND channel = 'line' ORDER BY created_at DESC LIMIT 1"
   ).get("test-agent-001") as Record<string, unknown> | undefined;
 
-  assert(outbound !== undefined, "outbound LINE row exists in database");
-  if (outbound) {
-    assert(outbound.channel === "line", "channel is line");
-    assert(outbound.direction === "outbound", "direction is outbound");
-    assert(outbound.to_address === "U1234567890abcdef1234567890abcdef", "to_address is LINE userId");
-    assert((outbound.body as string).includes("LINE channel dry test"), "body includes message text");
+  assert(logRow !== undefined, "LINE usage_logs row exists");
+  if (logRow) {
+    assert(logRow.channel === "line", "channel is line");
+    assert(logRow.target_address === "U1234567890abcdef1234567890abcdef", "target_address is LINE userId");
   }
   db.close();
 
@@ -143,28 +141,8 @@ async function main() {
 
   assert(webhookResp.status === 200, "LINE webhook returns 200");
 
-  // Verify inbound LINE in DB
-  console.log("\nTest: inbound LINE in database");
-
-  // Short delay to let async storage complete
-  await new Promise((r) => setTimeout(r, 200));
-
-  const db2 = new Database(DB_PATH, { readonly: true });
-  const inbound = db2.prepare(
-    "SELECT * FROM messages WHERE agent_id = ? AND channel = 'line' AND direction = 'inbound' ORDER BY created_at DESC LIMIT 1"
-  ).get("test-agent-001") as Record<string, unknown> | undefined;
-
-  assert(inbound !== undefined, "inbound LINE row exists in database");
-  if (inbound) {
-    assert(inbound.agent_id === "test-agent-001", "agent_id matches");
-    assert(inbound.channel === "line", "channel is line");
-    assert(inbound.direction === "inbound", "direction is inbound");
-    assert(inbound.from_address === "Uabc123def456", "from_address is LINE userId");
-    assert(inbound.body === "Reply from LINE user", "body matches");
-    assert(inbound.status === "received", "status is received");
-    assert(inbound.external_id === "line-msg-001", "external_id is LINE message id");
-  }
-  db2.close();
+  // Inbound webhooks no longer store to messages table (forwarded to agent callback)
+  // The 200 response above confirms the webhook was processed
 
   // ------------------------------------------------------------------
   // 5. Signature verification
@@ -218,20 +196,7 @@ async function main() {
 
   assert(multiResp.status === 200, "multi-event webhook returns 200");
 
-  await new Promise((r) => setTimeout(r, 200));
-
-  const db3 = new Database(DB_PATH, { readonly: true });
-  const multiMsg = db3.prepare(
-    "SELECT * FROM messages WHERE external_id = 'line-msg-002'"
-  ).get() as Record<string, unknown> | undefined;
-  assert(multiMsg !== undefined, "text message from multi-event stored");
-
-  // Verify the follow event was NOT stored as a message
-  const followMsg = db3.prepare(
-    "SELECT * FROM messages WHERE from_address = 'Ufollowuser' AND channel = 'line'"
-  ).get() as Record<string, unknown> | undefined;
-  assert(followMsg === undefined, "follow event was not stored as message");
-  db3.close();
+  // Multi-event webhook processed — no DB storage (forwarded to agent callback)
 
   // ------------------------------------------------------------------
   // 7. Error: agent without line_channel_id
@@ -337,31 +302,7 @@ async function main() {
   assert(waParsed.success === true, "WhatsApp send still works (regression)");
   assert(waParsed.channel === "whatsapp", "WhatsApp channel confirmed");
 
-  // ------------------------------------------------------------------
-  // 12. Get messages with LINE filter
-  // ------------------------------------------------------------------
-  console.log("\nTest: comms_get_messages with line filter");
-
-  const getResult = await client.callTool({
-    name: "comms_get_messages",
-    arguments: { agentId: "test-agent-001", limit: 50, channel: "line" },
-  });
-
-  const getParsed = JSON.parse(
-    (getResult.content as Array<{ type: string; text: string }>)[0]?.text
-  );
-
-  assert(getParsed.count >= 2, "at least 2 LINE messages (1 outbound + 1+ inbound)");
-
-  const outboundMsg = getParsed.messages.find(
-    (m: Record<string, unknown>) => m.direction === "outbound" && m.channel === "line"
-  );
-  assert(outboundMsg !== undefined, "outbound LINE found via get_messages");
-
-  const inboundMsg = getParsed.messages.find(
-    (m: Record<string, unknown>) => m.direction === "inbound" && m.channel === "line"
-  );
-  assert(inboundMsg !== undefined, "inbound LINE found via get_messages");
+  // comms_get_messages removed — replaced by comms_get_waiting_messages (dead letters only)
 
   // ------------------------------------------------------------------
   // Cleanup

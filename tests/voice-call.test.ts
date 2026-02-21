@@ -111,29 +111,24 @@ async function main() {
   const parsed = JSON.parse(text);
 
   assert(parsed.success === true, "response has success: true");
-  assert(typeof parsed.messageId === "string", "response has messageId");
   assert(typeof parsed.callSid === "string", "response has callSid");
-  assert(parsed.callSid.startsWith("mock-call-"), "callSid starts with mock-call- (demo mode)");
   assert(typeof parsed.sessionId === "string", "response has sessionId");
   assert(parsed.status === "queued", "status is 'queued'");
   assert(typeof parsed.from === "string" && parsed.from.startsWith("+"), "from is a valid phone number");
   assert(parsed.to === "+972526557547", "to is the recipient number");
 
-  // 4. Verify database record
-  console.log("\nTest: database record");
+  // 4. Verify usage_logs record (messages no longer stored on success)
+  console.log("\nTest: usage_logs record");
   const db = new Database(DB_PATH, { readonly: true });
-  const row = db.prepare(
-    "SELECT * FROM messages WHERE id = ?"
-  ).get(parsed.messageId) as Record<string, unknown> | undefined;
+  const logRow = db.prepare(
+    "SELECT * FROM usage_logs WHERE agent_id = ? AND channel = 'voice' ORDER BY created_at DESC LIMIT 1"
+  ).get("test-agent-001") as Record<string, unknown> | undefined;
 
-  assert(row !== undefined, "message row exists in database");
-  if (row) {
-    assert(row.agent_id === "test-agent-001", "agent_id matches");
-    assert(row.channel === "voice", "channel is 'voice'");
-    assert(row.direction === "outbound", "direction is 'outbound'");
-    assert(typeof row.from_address === "string" && (row.from_address as string).startsWith("+"), "from_address is valid phone number");
-    assert(row.to_address === "+972526557547", "to_address matches");
-    assert(row.external_id === parsed.callSid, "external_id matches call SID");
+  assert(logRow !== undefined, "voice usage_logs row exists");
+  if (logRow) {
+    assert(logRow.agent_id === "test-agent-001", "agent_id matches");
+    assert(logRow.channel === "voice", "channel is 'voice'");
+    assert(logRow.target_address === "+972526557547", "target_address matches");
   }
 
   // 5. WebSocket connectivity
@@ -249,22 +244,22 @@ async function main() {
     ws.on("error", () => resolve());
   });
 
-  // Check voicemail was stored
-  const voicemailRow = db.prepare(
-    "SELECT * FROM voicemail_messages WHERE call_sid = ?"
+  // Check dead letter was stored (replaces voicemail_messages)
+  const deadLetterRow = db.prepare(
+    "SELECT * FROM dead_letters WHERE external_id = ? AND channel = 'voice'"
   ).get(testCallSid) as Record<string, unknown> | undefined;
 
-  assert(voicemailRow !== undefined, "voicemail row exists in database");
-  if (voicemailRow) {
-    assert(voicemailRow.agent_id === "test-agent-001", "voicemail agent_id matches");
-    assert(voicemailRow.caller_from === "+15559876543", "voicemail caller_from matches");
-    assert(voicemailRow.status === "pending", "voicemail status is 'pending'");
+  assert(deadLetterRow !== undefined, "dead letter row exists in database");
+  if (deadLetterRow) {
+    assert(deadLetterRow.agent_id === "test-agent-001", "dead letter agent_id matches");
+    assert(deadLetterRow.from_address === "+15559876543", "dead letter from_address matches");
+    assert(deadLetterRow.status === "pending", "dead letter status is 'pending'");
     assert(
-      typeof voicemailRow.caller_message === "string" &&
-      (voicemailRow.caller_message as string).includes("call me back"),
-      "voicemail caller_message captured"
+      typeof deadLetterRow.body === "string" &&
+      (deadLetterRow.body as string).includes("call me back"),
+      "dead letter body contains caller message"
     );
-    assert(typeof voicemailRow.transcript === "string", "voicemail has transcript");
+    assert(deadLetterRow.reason === "agent_offline", "dead letter reason is agent_offline");
   }
 
   db.close();

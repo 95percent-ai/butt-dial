@@ -65,29 +65,23 @@ export function registerMakeCallTool(server: McpServer): void {
         .string()
         .optional()
         .describe("Language code for STT/TTS (default: agent's language)"),
-      targetLanguage: z
-        .string()
-        .optional()
-        .describe("Language spoken by the person being called (e.g. he-IL, es-MX). When different from agent's language, real-time translation is applied."),
       recipientTimezone: z
         .string()
         .optional()
         .describe("Recipient's IANA timezone (e.g. Asia/Jerusalem, Europe/London). Auto-detected from phone prefix if omitted."),
     },
-    async ({ agentId: explicitAgentId, to, systemPrompt, greeting, voice, language, targetLanguage, recipientTimezone }, extra) => {
+    async ({ agentId: explicitAgentId, to, systemPrompt, greeting, voice, language, recipientTimezone }, extra) => {
       const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
       if (!agentId) {
         return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
       }
 
-      // Auth: agent can only call as themselves
       try {
         requireAgent(agentId, extra.authInfo as AuthInfo | undefined);
       } catch (err) {
         return authErrorResponse(err);
       }
 
-      // Sanitize inputs
       try {
         sanitize(to, "to");
         if (systemPrompt) sanitize(systemPrompt, "systemPrompt");
@@ -102,7 +96,6 @@ export function registerMakeCallTool(server: McpServer): void {
       const orgId = getOrgId(authInfo);
       try { requireAgentInOrg(db, agentId, authInfo); } catch (err) { return authErrorResponse(err); }
 
-      // Look up the agent
       const rows = db.query<AgentRow>(
         "SELECT agent_id, phone_number, status FROM agent_channels WHERE agent_id = ?",
         [agentId]
@@ -118,7 +111,6 @@ export function registerMakeCallTool(server: McpServer): void {
 
       const agent = rows[0];
 
-      // Smart routing: try number pool first, fall back to agent's own number
       const fromNumber = resolveFromNumber(db, agent.phone_number, to, "voice", orgId);
       if (!fromNumber) {
         logger.warn("make_call_no_phone", { agentId });
@@ -136,7 +128,6 @@ export function registerMakeCallTool(server: McpServer): void {
         };
       }
 
-      // Rate limit check
       try {
         checkRateLimits(db, agentId, "voice_call", "voice", to, extra.authInfo as AuthInfo | undefined);
       } catch (err) {
@@ -144,7 +135,6 @@ export function registerMakeCallTool(server: McpServer): void {
         throw err;
       }
 
-      // Compliance: TCPA time-of-day check (skip in demo mode — mock calls)
       if (!config.demoMode) {
         const tz = recipientTimezone || inferTimezoneFromPhone(to);
         const tcpaCheck = checkTcpaTimeOfDay(tz);
@@ -157,7 +147,6 @@ export function registerMakeCallTool(server: McpServer): void {
         }
       }
 
-      // Compliance: DNC check
       const dncCheck = checkDnc(db, to, "phone");
       if (!dncCheck.allowed) {
         logger.warn("make_call_dnc_blocked", { agentId, to, reason: dncCheck.reason });
@@ -167,7 +156,6 @@ export function registerMakeCallTool(server: McpServer): void {
         };
       }
 
-      // Compliance: Content filter on greeting/prompt
       if (greeting) {
         const contentCheck = checkContentFilter(greeting);
         if (!contentCheck.allowed) {
@@ -179,49 +167,41 @@ export function registerMakeCallTool(server: McpServer): void {
         }
       }
 
-      // Store call config in session store so the outbound webhook can read it
       const sessionId = randomUUID();
       const agentLang = getAgentLanguage(db, agentId);
-      const callLang = targetLanguage || language || agentLang;
+      const callLang = language || agentLang;
       storeCallConfig(sessionId, {
         agentId,
         systemPrompt: applyGuardrails(systemPrompt || config.voiceDefaultSystemPrompt),
         greeting: applyDisclosure(greeting || config.voiceDefaultGreeting),
         voice: voice || config.voiceDefaultVoice,
         language: callLang,
-        callerLanguage: targetLanguage || undefined,
         agentLanguage: agentLang,
       });
 
-      // Build the webhook URL that Twilio will hit when the call connects
       const webhookUrl = `${config.webhookBaseUrl}/webhooks/${agentId}/outbound-voice?session=${sessionId}`;
 
-      // Place the call
       const telephony = getProvider("telephony");
 
       let result;
       try {
-        result = await telephony.makeCall({
-          from: fromNumber,
-          to,
-          webhookUrl,
-        });
+        result = await telephony.makeCall({ from: fromNumber, to, webhookUrl });
       } catch (err) {
         const errMsg = err instanceof Error ? err.message : String(err);
         logger.error("make_call_provider_error", { agentId, to, error: errMsg });
+        // Queue to dead letters
+        try {
+          db.run(
+            `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, original_request, error_details, status)
+             VALUES (?, ?, ?, 'voice', 'outbound', 'send_failed', ?, ?, ?, ?, ?, 'pending')`,
+            [randomUUID(), agentId, orgId, fromNumber, to, systemPrompt || null, JSON.stringify({ to, systemPrompt, greeting, voice, language }), errMsg]
+          );
+        } catch {}
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ error: errMsg }) }],
           isError: true,
         };
       }
-
-      // Log to messages table
-      const messageId = randomUUID();
-      db.run(
-        `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, org_id)
-         VALUES (?, ?, 'voice', 'outbound', ?, ?, ?, ?, ?, ?)`,
-        [messageId, agentId, fromNumber, to, systemPrompt || null, result.callSid, result.status, orgId]
-      );
 
       // Log to call_logs table
       try {
@@ -232,18 +212,14 @@ export function registerMakeCallTool(server: McpServer): void {
           [callLogId, agentId, result.callSid, fromNumber, to, result.status, orgId]
         );
       } catch {
-        // Best-effort — call_logs table might not exist in older DB
+        // Best-effort
       }
 
       logUsage(db, { agentId, actionType: "voice_call", channel: "voice", targetAddress: to, cost: 0, externalId: result.callSid });
 
       logger.info("make_call_success", {
-        messageId,
-        agentId,
-        to,
-        callSid: result.callSid,
-        sessionId,
-        status: result.status,
+        agentId, to,
+        callSid: result.callSid, sessionId, status: result.status,
       });
 
       return {
@@ -252,7 +228,6 @@ export function registerMakeCallTool(server: McpServer): void {
             type: "text" as const,
             text: JSON.stringify({
               success: true,
-              messageId,
               callSid: result.callSid,
               sessionId,
               status: result.status,

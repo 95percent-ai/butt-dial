@@ -15,7 +15,7 @@ import { authMiddleware } from "./security/auth-middleware.js";
 import { metrics } from "./observability/metrics.js";
 import { initAlertManager } from "./observability/alert-manager.js";
 import { registerAgentSession, unregisterAgentSession } from "./lib/agent-registry.js";
-import { dispatchPendingVoicemails } from "./lib/voicemail-dispatcher.js";
+import { dispatchPendingMessages } from "./lib/message-dispatcher.js";
 import { securityHeaders } from "./security/security-headers.js";
 import { corsMiddleware } from "./security/cors.js";
 import { httpRateLimiter } from "./security/http-rate-limiter.js";
@@ -83,9 +83,9 @@ async function main() {
         connectedAt: new Date(),
       });
 
-      // Deliver any voicemails collected while agent was offline
-      dispatchPendingVoicemails(agentId, mcpServer.server).catch((err) => {
-        logger.error("voicemail_dispatch_failed", { agentId, error: String(err) });
+      // Deliver any pending messages collected while agent was offline
+      dispatchPendingMessages(agentId, mcpServer.server).catch((err) => {
+        logger.error("message_dispatch_failed", { agentId, error: String(err) });
       });
     }
   });

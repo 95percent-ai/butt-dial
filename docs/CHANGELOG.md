@@ -1,6 +1,56 @@
-<!-- version: 3.9 | updated: 2026-02-19 -->
+<!-- version: 4.0 | updated: 2026-02-21 -->
 
 # Changelog
+
+## Session 25 — 2026-02-21
+
+### Phase 27 — Dead Letter Queue + Remove Translation (DEC-072, DEC-073)
+
+#### Dead Letter Queue (Part A)
+- Renamed/expanded `voicemail_messages` → `dead_letters` table covering all channels (voice, SMS, email, WhatsApp, LINE)
+- Messages only stored on failure: `agent_offline`, `send_failed`, `provider_error`
+- Successful sends and successful inbound deliveries store nothing (privacy-first)
+- Created `comms_get_waiting_messages` tool — fetch = acknowledge pattern, auto-purge after 7 days
+- Created `src/tools/waiting-messages.ts` and `src/db/schema-dead-letters.sql`
+- Created `src/lib/message-dispatcher.ts` — dispatches pending dead letters when agent reconnects via SSE
+- Removed `messages` table entirely from schema — conversation storage is the agent's responsibility
+- Removed `src/tools/get-messages.ts` (replaced by `comms_get_waiting_messages`)
+- Removed `src/lib/voicemail-dispatcher.ts` (replaced by `message-dispatcher.ts`)
+- Removed `src/db/schema-voicemail.sql` (replaced by `schema-dead-letters.sql`)
+- Updated `org-manager.ts` cascade delete and `compliance.ts` GDPR erasure to use `dead_letters`
+- Usage stats remain in `usage_logs` (counts and costs only, no message content)
+- Data retention: `DEAD_LETTER_RETENTION_DAYS` (default 7) replaces separate messages/voicemail retention
+
+#### Remove Server-Side Translation (Part B)
+- Removed `targetLanguage` parameter from `comms_send_message` and `comms_make_call` tools
+- Removed `translate()` and `getAgentLanguage()` calls from tool handlers and webhook handlers
+- Removed translation toggle UI from admin settings panel
+- Removed `TRANSLATION_ENABLED` config and dashboard translation service display
+- Kept `src/lib/translator.ts` module for future human-to-human bridging use
+- Agent's `language` column retained (used for voice STT/TTS language)
+
+#### Production Code Changes
+- `src/db/migrate.ts` — removed `messages` from org tables, removed messages ALTER TABLE statements
+- `src/db/schema.sql` — removed `messages` table and its index
+- `src/lib/org-manager.ts` — cascade delete uses `dead_letters` instead of `messages` + `voicemail_messages`
+- `src/security/compliance.ts` — GDPR erasure uses `dead_letters` instead of `messages` + `voicemail_messages`
+- `src/lib/sandbox-responder.ts` — updated comment to reflect privacy-first design
+- `src/lib/data-retention.ts` — `deadLetterRetentionDays` (7d) replaces `messagesRetentionDays` (90d) and `voicemailRetentionDays` (30d)
+
+#### Test Updates (12 test files, 335+ assertions pass)
+- Updated 18 test files to remove `messages` table references and `comms_get_messages` calls
+- Replaced DB verification with `usage_logs` checks across all channel tests
+- Voice tests: `voicemail_messages` → `dead_letters` with new field names
+- Compliance test: GDPR erasure uses `dead_letters`
+- Translation test: rewritten to verify features are properly REMOVED
+- Regulatory compliance test: `deadLetterRetentionDays` replaces separate message/voicemail retention
+- End-to-end test: `comms_get_messages` → `comms_get_waiting_messages`
+
+#### Documentation
+- Updated `docs/TODO.md` — Phase 27 items A1-A12, B1-B6 marked done
+- Updated `docs/INTEGRATION.md` — dead letter model section, `comms_get_waiting_messages` in feature table
+- Updated `docs/SPEC.md` — removed Translation & Language section, updated MCP Tools and Database tables
+- Updated `docs/CHANGELOG.md` — this entry
 
 ## Session 24 — 2026-02-19
 

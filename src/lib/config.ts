@@ -134,12 +134,6 @@ const configSchema = z.object({
     .transform((v) => v !== "false")
     .default("true"),
 
-  // Translation
-  translationEnabled: z
-    .string()
-    .transform((v) => v === "true")
-    .default("false"),
-
   // Registration
   registrationEnabled: z
     .string()
@@ -250,7 +244,6 @@ function loadConfig() {
     webhookIpAllowlist: process.env.WEBHOOK_IP_ALLOWLIST,
     ipDenylist: process.env.IP_DENYLIST,
     anomalyDetectorEnabled: process.env.ANOMALY_DETECTOR_ENABLED,
-    translationEnabled: process.env.TRANSLATION_ENABLED,
     registrationEnabled: process.env.REGISTRATION_ENABLED,
     requireEmailVerification: process.env.REQUIRE_EMAIL_VERIFICATION,
     sandboxLlmEnabled: process.env.SANDBOX_LLM_ENABLED,

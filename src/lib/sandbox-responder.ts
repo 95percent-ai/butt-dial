@@ -2,30 +2,17 @@
  * Sandbox Responder — generates realistic reply messages for sandbox orgs.
  *
  * After a sandbox send, waits a configurable delay, then generates a realistic
- * reply using the LLM adapter. The reply appears as an inbound message
- * (stored in messages table).
+ * reply using the LLM adapter. The reply is logged but not persisted
+ * (privacy-first design — no conversation storage).
  *
  * Fire-and-forget — doesn't slow down the send response.
  * Only fires when: org is sandbox + LLM adapter available + feature enabled.
  */
 
-import { randomUUID } from "crypto";
 import { config } from "./config.js";
 import { logger } from "./logger.js";
 import { isLlmAvailable, complete } from "./llm-adapter.js";
 import { getProvider } from "../providers/factory.js";
-
-/** Generate a realistic Twilio-style message ID */
-function realisticMessageId(channel: string): string {
-  const hex = randomUUID().replace(/-/g, "");
-  switch (channel) {
-    case "sms": return `SM${hex}`;
-    case "whatsapp": return `WA${hex}`;
-    case "email": return `EM${hex}`;
-    case "line": return `LN${hex}`;
-    default: return `SB${hex}`;
-  }
-}
 
 /**
  * Check if sandbox reply should fire for this org, then trigger it.
@@ -80,22 +67,13 @@ async function generateAndStoreReply(params: {
   const result = await complete(system, user, 100);
   if (!result) return;
 
-  const db = getProvider("database");
-  const messageId = randomUUID();
-  const externalId = realisticMessageId(params.channel);
-
-  // Store as inbound message (swap to/from for the reply direction)
-  db.run(
-    `INSERT INTO messages (id, agent_id, channel, direction, from_address, to_address, body, external_id, status, cost, org_id)
-     VALUES (?, ?, ?, 'inbound', ?, ?, ?, ?, 'received', 0, ?)`,
-    [messageId, params.agentId, params.channel, params.to, params.from, result.text, externalId, params.orgId],
-  );
+  // No storage needed — sandbox replies are fire-and-forget
+  // The reply text is logged but not persisted (privacy-first design)
 
   logger.info("sandbox_reply_generated", {
     agentId: params.agentId,
     channel: params.channel,
     replyLength: result.text.length,
     provider: result.provider,
-    externalId,
   });
 }

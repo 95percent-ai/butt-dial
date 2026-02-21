@@ -4,8 +4,7 @@
  * Tests:
  * 1. POST simulated Twilio webhook to /webhooks/:agentId/sms
  * 2. Verify 200 response with TwiML
- * 3. Verify message stored in DB (direction: inbound)
- * 4. Call comms_get_messages via MCP, verify both outbound and inbound appear
+ * 3. Verify webhook processed correctly (no longer stored to messages table)
  * 5. Error cases: unknown agent, missing body fields
  *
  * Prerequisites:
@@ -77,71 +76,22 @@ async function main() {
   const twiml = await webhookResp.text();
   assert(twiml === "<Response/>", "response is empty TwiML <Response/>");
 
-  // ------------------------------------------------------------------
-  // 2. Verify the message was stored in the database
-  // ------------------------------------------------------------------
-  console.log("\nTest: database record");
-
-  const db = new Database(DB_PATH, { readonly: true });
-  const row = db.prepare(
-    "SELECT * FROM messages WHERE external_id = ? AND direction = 'inbound'"
-  ).get(testMessageSid) as Record<string, unknown> | undefined;
-
-  assert(row !== undefined, "inbound message row exists in database");
-  if (row) {
-    assert(row.agent_id === "test-agent-001", "agent_id matches");
-    assert(row.channel === "sms", "channel is 'sms'");
-    assert(row.direction === "inbound", "direction is 'inbound'");
-    assert(row.from_address === "+972526557547", "from_address matches sender");
-    assert(row.to_address === agentPhone, "to_address matches agent's number");
-    assert(row.body === "Hello from dry test — inbound", "body matches");
-    assert(row.status === "received", "status is 'received'");
-  }
-  db.close();
+  // Inbound webhooks no longer store to messages table (forwarded to agent callback)
+  // The 200 response + TwiML above confirms the webhook was processed
 
   // ------------------------------------------------------------------
-  // 3. Connect MCP client and test comms_get_messages
+  // 2. Connect MCP client and verify tools
   // ------------------------------------------------------------------
-  console.log("\nTest: comms_get_messages tool");
+  console.log("\nTest: comms_get_waiting_messages tool");
   const transport = new SSEClientTransport(new URL(`${SERVER_URL}/sse`));
   const client = new Client({ name: "test-client", version: "1.0.0" });
   await client.connect(transport);
 
-  // Verify tool is listed
+  // Verify new tool is listed (replaces comms_get_messages)
   const { tools } = await client.listTools();
   const toolNames = tools.map((t) => t.name);
-  assert(toolNames.includes("comms_get_messages"), "comms_get_messages is registered");
-
-  // Call comms_get_messages
-  const result = await client.callTool({
-    name: "comms_get_messages",
-    arguments: { agentId: "test-agent-001", limit: 50 },
-  });
-
-  const text = (result.content as Array<{ type: string; text: string }>)[0]?.text;
-  const parsed = JSON.parse(text);
-
-  assert(Array.isArray(parsed.messages), "response has messages array");
-  assert(parsed.count > 0, "count is > 0");
-
-  const inbound = parsed.messages.find(
-    (m: Record<string, unknown>) => m.direction === "inbound" && m.externalId === "SM_test_inbound_001"
-  );
-  assert(inbound !== undefined, "inbound message found in get_messages result");
-  if (inbound) {
-    assert(inbound.from === "+972526557547", "inbound from matches");
-    assert(inbound.body === "Hello from dry test — inbound", "inbound body matches");
-  }
-
-  // Test with channel filter
-  const smsResult = await client.callTool({
-    name: "comms_get_messages",
-    arguments: { agentId: "test-agent-001", limit: 50, channel: "sms" },
-  });
-  const smsParsed = JSON.parse(
-    (smsResult.content as Array<{ type: string; text: string }>)[0]?.text
-  );
-  assert(smsParsed.count > 0, "channel filter 'sms' returns results");
+  assert(toolNames.includes("comms_get_waiting_messages"), "comms_get_waiting_messages is registered");
+  assert(!toolNames.includes("comms_get_messages"), "comms_get_messages is removed");
 
   // ------------------------------------------------------------------
   // 4. Error cases
@@ -172,15 +122,15 @@ async function main() {
   });
   assert(missingResp.status === 400, "missing fields returns 400");
 
-  // comms_get_messages for non-existent agent (should return empty, not error)
+  // comms_get_waiting_messages for non-existent agent (should return empty, not error)
   const emptyResult = await client.callTool({
-    name: "comms_get_messages",
+    name: "comms_get_waiting_messages",
     arguments: { agentId: "does-not-exist" },
   });
   const emptyParsed = JSON.parse(
     (emptyResult.content as Array<{ type: string; text: string }>)[0]?.text
   );
-  assert(emptyParsed.count === 0, "non-existent agent returns 0 messages");
+  assert(emptyParsed.count === 0, "non-existent agent returns 0 waiting messages");
 
   // ------------------------------------------------------------------
   // 5. Cleanup
