@@ -292,10 +292,10 @@ export function renderSetupPage(): string {
       </div>
 
       <div class="field">
-        <label for="server-master-token">Master Security Token</label>
+        <label for="server-orchestrator-token">Orchestrator Security Token</label>
         <div class="input-wrap">
-          <input type="password" id="server-master-token" placeholder="a strong random token" autocomplete="off" />
-          <button type="button" class="toggle-vis" data-target="server-master-token">show</button>
+          <input type="password" id="server-orchestrator-token" placeholder="a strong random token" autocomplete="off" />
+          <button type="button" class="toggle-vis" data-target="server-orchestrator-token">show</button>
         </div>
       </div>
 
@@ -388,8 +388,8 @@ export function renderSetupPage(): string {
         if (data.server.webhookBaseUrl) {
           document.getElementById("server-webhook-url").placeholder = data.server.webhookBaseUrl;
         }
-        if (data.server.masterSecurityToken) {
-          document.getElementById("server-master-token").placeholder = data.server.masterSecurityToken;
+        if (data.server.orchestratorSecurityToken) {
+          document.getElementById("server-orchestrator-token").placeholder = data.server.orchestratorSecurityToken;
         }
         if (data.voice.greeting) {
           document.getElementById("voice-greeting").placeholder = data.voice.greeting;
@@ -425,9 +425,9 @@ export function renderSetupPage(): string {
 
     loadStatus();
 
-    // Get auth headers (includes master token if set)
+    // Get auth headers (includes orchestrator token if set)
     function getAuthHeaders() {
-      const token = document.getElementById("server-master-token").value.trim();
+      const token = document.getElementById("server-orchestrator-token").value.trim();
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = "Bearer " + token;
       return headers;
@@ -581,7 +581,7 @@ export function renderSetupPage(): string {
     // Save Server Settings
     document.getElementById("server-save-btn").addEventListener("click", async () => {
       const url = document.getElementById("server-webhook-url").value.trim();
-      const token = document.getElementById("server-master-token").value.trim();
+      const token = document.getElementById("server-orchestrator-token").value.trim();
 
       if (!url && !token) {
         showResult("server-test-result", "error", "Enter at least one field");
@@ -590,7 +590,7 @@ export function renderSetupPage(): string {
 
       const credentials = {};
       if (url) credentials.WEBHOOK_BASE_URL = url;
-      if (token) credentials.MASTER_SECURITY_TOKEN = token;
+      if (token) credentials.ORCHESTRATOR_SECURITY_TOKEN = token;
 
       const btn = document.getElementById("server-save-btn");
       btn.disabled = true;

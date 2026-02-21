@@ -1,6 +1,43 @@
-<!-- version: 4.0 | updated: 2026-02-21 -->
+<!-- version: 4.1 | updated: 2026-02-21 -->
 
 # Changelog
+
+## Session 26 — 2026-02-21
+
+### SSE Endpoint Authentication (DEC-074, supersedes DEC-032)
+- `/sse` endpoint now requires `?token=` query parameter (was completely open)
+- Same 3-tier validation as POST `/messages`: orchestrator → org → agent token
+- Agent tokens must match `?agentId=` param (impersonation prevention)
+- Brute-force tracking: 10 failures → 15-min lockout
+- Added `sanitizeUrl()` to logger — redacts `token=` values in logs
+- Exported brute-force helpers from `auth-middleware.ts` for SSE handler reuse
+- Demo mode skips auth (same as all other endpoints)
+
+### Rename "Master" → "Orchestrator" (DEC-075)
+- Renamed `MASTER_SECURITY_TOKEN` → `ORCHESTRATOR_SECURITY_TOKEN` everywhere
+- Updated ~40 source files, ~15 test files, ~11 doc files, `.env`, `.env.example`
+- Config reads both env vars for backward compat: `ORCHESTRATOR_SECURITY_TOKEN || MASTER_SECURITY_TOKEN`
+- UI labels, API descriptions, code comments, error messages all updated
+- SQLite system references (`sqlite_master`) left unchanged
+
+### Landing Page Hero Update (DEC-076)
+- Changed hero from "Open Communication Infrastructure for AI Agents" to "Orchestrate AI Agent Communication"
+- New subtitle: "Phone calls, SMS, email, WhatsApp — provisioned, routed, billed, and compliant. One server, any provider, any agent."
+
+### UI Fix
+- Fixed Regenerate button text color in light mode (was black on dark background, now white)
+
+### Files Modified
+- `src/index.ts` — SSE auth + orchestrator rename
+- `src/security/auth-middleware.ts` — exported brute-force helpers + orchestrator rename
+- `src/lib/logger.ts` — added `sanitizeUrl()`
+- `src/lib/config.ts` — `orchestratorSecurityToken` with backward compat
+- `src/admin/router.ts`, `unified-admin.ts`, `setup-page.ts`, `env-writer.ts`, `openapi-spec.ts` — orchestrator rename + button fix
+- `src/security/auth-guard.ts`, `rate-limiter.ts`, `session.ts` — orchestrator rename
+- `src/public/auth-api.ts`, `docs.ts`, `landing-page.ts` — orchestrator rename + hero update
+- `src/api/rest-router.ts` — orchestrator rename
+- 5 test files updated (rate-limiting, security, session-auth, setup-ui, simulator)
+- 11 doc files updated (API, CHANGELOG, DECISIONS, INTEGRATION, ONBOARDING, SETUP, TROUBLESHOOTING, TODO, SECURITY, STRUCTURE, references/PROJECT-SCOPE)
 
 ## Session 25 — 2026-02-21
 
@@ -65,7 +102,7 @@
 - All mock providers (SMS, email, WhatsApp, LINE) now use realistic Twilio-format IDs (SM, CA, PN, EM, WA, LN)
 - Added sandbox config vars: `SANDBOX_LLM_ENABLED`, `SANDBOX_LLM_ENDPOINT`, `SANDBOX_REPLY_DELAY_MS`
 - Sandbox reply hook added to send-message tool (MCP + REST) for all 4 channels
-- Created `docs/INTEGRATION.md` — master integration guide
+- Created `docs/INTEGRATION.md` — orchestrator integration guide
 - Updated `/docs/integration` web page with new content
 - Added `GET /api/v1/integration-guide` endpoint (public, returns raw markdown)
 - Updated `tests/send-message.test.ts` to match realistic mock ID format
@@ -267,7 +304,7 @@ New file: `tests/regulatory-compliance.test.ts`.
 - **Organization tables:** `organizations` + `org_tokens` tables (schema-org.sql)
 - **Migration:** `org_id TEXT DEFAULT 'default'` added to 15 data tables, default org created
 - **Org manager:** CRUD + token management (org-manager.ts) — create, list, delete orgs, generate/verify/revoke org tokens
-- **3-tier auth:** super-admin (master token) → org-admin (org token) → agent (agent token) in auth-middleware.ts + auth-guard.ts
+- **3-tier auth:** super-admin (orchestrator token) → org-admin (org token) → agent (agent token) in auth-middleware.ts + auth-guard.ts
 - **Org-scope helpers:** orgFilter, orgWhere, requireAgentInOrg (org-scope.ts)
 - **Tool scoping:** 16 tool files updated with org_id in INSERT/WHERE clauses
 - **Webhook scoping:** 5 webhook files updated with org_id lookups on inbound messages
@@ -377,7 +414,7 @@ New file: `tests/regulatory-compliance.test.ts`.
 - `src/security/auth-middleware.ts` — added brute-force lockout (10 failures → 15-min 429), failed auth tracking, reset on success
 - `src/security/webhook-signature.ts` — added replay prevention nonce cache (5-min TTL, 60s cleanup)
 - `src/admin/router.ts` — added `adminAuth` middleware on all POST routes, imported config + logger
-- `src/admin/setup-page.ts` — all fetch() calls now include `Authorization: Bearer <token>` when master token field has value
+- `src/admin/setup-page.ts` — all fetch() calls now include `Authorization: Bearer <token>` when orchestrator token field has value
 - `src/lib/config.ts` — added `corsAllowedOrigins`, `httpRateLimitPerIp`, `httpRateLimitGlobal`, `adminIpAllowlist`, `webhookIpAllowlist`, `ipDenylist`, `anomalyDetectorEnabled`
 - `.env.example` — added "Security Hardening" section
 
@@ -408,7 +445,7 @@ New file: `tests/regulatory-compliance.test.ts`.
 - `src/admin/credential-testers.ts` — added `testResendCredentials()` (GET /domains with Bearer auth, same pattern as ElevenLabs)
 - `src/admin/router.ts` — expanded allowed keys (Resend, server, voice, Anthropic), added `POST /admin/api/test/resend` route
 - `src/admin/setup-page.ts` — removed 5-step wizard indicator, added 3 new cards (Resend with Test button, Server Settings with Save button, Voice Defaults with Save button), each with status badges, added `directSave()` helper for cards without external API test
-- `src/lib/config.ts` — replaced inline security warning with `logStartupWarnings()` function (6 checks: Twilio, Resend, localhost webhook, master token, ElevenLabs, Anthropic)
+- `src/lib/config.ts` — replaced inline security warning with `logStartupWarnings()` function (6 checks: Twilio, Resend, localhost webhook, orchestrator token, ElevenLabs, Anthropic)
 - `src/db/seed.ts` — test agent now includes `email_address`, `system_prompt`, `greeting`; inserts `spending_limits` row; prints summary to console
 
 #### Verification
@@ -810,7 +847,7 @@ New file: `tests/regulatory-compliance.test.ts`.
 #### Modified Files (11)
 - `src/db/migrate.ts` — also runs `schema-security.sql` during migration
 - `src/index.ts` — auth middleware added to `POST /messages` handler
-- `src/lib/config.ts` — added `resendWebhookSecret` field, added warning when `MASTER_SECURITY_TOKEN` missing
+- `src/lib/config.ts` — added `resendWebhookSecret` field, added warning when `ORCHESTRATOR_SECURITY_TOKEN` missing
 - `src/webhooks/router.ts` — Twilio signature middleware on SMS/WhatsApp/voice routes, Resend signature on email route
 - `src/providers/telephony-twilio.ts` — implemented real `verifyWebhookSignature()` with HMAC-SHA1 + timing-safe comparison
 - `src/tools/provision-channels.ts` — `requireAdmin` guard + generates security token on provision (returned once)
@@ -823,8 +860,8 @@ New file: `tests/regulatory-compliance.test.ts`.
 - `src/tools/register-provider.ts` — `requireAdmin` guard + encrypts credentials in DB if encryption key configured
 
 #### How Auth Works
-1. Admin sets `MASTER_SECURITY_TOKEN` in `.env`
-2. Admin calls `comms_provision_channels` with master token → gets back a per-agent `securityToken`
+1. Admin sets `ORCHESTRATOR_SECURITY_TOKEN` in `.env`
+2. Admin calls `comms_provision_channels` with orchestrator token → gets back a per-agent `securityToken`
 3. Agent uses its token for all subsequent tool calls (`Authorization: Bearer <token>`)
 4. Each tool checks: does this token belong to this agentId? (impersonation guard)
 5. Webhooks check: is this really from Twilio/Resend? (signature validation)
@@ -836,4 +873,4 @@ New file: `tests/regulatory-compliance.test.ts`.
 - SMS + email + WhatsApp regression: all pass
 
 #### Decisions
-- DEC-025 to DEC-033: Bearer tokens (not JWT), master token from .env, Express middleware auth, demo mode bypass, sanitizer as utility function, per-route webhook signatures, AES-256-GCM credential encryption, SSE not authenticated, graceful degradation when no token configured
+- DEC-025 to DEC-033: Bearer tokens (not JWT), orchestrator token from .env, Express middleware auth, demo mode bypass, sanitizer as utility function, per-route webhook signatures, AES-256-GCM credential encryption, SSE not authenticated, graceful degradation when no token configured

@@ -585,7 +585,7 @@ export function generateOpenApiSpec(): Record<string, unknown> {
         bearerAuth: {
           type: "http",
           scheme: "bearer",
-          description: "Master security token for admin endpoints",
+          description: "Orchestrator security token for admin endpoints",
         },
       },
     },

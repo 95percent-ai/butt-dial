@@ -46,7 +46,7 @@ RESEND_API_KEY=re_...
 ELEVENLABS_API_KEY=sk_...
 
 # Security
-MASTER_SECURITY_TOKEN=your-secret-token
+ORCHESTRATOR_SECURITY_TOKEN=your-secret-token
 WEBHOOK_BASE_URL=https://your-domain.com
 
 # Data retention (days, 0 = keep forever)
@@ -82,7 +82,7 @@ Visit http://localhost:3100/admin/setup for guided setup:
 1. Enter Twilio credentials → test → auto-saves
 2. Enter ElevenLabs key → test → auto-saves
 3. Enter Resend key → test → auto-saves
-4. Configure server settings (webhook URL, master token)
+4. Configure server settings (webhook URL, orchestrator token)
 5. Set voice defaults (greeting, language, voice)
 
 Each card tests credentials live before saving.

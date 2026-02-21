@@ -1,7 +1,7 @@
 /**
  * REST API v1 Router — thin HTTP wrappers around the same providers used by MCP tools.
  *
- * All endpoints use Bearer token auth (master / org / agent — same 3-tier as MCP).
+ * All endpoints use Bearer token auth (orchestrator / org / agent — same 3-tier as MCP).
  * OpenAPI 3.1 spec served at GET /api/v1/openapi.json.
  */
 
@@ -1501,7 +1501,7 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
         BearerAuth: {
           type: "http",
           scheme: "bearer",
-          description: "Use master token, org token, or agent token",
+          description: "Use orchestrator token, org token, or agent token",
         },
       },
       schemas: {

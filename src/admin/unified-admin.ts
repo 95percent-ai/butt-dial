@@ -40,6 +40,28 @@ export function renderAdminPage(specJson: string): string {
       --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
     }
 
+    /* ── Light Theme ────────────────────────────────────────────── */
+    [data-theme="light"] {
+      --bg-body: #f5f6f8;
+      --bg-sidebar: #ffffff;
+      --bg-card: #ffffff;
+      --bg-input: #f0f1f3;
+      --border: #d0d7de;
+      --border-focus: #0969da;
+      --text: #1f2328;
+      --text-muted: #656d76;
+      --text-heading: #1f2328;
+      --accent: #0969da;
+      --accent-hover: #0550ae;
+      --success: #1a7f37;
+      --success-bg: #dafbe1;
+      --error: #cf222e;
+      --error-bg: #ffebe9;
+      --warning: #9a6700;
+      --warning-bg: #fff8c5;
+      --info: #0969da;
+    }
+
     /* ── Reset ──────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -50,19 +72,6 @@ export function renderAdminPage(specJson: string): string {
       min-height: 100vh;
       overflow-x: hidden;
     }
-
-    /* ── Login Overlay ──────────────────────────────────────────── */
-    #login-overlay {
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      background: var(--bg-body);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    #login-overlay.hidden { display: none; }
 
     /* ── Disclaimer Modal Overlay ─────────────────────────────── */
     #disclaimer-overlay {
@@ -183,92 +192,6 @@ export function renderAdminPage(specJson: string): string {
       margin-bottom: 1rem;
       display: none;
       flex-shrink: 0;
-    }
-
-    .login-box {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 2.5rem;
-      width: 100%;
-      max-width: 400px;
-      text-align: center;
-    }
-
-    .login-box h1 {
-      font-size: 1.5rem;
-      color: var(--text-heading);
-      margin-bottom: 0.5rem;
-    }
-
-    .login-box p {
-      color: var(--text-muted);
-      font-size: 0.875rem;
-      margin-bottom: 1.5rem;
-    }
-
-    .login-box input {
-      width: 100%;
-      padding: 0.75rem 1rem;
-      background: var(--bg-input);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--text);
-      font-size: 0.95rem;
-      margin-bottom: 1rem;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-
-    .login-box input:focus { border-color: var(--border-focus); }
-
-    .login-token-wrapper {
-      position: relative;
-      margin-bottom: 1rem;
-    }
-
-    .login-token-wrapper input {
-      padding-right: 2.75rem;
-      margin-bottom: 0;
-    }
-
-    .login-eye-btn {
-      position: absolute;
-      right: 0.75rem;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      cursor: pointer;
-      color: var(--text-muted);
-      padding: 0.25rem;
-      display: flex;
-      align-items: center;
-      transition: color 0.15s;
-    }
-
-    .login-eye-btn:hover { color: var(--text); }
-
-    .login-box button[type="submit"] {
-      width: 100%;
-      padding: 0.75rem;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: var(--radius);
-      font-size: 0.95rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .login-box button[type="submit"]:hover { background: var(--accent-hover); }
-
-    .login-error {
-      color: var(--error);
-      font-size: 0.85rem;
-      margin-top: 0.75rem;
-      min-height: 1.2em;
     }
 
     /* ── Demo Banner ────────────────────────────────────────────── */
@@ -1285,36 +1208,12 @@ export function renderAdminPage(specJson: string): string {
       .health-grid { grid-template-columns: repeat(2, 1fr); }
     }
   </style>
+  <script>
+    // Apply saved theme before paint to prevent flash
+    (function(){var t=localStorage.getItem('bd-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})();
+  </script>
 </head>
 <body>
-  <!-- ── Login Overlay ──────────────────────────────────────── -->
-  <div id="login-overlay">
-    <div class="login-box">
-      <h1>Butt-Dial Admin</h1>
-      <p>Sign in with your API token (for super-admins).</p>
-      <form id="login-form" autocomplete="off">
-        <div class="login-token-wrapper">
-          <input type="password" id="login-token" placeholder="API Token" autofocus>
-          <button type="button" class="login-eye-btn" id="login-eye-btn" onclick="toggleTokenVisibility()" tabindex="-1">
-            <svg id="eye-icon-show" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-              <circle cx="12" cy="12" r="3"></circle>
-            </svg>
-            <svg id="eye-icon-hide" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;">
-              <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
-              <line x1="1" y1="1" x2="23" y2="23"></line>
-            </svg>
-          </button>
-        </div>
-        <button type="submit">Sign In with Token</button>
-      </form>
-      <div class="login-error" id="login-error"></div>
-      <p style="text-align:center;margin-top:16px;font-size:13px;color:#8b949e;">
-        <a href="/auth/login" style="color:#58a6ff;">Sign in with email</a> &nbsp;|&nbsp; <a href="/auth/login" style="color:#58a6ff;">Register</a>
-      </p>
-    </div>
-  </div>
-
   <!-- ── Disclaimer Modal Overlay ──────────────────────────── -->
   <div id="disclaimer-overlay">
     <div class="disclaimer-modal">
@@ -1441,6 +1340,11 @@ export function renderAdminPage(specJson: string): string {
         </a>
       </nav>
       <div class="sidebar-bottom">
+        <button id="theme-toggle" title="Toggle light/dark mode" style="margin-bottom:0.5rem;display:flex;align-items:center;justify-content:center;gap:0.4rem;">
+          <svg id="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          <svg id="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+          <span id="theme-label">Light Mode</span>
+        </button>
         <button id="logout-btn">Sign Out</button>
       </div>
     </aside>
@@ -1466,7 +1370,7 @@ export function renderAdminPage(specJson: string): string {
             <h3 style="font-size:15px;font-weight:600;color:var(--text-heading);margin:0;">Your API Key</h3>
             <div style="display:flex;gap:8px;">
               <button class="btn btn-sm btn-secondary" onclick="copyApiKey()" id="copy-key-btn" style="font-size:12px;padding:4px 12px;">Copy</button>
-              <button class="btn btn-sm" onclick="regenerateApiKey()" style="font-size:12px;padding:4px 12px;background:var(--warning);color:#000;">Regenerate</button>
+              <button class="btn btn-sm" onclick="regenerateApiKey()" style="font-size:12px;padding:4px 12px;background:var(--warning);color:#fff;">Regenerate</button>
             </div>
           </div>
           <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-family:monospace;font-size:13px;color:var(--text-muted);word-break:break-all;user-select:all;" id="api-key-display">Loading...</div>
@@ -1846,7 +1750,7 @@ export function renderAdminPage(specJson: string): string {
             <input type="text" id="server-webhook" placeholder="https://your-domain.com">
           </div>
           <div class="field">
-            <label>Master Security Token</label>
+            <label>Orchestrator Security Token</label>
             <input type="password" id="server-token" placeholder="A strong secret token">
           </div>
           <div class="field">
@@ -2018,7 +1922,7 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
 
           <div class="auth-info">
             <p><strong>Authentication:</strong> All API calls require a Bearer token in the <code>Authorization</code> header.</p>
-            <p>Two token levels: <strong>Master</strong> — controls the whole platform: create/remove agents, set billing, configure limits, plus send messages and make calls as any agent. <strong>Agent</strong> — can only send messages and make calls as itself, nothing else. Each agent gets its own token when provisioned.</p>
+            <p>Two token levels: <strong>Orchestrator</strong> — controls the whole platform: create/remove agents, set billing, configure limits, plus send messages and make calls as any agent. <strong>Agent</strong> — can only send messages and make calls as itself, nothing else. Each agent gets its own token when provisioned.</p>
           </div>
         </div>
 
@@ -2126,32 +2030,9 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
     let allActivity = [];
     let analyticsTimer = null;
 
-    /* ── Token visibility toggle ─────────────────────────────── */
-    function toggleTokenVisibility() {
-      const input = document.getElementById('login-token');
-      const showIcon = document.getElementById('eye-icon-show');
-      const hideIcon = document.getElementById('eye-icon-hide');
-      if (input.type === 'password') {
-        input.type = 'text';
-        showIcon.style.display = 'none';
-        hideIcon.style.display = 'block';
-      } else {
-        input.type = 'password';
-        showIcon.style.display = 'block';
-        hideIcon.style.display = 'none';
-      }
-    }
-
     /* ── Auth helpers ─────────────────────────────────────────── */
-    function getToken() {
-      return sessionStorage.getItem('adminToken') || '';
-    }
-
     function authHeaders() {
-      return {
-        'Authorization': 'Bearer ' + getToken(),
-        'Content-Type': 'application/json'
-      };
+      return { 'Content-Type': 'application/json' };
     }
 
     async function apiFetch(url, opts = {}) {
@@ -2160,63 +2041,17 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
       return fetch(url, merged);
     }
 
-    /* ── Login ────────────────────────────────────────────────── */
-    const loginOverlay = document.getElementById('login-overlay');
-    const loginForm = document.getElementById('login-form');
-    const loginTokenInput = document.getElementById('login-token');
-    const loginError = document.getElementById('login-error');
-
-    async function attemptLogin(token) {
-      try {
-        const res = await fetch('/admin/api/status', {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        if (res.ok) {
-          sessionStorage.setItem('adminToken', token);
-          loginOverlay.classList.add('hidden');
-          onAuthenticated();
-          return true;
-        }
-        return false;
-      } catch {
-        return false;
-      }
-    }
-
-    loginForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const token = loginTokenInput.value.trim();
-      if (!token) {
-        loginError.textContent = 'Please enter a token.';
-        return;
-      }
-      loginError.textContent = 'Signing in...';
-      const ok = await attemptLogin(token);
-      if (!ok) {
-        loginError.textContent = 'Invalid token or server unreachable.';
-      }
-    });
-
-    /* Auto-login: try session cookie first, then sessionStorage token */
+    /* ── Session check — redirect to login if no valid session ── */
     (async () => {
-      // 1. Try cookie-based auth (set by /auth/api/login or /auth/api/verify-email)
       try {
         const cookieRes = await fetch('/admin/api/my-org', { credentials: 'same-origin' });
         if (cookieRes.ok) {
-          loginOverlay.classList.add('hidden');
           onAuthenticated();
           return;
         }
       } catch {}
-
-      // 2. Fall back to sessionStorage token (super-admin / backward compat)
-      const saved = getToken();
-      if (saved) {
-        const ok = await attemptLogin(saved);
-        if (!ok) {
-          sessionStorage.removeItem('adminToken');
-        }
-      }
+      // No valid session — redirect to login page
+      window.location.href = '/auth/login';
     })();
 
     /* ── Logout ───────────────────────────────────────────────── */
@@ -2225,10 +2060,41 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
       try {
         await fetch('/auth/api/logout', { method: 'POST', credentials: 'same-origin' });
       } catch {}
-      sessionStorage.removeItem('adminToken');
       if (dashboardTimer) { clearInterval(dashboardTimer); dashboardTimer = null; }
       window.location.href = '/auth/login';
     });
+
+    /* ── Theme Toggle ─────────────────────────────────────────── */
+    (function initThemeToggle() {
+      const btn = document.getElementById('theme-toggle');
+      const iconMoon = document.getElementById('theme-icon-moon');
+      const iconSun = document.getElementById('theme-icon-sun');
+      const label = document.getElementById('theme-label');
+
+      function applyTheme(theme) {
+        if (theme === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+          iconMoon.style.display = 'none';
+          iconSun.style.display = '';
+          label.textContent = 'Dark Mode';
+        } else {
+          document.documentElement.removeAttribute('data-theme');
+          iconMoon.style.display = '';
+          iconSun.style.display = 'none';
+          label.textContent = 'Light Mode';
+        }
+      }
+
+      // Apply current theme on load
+      applyTheme(localStorage.getItem('bd-theme') || 'dark');
+
+      btn.addEventListener('click', () => {
+        const current = localStorage.getItem('bd-theme') || 'dark';
+        const next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('bd-theme', next);
+        applyTheme(next);
+      });
+    })();
 
     /* ── Tab Routing ──────────────────────────────────────────── */
     const navLinks = document.querySelectorAll('.sidebar-nav a');
@@ -3265,7 +3131,7 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
       const isolation = document.getElementById('server-isolation').value;
 
       if (webhook) credentials.WEBHOOK_BASE_URL = webhook;
-      if (token) credentials.MASTER_SECURITY_TOKEN = token;
+      if (token) credentials.ORCHESTRATOR_SECURITY_TOKEN = token;
       if (identity) credentials.IDENTITY_MODE = identity;
       if (isolation) credentials.ISOLATION_MODE = isolation;
 

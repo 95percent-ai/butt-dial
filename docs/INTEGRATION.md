@@ -77,7 +77,7 @@ If an LLM key is configured (Anthropic, OpenAI, or custom), sandbox sends also g
 |-------|-------------|---------------|------------------|
 | **Org Token** | Developers | Registration or admin panel | Admin panel, provisioning, org-level APIs |
 | **Agent Token** | AI agents | Returned by provisioning | MCP tools, REST API, scoped to one agent |
-| **Master Token** | Super-admins | `.env` file | All orgs, all agents (optional) |
+| **Orchestrator Token** | Super-admins | `.env` file | All orgs, all agents (optional) |
 
 ### Using Your Token
 
@@ -415,7 +415,7 @@ node dist/index.js 2>&1 | grep send_message_success
 
 | Variable | Description |
 |----------|-------------|
-| `MASTER_SECURITY_TOKEN` | Super-admin token |
+| `ORCHESTRATOR_SECURITY_TOKEN` | Super-admin token |
 | `WEBHOOK_BASE_URL` | Public URL for webhooks |
 | `DEMO_MODE` | `true` for mock providers |
 

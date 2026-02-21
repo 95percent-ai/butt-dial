@@ -21,7 +21,7 @@ interface ProviderStatus {
   server: {
     configured: boolean;
     webhookBaseUrl: string | null;
-    masterSecurityToken: string | null; // masked
+    orchestratorSecurityToken: string | null; // masked
   };
   voice: {
     configured: boolean;
@@ -76,7 +76,7 @@ export function getProviderStatus(): ProviderStatus {
   const elevenKey = env["ELEVENLABS_API_KEY"];
   const resendKey = env["RESEND_API_KEY"];
   const webhookUrl = env["WEBHOOK_BASE_URL"];
-  const masterToken = env["MASTER_SECURITY_TOKEN"];
+  const orchToken = env["ORCHESTRATOR_SECURITY_TOKEN"] || env["MASTER_SECURITY_TOKEN"];
   const voiceGreeting = env["VOICE_DEFAULT_GREETING"];
   const voiceVoice = env["VOICE_DEFAULT_VOICE"];
   const voiceLang = env["VOICE_DEFAULT_LANGUAGE"];
@@ -100,9 +100,9 @@ export function getProviderStatus(): ProviderStatus {
       apiKey: resendKey ? mask(resendKey) : null,
     },
     server: {
-      configured: !!(webhookUrl && masterToken),
+      configured: !!(webhookUrl && orchToken),
       webhookBaseUrl: webhookUrl || null,
-      masterSecurityToken: masterToken ? mask(masterToken) : null,
+      orchestratorSecurityToken: orchToken ? mask(orchToken) : null,
     },
     voice: {
       configured: !!(voiceGreeting || voiceVoice || voiceLang),

@@ -344,14 +344,14 @@ async function testCheckRateLimits() {
   try {
     // Reuse the per-minute blocked agent
     checkRateLimits(dbProvider, testAgentId, "sms", "sms", "+15551111111", {
-      token: "master",
+      token: "orchestrator",
       clientId: "admin",
       scopes: ["admin"],
     });
   } catch {
     adminPassed = false;
   }
-  assert(adminPassed, "admin (master token) skips rate limits");
+  assert(adminPassed, "admin (orchestrator token) skips rate limits");
 
   // Restore demoMode
   (config as any).demoMode = originalDemoMode;

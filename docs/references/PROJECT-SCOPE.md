@@ -777,8 +777,8 @@ MCP_SERVER_NAME=agentos-comms
 NODE_ENV=production
 
 # ─── Security ─────────────────────────────────────────────────
-# Master token for initial admin access / agent registration
-MASTER_SECURITY_TOKEN=...
+# Orchestrator token for initial admin access / agent registration
+ORCHESTRATOR_SECURITY_TOKEN=...
 # Encryption key for provider credentials stored in DB (AES-256)
 CREDENTIALS_ENCRYPTION_KEY=...
 # JWT signing secret for agent security tokens

@@ -5,7 +5,7 @@
  */
 
 const BASE = process.env.TEST_URL || "http://localhost:3100";
-const TOKEN = process.env.MASTER_SECURITY_TOKEN || process.env.TEST_TOKEN || "test-token-123";
+const TOKEN = process.env.ORCHESTRATOR_SECURITY_TOKEN || process.env.MASTER_SECURITY_TOKEN || process.env.TEST_TOKEN || "test-token-123";
 
 let passed = 0;
 let failed = 0;

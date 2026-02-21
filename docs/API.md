@@ -103,33 +103,33 @@ Dashboard data API. Returns agents, usage summary, alerts.
 
 ### POST /admin/api/test/twilio
 Test Twilio credentials. Body: `{"accountSid":"...","authToken":"..."}`.
-Requires: `Authorization: Bearer <masterToken>`.
+Requires: `Authorization: Bearer <orchestratorToken>`.
 
 ### POST /admin/api/test/elevenlabs
 Test ElevenLabs credentials. Body: `{"apiKey":"..."}`.
-Requires: `Authorization: Bearer <masterToken>`.
+Requires: `Authorization: Bearer <orchestratorToken>`.
 
 ### POST /admin/api/test/resend
 Test Resend credentials. Body: `{"apiKey":"..."}`.
-Requires: `Authorization: Bearer <masterToken>`.
+Requires: `Authorization: Bearer <orchestratorToken>`.
 
 ### POST /admin/api/save
 Save credentials to .env. Body: `{"credentials":{"KEY":"value"}}`.
-Requires: `Authorization: Bearer <masterToken>`.
+Requires: `Authorization: Bearer <orchestratorToken>`.
 
 ### POST /admin/api/deploy
 Restart the server. Spawns new process and exits current.
-Requires: `Authorization: Bearer <masterToken>`.
+Requires: `Authorization: Bearer <orchestratorToken>`.
 
 ### POST /admin/api/run-scenarios
 Run demo test scenarios. Returns pass/fail results.
-Requires: `Authorization: Bearer <masterToken>`.
+Requires: `Authorization: Bearer <orchestratorToken>`.
 
 ### GET /admin/api/pending-accounts
 List accounts with `pending_review` status. Super-admin only.
-Requires: `Authorization: Bearer <masterToken>`.
+Requires: `Authorization: Bearer <orchestratorToken>`.
 
 ### POST /admin/api/pending-accounts/:userId/review
 Approve, reject, or suspend a user account. Body: `{"action":"approve"}`.
 Actions: `approve` (sets production mode), `reject`, `suspend`.
-Requires: `Authorization: Bearer <masterToken>`.
+Requires: `Authorization: Bearer <orchestratorToken>`.

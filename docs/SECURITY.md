@@ -10,16 +10,16 @@ Every MCP tool call requires a security token bound to an agent ID.
 - Passed via SSE query param: `/sse?token=<token>&agentId=<agentId>`
 - Impersonation guard: token is bound to a specific agentId
 
-### Master Token
-Admin operations require a master security token.
+### Orchestrator Token
+Admin operations require an orchestrator security token.
 
 ```env
-MASTER_SECURITY_TOKEN=your-secret-here
+ORCHESTRATOR_SECURITY_TOKEN=your-secret-here
 ```
 
 - Required for: `comms_set_agent_limits`, `comms_register_provider`, `comms_set_billing_config`, admin POST routes
-- Passed as: `Authorization: Bearer <masterToken>`
-- No master token configured = all admin routes open (dev mode)
+- Passed as: `Authorization: Bearer <orchestratorToken>`
+- No orchestrator token configured = all admin routes open (dev mode)
 
 ### Session Cookies (Admin UI)
 Email/password login and registration set an encrypted session cookie for browser-based admin access. Users go straight to `/admin` after login — no token copy-paste needed.

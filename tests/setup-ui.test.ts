@@ -6,7 +6,7 @@
  * 2.  getProviderStatus twilio section has configured/accountSid/authToken
  * 3.  getProviderStatus elevenlabs section has configured/apiKey
  * 4.  getProviderStatus resend section has configured/apiKey
- * 5.  getProviderStatus server section has configured/webhookBaseUrl/masterSecurityToken
+ * 5.  getProviderStatus server section has configured/webhookBaseUrl/orchestratorSecurityToken
  * 6.  getProviderStatus voice section has configured/greeting/voice/language
  * 7.  mask() shows only last 4 characters
  * 8.  saveCredentials writes new key to .env
@@ -89,8 +89,8 @@ async function testProviderStatusShape() {
 
   // 5. Server section shape
   assert(
-    "configured" in status.server && "webhookBaseUrl" in status.server && "masterSecurityToken" in status.server,
-    "5. server section has configured/webhookBaseUrl/masterSecurityToken"
+    "configured" in status.server && "webhookBaseUrl" in status.server && "orchestratorSecurityToken" in status.server,
+    "5. server section has configured/webhookBaseUrl/orchestratorSecurityToken"
   );
 
   // 6. Voice section shape

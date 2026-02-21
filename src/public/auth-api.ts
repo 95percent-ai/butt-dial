@@ -75,7 +75,7 @@ setInterval(() => {
 // ── Token encryption helpers ────────────────────────────────────
 
 function getEncryptionKey(): Buffer {
-  const key = config.credentialsEncryptionKey || config.masterSecurityToken || "default-dev-key-32chars-padding!";
+  const key = config.credentialsEncryptionKey || config.orchestratorSecurityToken || "default-dev-key-32chars-padding!";
   // Ensure 32 bytes for AES-256
   return Buffer.from(key.padEnd(32, "0").slice(0, 32));
 }

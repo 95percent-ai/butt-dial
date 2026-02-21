@@ -199,7 +199,7 @@ agentos-comms-mcp/
     ├── ARCHITECTURE.md           # System architecture
     ├── TROUBLESHOOTING.md        # Common issues and fixes
     ├── CHANNEL-SETUP.md          # Channel setup guide — SMS, Voice, Email, WhatsApp, LINE (inbound/outbound/two-way)
-    ├── INTEGRATION.md            # Master integration guide — register, get token, sandbox, REST API, MCP, go live
+    ├── INTEGRATION.md            # Orchestrator integration guide — register, get token, sandbox, REST API, MCP, go live
     ├── MARKETING-OVERVIEW.md     # Investor/evangelist overview — capabilities, market case, architecture
     └── references/               # External reference documents
         ├── PROJECT-SCOPE.md

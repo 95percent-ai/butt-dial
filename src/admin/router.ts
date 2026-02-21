@@ -37,9 +37,9 @@ function getAuthInfo(req: Request): AuthInfo | undefined {
 
 /**
  * Admin auth middleware for POST routes.
- * 3-tier: master token (super-admin) → org token (org-admin) → reject.
+ * 3-tier: orchestrator token (super-admin) → org token (org-admin) → reject.
  * Agent tokens are NOT allowed on admin routes.
- * No master token configured = allow (graceful degradation for dev).
+ * No orchestrator token configured = allow (graceful degradation for dev).
  */
 function adminAuth(req: Request, res: Response, next: NextFunction): void {
   // Demo mode = allow with super-admin scope
@@ -49,8 +49,8 @@ function adminAuth(req: Request, res: Response, next: NextFunction): void {
     return;
   }
 
-  // No master token = allow (dev mode / not configured yet)
-  if (!config.masterSecurityToken) {
+  // No orchestrator token = allow (dev mode / not configured yet)
+  if (!config.orchestratorSecurityToken) {
     req.auth = { token: "unconfigured", clientId: "admin", scopes: ["admin", "super-admin"], orgId: "default" };
     next();
     return;
@@ -96,8 +96,8 @@ function adminAuth(req: Request, res: Response, next: NextFunction): void {
 
   const token = authHeader.slice(7);
 
-  // 1. Master token → super-admin
-  if (token === config.masterSecurityToken) {
+  // 1. Orchestrator token → super-admin
+  if (token === config.orchestratorSecurityToken) {
     req.auth = { token, clientId: "super-admin", scopes: ["admin", "super-admin"], orgId: undefined };
     next();
     return;
@@ -132,8 +132,21 @@ function disclaimerGate(req: Request, res: Response, next: NextFunction): void {
 }
 
 // ── Unified Admin Page ────────────────────────────────────────────
+// In demo mode, the admin page still requires a session cookie so users
+// must go through the login flow. API endpoints keep the demo bypass.
+function requireSessionForPage(req: Request, res: Response, next: NextFunction): void {
+  if (config.demoMode) {
+    const session = getSessionFromCookie(req);
+    if (!session) {
+      res.redirect("/auth/login");
+      return;
+    }
+  }
+  next();
+}
+
 // Disclaimer is shown as a modal overlay inside the admin page itself.
-adminRouter.get("/admin", adminAuth, (req: Request, res: Response) => {
+adminRouter.get("/admin", requireSessionForPage, adminAuth, (req: Request, res: Response) => {
   const spec = generateOpenApiSpec();
   res.type("html").send(renderAdminPage(JSON.stringify(spec)));
 });
@@ -747,6 +760,7 @@ adminRouter.post("/admin/api/save", adminAuth, (req: Request, res: Response) => 
     "RESEND_API_KEY",
     "EMAIL_DEFAULT_DOMAIN",
     "WEBHOOK_BASE_URL",
+    "ORCHESTRATOR_SECURITY_TOKEN",
     "MASTER_SECURITY_TOKEN",
     "ANTHROPIC_API_KEY",
     "VOICE_DEFAULT_GREETING",

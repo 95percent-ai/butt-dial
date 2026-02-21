@@ -3,7 +3,7 @@
  *
  * Tests:
  * 1.  Token manager: generate, verify, revoke
- * 2.  Auth middleware: missing token → 401, invalid → 401, master → works
+ * 2.  Auth middleware: missing token → 401, invalid → 401, orchestrator → works
  * 3.  Impersonation guard: agent A's token can't access agent B
  * 4.  Provisioning returns securityToken, token works for that agent
  * 5.  Deprovision revokes token, token stops working

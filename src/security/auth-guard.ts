@@ -2,7 +2,7 @@
  * Auth guard — helpers called inside tool callbacks to enforce access control.
  * Uses extra.authInfo populated by the auth middleware.
  *
- * 3-tier auth: super-admin (master token) > org-admin (org token) > agent (agent token)
+ * 3-tier auth: super-admin (orchestrator token) > org-admin (org token) > agent (agent token)
  */
 
 import { config } from "../lib/config.js";
@@ -47,7 +47,7 @@ export function requireAgent(agentId: string, authInfo?: AuthInfo): void {
 }
 
 /**
- * Require admin access (master token, org-admin, or demo mode).
+ * Require admin access (orchestrator token, org-admin, or demo mode).
  * Agent tokens are not allowed.
  */
 export function requireAdmin(authInfo?: AuthInfo): void {
@@ -91,7 +91,7 @@ export function requireOrgAdmin(authInfo?: AuthInfo): void {
 }
 
 /**
- * Require super-admin access (master token only).
+ * Require super-admin access (orchestrator token only).
  */
 export function requireSuperAdmin(authInfo?: AuthInfo): void {
   if (config.demoMode) return;
@@ -104,7 +104,7 @@ export function requireSuperAdmin(authInfo?: AuthInfo): void {
     return;
   }
 
-  throw new AuthError("Super-admin access required. Only the master token can perform this action.");
+  throw new AuthError("Super-admin access required. Only the orchestrator token can perform this action.");
 }
 
 /** Extract orgId from auth context. Returns 'default' for super-admin or demo. */

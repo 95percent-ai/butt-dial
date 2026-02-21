@@ -106,7 +106,7 @@
 
 ### POST to admin API returns 401
 **Pattern:** `Missing Authorization header`
-**Cause:** `MASTER_SECURITY_TOKEN` is set but not included in the request.
+**Cause:** `ORCHESTRATOR_SECURITY_TOKEN` is set but not included in the request.
 **Fix:** The setup page auto-sends the token if entered. For API calls: `Authorization: Bearer <token>`.
 
 ## Demo Mode

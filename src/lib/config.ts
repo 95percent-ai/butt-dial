@@ -14,7 +14,7 @@ const configSchema = z.object({
   edition: z.enum(["community", "enterprise", "saas"]).default("community"),
 
   // Security
-  masterSecurityToken: z.string().optional(),
+  orchestratorSecurityToken: z.string().optional(),
   credentialsEncryptionKey: z.string().optional(),
   jwtSecret: z.string().optional(),
 
@@ -178,7 +178,7 @@ function loadConfig() {
     edition: process.env.EDITION,
     identityMode: process.env.IDENTITY_MODE,
     isolationMode: process.env.ISOLATION_MODE,
-    masterSecurityToken: process.env.MASTER_SECURITY_TOKEN,
+    orchestratorSecurityToken: process.env.ORCHESTRATOR_SECURITY_TOKEN || process.env.MASTER_SECURITY_TOKEN,
     credentialsEncryptionKey: process.env.CREDENTIALS_ENCRYPTION_KEY,
     jwtSecret: process.env.JWT_SECRET,
     initialAgentPoolSize: process.env.INITIAL_AGENT_POOL_SIZE,
@@ -284,8 +284,8 @@ function logStartupWarnings(cfg: z.infer<typeof configSchema>): void {
     console.warn("[WARN] Webhook URL is localhost — inbound webhooks won't work externally");
   }
 
-  if (!cfg.masterSecurityToken) {
-    console.warn("[WARN] No master security token — tool calls will be unauthenticated");
+  if (!cfg.orchestratorSecurityToken) {
+    console.warn("[WARN] No orchestrator security token — tool calls will be unauthenticated");
   }
 
   if (!cfg.elevenlabsApiKey) {

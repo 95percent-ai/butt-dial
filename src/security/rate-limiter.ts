@@ -98,7 +98,7 @@ export function checkRateLimits(
   // Skip in demo mode
   if (config.demoMode) return;
 
-  // Skip for admin (master token)
+  // Skip for admin (orchestrator token)
   if (authInfo?.scopes?.includes("admin")) return;
 
   const limits = getAgentLimits(db, agentId);

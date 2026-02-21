@@ -9,7 +9,7 @@ export function renderLandingPage(): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Butt-Dial — Communication Infrastructure for AI Agents</title>
+  <title>Butt-Dial — Orchestrate AI Agent Communication</title>
   <style>
     :root {
       --bg-body: #0f1117;
@@ -24,6 +24,22 @@ export function renderLandingPage(): string {
       --warning: #d29922;
       --radius: 12px;
       --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+    }
+
+    [data-theme="light"] {
+      --bg-body: #f5f6f8;
+      --bg-card: #ffffff;
+      --border: #d0d7de;
+      --text: #1f2328;
+      --text-muted: #656d76;
+      --text-heading: #1f2328;
+      --accent: #0969da;
+      --accent-hover: #0550ae;
+      --success: #1a7f37;
+      --warning: #9a6700;
+    }
+    [data-theme="light"] .nav {
+      background: rgba(255, 255, 255, 0.85);
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -56,6 +72,8 @@ export function renderLandingPage(): string {
     .nav-links { display: flex; gap: 24px; align-items: center; }
     .nav-links a { color: var(--text-muted); font-size: 14px; font-weight: 500; }
     .nav-links a:hover { color: var(--text-heading); }
+    .nav-links a.btn-nav { color: #fff; }
+    .nav-links a.btn-nav:hover { color: #fff; }
     .btn-nav {
       padding: 8px 20px; border-radius: 8px; font-weight: 600; font-size: 14px;
       background: var(--accent); color: #fff; border: none; cursor: pointer;
@@ -313,7 +331,17 @@ export function renderLandingPage(): string {
       .arch-box { max-width: 100%; min-width: auto; }
       .arch-arrow { transform: rotate(90deg); padding: 8px 0; }
     }
+    .theme-toggle-btn {
+      background: none; border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text-muted); cursor: pointer; padding: 6px 8px;
+      display: flex; align-items: center; transition: color 0.15s, border-color 0.15s;
+    }
+    .theme-toggle-btn:hover { color: var(--text); border-color: var(--text-muted); }
+    .theme-toggle-btn svg { width: 18px; height: 18px; }
   </style>
+  <script>
+    (function(){var t=localStorage.getItem('bd-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})();
+  </script>
 </head>
 <body>
 
@@ -326,13 +354,17 @@ export function renderLandingPage(): string {
       <a href="#security">Security</a>
       <a href="/docs">Docs</a>
       <a href="/auth/login" class="btn-nav">Get Started</a>
+      <button class="theme-toggle-btn" id="theme-toggle" title="Toggle light/dark mode">
+        <svg id="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        <svg id="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+      </button>
     </div>
   </nav>
 
   <!-- 2. Hero -->
   <section class="hero">
-    <h1>Open Communication <span class="gradient">Infrastructure</span> for AI Agents</h1>
-    <p class="hero-sub">Phone calls, SMS, email, WhatsApp. A production-grade communication layer with pluggable providers, real-time translation, compliance, billing, and zero vendor lock-in. Self-hosted. Open source.</p>
+    <h1>Orchestrate AI Agent <span class="gradient">Communication</span></h1>
+    <p class="hero-sub">Phone calls, SMS, email, WhatsApp — provisioned, routed, billed, and compliant. One server, any provider, any agent.</p>
     <div class="hero-cta">
       <a href="/auth/login" class="btn-primary">Get Started Free</a>
       <a href="https://github.com/elrad/butt-dial-mcp" target="_blank" class="btn-secondary">View on GitHub</a>
@@ -611,6 +643,29 @@ export function renderLandingPage(): string {
     <p class="footer-credit">Powered by <a href="https://95percent.ai" target="_blank">95percent.ai</a></p>
   </footer>
 
+  <script>
+    (function() {
+      var btn = document.getElementById('theme-toggle');
+      var moonIcon = document.getElementById('theme-icon-moon');
+      var sunIcon = document.getElementById('theme-icon-sun');
+      function apply(theme) {
+        if (theme === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+          moonIcon.style.display = 'none'; sunIcon.style.display = '';
+        } else {
+          document.documentElement.removeAttribute('data-theme');
+          moonIcon.style.display = ''; sunIcon.style.display = 'none';
+        }
+      }
+      apply(localStorage.getItem('bd-theme') || 'dark');
+      btn.addEventListener('click', function() {
+        var current = localStorage.getItem('bd-theme') || 'dark';
+        var next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('bd-theme', next);
+        apply(next);
+      });
+    })();
+  </script>
 </body>
 </html>`;
 }

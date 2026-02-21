@@ -4,14 +4,17 @@ import path from "path";
 import { WebSocketServer } from "ws";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { config } from "./lib/config.js";
-import { logger } from "./lib/logger.js";
+import { logger, sanitizeUrl } from "./lib/logger.js";
 import { initProviders, getProvider } from "./providers/factory.js";
 import { runMigrations } from "./db/migrate.js";
 import { createMcpServer } from "./server.js";
 import { webhookRouter } from "./webhooks/router.js";
 import { adminRouter } from "./admin/router.js";
 import { handleVoiceWebSocket } from "./webhooks/voice-ws.js";
-import { authMiddleware } from "./security/auth-middleware.js";
+import { authMiddleware, isLockedOut, recordBruteForceFailure, resetBruteForce } from "./security/auth-middleware.js";
+import { verifyToken } from "./security/token-manager.js";
+import { verifyOrgToken } from "./lib/org-manager.js";
+import { recordFailedAuth } from "./security/anomaly-detector.js";
 import { metrics } from "./observability/metrics.js";
 import { initAlertManager } from "./observability/alert-manager.js";
 import { registerAgentSession, unregisterAgentSession } from "./lib/agent-registry.js";
@@ -59,8 +62,79 @@ async function main() {
 
   app.get("/sse", async (req, res) => {
     const agentId = req.query.agentId as string | undefined;
-    logger.info("mcp_sse_connection", { agentId });
+    const token = req.query.token as string | undefined;
+    logger.info("mcp_sse_connection", { agentId, url: sanitizeUrl(req.originalUrl) });
 
+    // --- Token validation (mirrors authMiddleware 3-tier check) ---
+    if (!config.demoMode) {
+      const ip = req.ip || req.socket.remoteAddress || "unknown";
+
+      if (isLockedOut(ip)) {
+        res.status(429).json({ error: "Too many failed attempts. Try again later." });
+        return;
+      }
+
+      if (!token) {
+        // No orchestrator token configured — graceful degradation for dev
+        if (!config.orchestratorSecurityToken) {
+          // Allow without token (same as authMiddleware)
+        } else {
+          recordFailedAuth(ip);
+          recordBruteForceFailure(ip);
+          res.status(401).json({ error: "Missing token. Use: /sse?token=<token>&agentId=<id>" });
+          return;
+        }
+      } else {
+        let authorized = false;
+
+        // 1. Orchestrator token → can connect as any agentId
+        if (config.orchestratorSecurityToken && token === config.orchestratorSecurityToken) {
+          resetBruteForce(ip);
+          authorized = true;
+        }
+
+        // 2. Org token → can connect as any agentId within org
+        if (!authorized) {
+          try {
+            const db = getProvider("database");
+            const orgVerified = verifyOrgToken(db, token);
+            if (orgVerified) {
+              resetBruteForce(ip);
+              authorized = true;
+            }
+          } catch {
+            // org_tokens table might not exist yet
+          }
+        }
+
+        // 3. Agent token → must match agentId param
+        if (!authorized) {
+          const db = getProvider("database");
+          const verified = verifyToken(db, token);
+          if (verified) {
+            if (agentId && verified.agentId !== agentId) {
+              logger.warn("sse_auth_agent_mismatch", { tokenAgent: verified.agentId, requestedAgent: agentId });
+              recordFailedAuth(ip);
+              recordBruteForceFailure(ip);
+              res.status(401).json({ error: "Token agentId does not match requested agentId" });
+              return;
+            }
+            resetBruteForce(ip);
+            authorized = true;
+          }
+        }
+
+        if (!authorized) {
+          logger.warn("sse_auth_failed", { reason: "invalid_token" });
+          recordFailedAuth(ip);
+          recordBruteForceFailure(ip);
+          res.status(401).json({ error: "Invalid or revoked token" });
+          return;
+        }
+      }
+    }
+
+    // --- Authorized — proceed with SSE connection ---
     const transport = new SSEServerTransport("/messages", res);
     transports.set(transport.sessionId, transport);
 

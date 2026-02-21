@@ -101,7 +101,7 @@ RESEND_API_KEY=re_...
 ELEVENLABS_API_KEY=sk_...
 
 # Security
-MASTER_SECURITY_TOKEN=your-secret-token
+ORCHESTRATOR_SECURITY_TOKEN=your-secret-token
 WEBHOOK_BASE_URL=https://your-domain.com
 \`\`\`
 
@@ -124,7 +124,7 @@ Visit **http://localhost:3100/admin/setup** for guided configuration:
 1. Enter Twilio credentials → click **Test Connection** → auto-saves on success
 2. Enter ElevenLabs key → test → auto-saves
 3. Enter Resend key → test → auto-saves
-4. Configure server settings (webhook URL, master token)
+4. Configure server settings (webhook URL, orchestrator token)
 5. Set voice defaults (greeting, language, voice ID)
 
 Each card validates credentials live before saving.
@@ -176,7 +176,7 @@ For voice calls, the server relays the caller's speech as text to your agent via
 | No Twilio credentials | Telephony channels use mock adapters |
 | No Resend API key | Email uses mock adapter |
 | Webhook URL is localhost | Inbound webhooks won't work externally |
-| No master security token | Tool calls are unauthenticated |
+| No orchestrator security token | Tool calls are unauthenticated |
 | No ElevenLabs key | Using free Edge TTS (not an error) |
 | No Anthropic key | Answering machine disabled |
 
@@ -510,7 +510,7 @@ All webhooks are POST endpoints that receive provider callbacks. Signatures are 
 
 ### API Routes
 
-All POST routes require \`Authorization: Bearer <masterToken>\`.
+All POST routes require \`Authorization: Bearer <orchestratorToken>\`.
 
 | Endpoint | Description |
 |----------|-------------|
@@ -527,7 +527,7 @@ All POST routes require \`Authorization: Bearer <masterToken>\`.
 \`\`\`bash
 curl -X POST http://localhost:3100/admin/api/test/twilio \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer YOUR_MASTER_TOKEN" \\
+  -H "Authorization: Bearer YOUR_ORCHESTRATOR_TOKEN" \\
   -d '{"accountSid":"AC...","authToken":"..."}'
 \`\`\`
 `,
@@ -771,7 +771,7 @@ Inbound Call -> WebSocket -> Agent not connected
 | Token Type | Who Uses It | What It Accesses |
 |------------|-------------|------------------|
 | **Agent Token** | AI agents | MCP tools scoped to their agent ID |
-| **Master Token** | Admins | Admin endpoints, billing, provider config |
+| **Orchestrator Token** | Admins | Admin endpoints, billing, provider config |
 | **Demo Mode** | Development | Everything (auth bypassed) |
 
 ### Agent Tokens
@@ -783,13 +783,13 @@ Every MCP tool call requires a security token bound to an agent ID.
 - Passed via SSE: \`/sse?token=<token>&agentId=<agentId>\`
 - **Impersonation guard:** token is bound to a specific agentId
 
-### Master Token
+### Orchestrator Token
 
 \`\`\`env
-MASTER_SECURITY_TOKEN=your-secret-here
+ORCHESTRATOR_SECURITY_TOKEN=your-secret-here
 \`\`\`
 
-Required for admin operations. Passed as: \`Authorization: Bearer <masterToken>\`
+Required for admin operations. Passed as: \`Authorization: Bearer <orchestratorToken>\`
 
 ### Demo Mode
 
@@ -1244,7 +1244,7 @@ If an LLM key is configured, you'll see a simulated reply after ~2 seconds.
 |-------|-----|------------|----------|
 | **Org Token** | Developers | Registration / admin panel | Admin, provisioning |
 | **Agent Token** | AI agents | Provisioning API | MCP tools, REST API |
-| **Master Token** | Super-admins | \`.env\` file | Everything |
+| **Orchestrator Token** | Super-admins | \`.env\` file | Everything |
 
 REST: \`Authorization: Bearer YOUR_TOKEN\`
 MCP: \`GET /sse?token=YOUR_TOKEN&agentId=my-agent\`
@@ -1465,7 +1465,7 @@ See also:
 **Fix:** Check browser console. The page uses inline JS/CSS requiring relaxed CSP.
 
 ### Admin API returns 401
-**Fix:** Include \`Authorization: Bearer <masterToken>\` header.
+**Fix:** Include \`Authorization: Bearer <orchestratorToken>\` header.
 
 ---
 
@@ -1616,6 +1616,19 @@ export function renderDocsPage(slug?: string): string | null {
       --radius: 8px;
       --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
       --mono: "SF Mono", "Fira Code", "Fira Mono", Menlo, Consolas, monospace;
+    }
+
+    [data-theme="light"] {
+      --bg-body: #f5f6f8;
+      --bg-card: #ffffff;
+      --bg-sidebar: #ffffff;
+      --border: #d0d7de;
+      --text: #1f2328;
+      --text-muted: #656d76;
+      --text-heading: #1f2328;
+      --accent: #0969da;
+      --accent-hover: #0550ae;
+      --success: #1a7f37;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1803,13 +1816,27 @@ export function renderDocsPage(slug?: string): string | null {
       .sidebar.open { transform: translateX(0); }
       .content { margin-left: 0; padding: 60px 20px 80px; }
     }
+
+    .theme-toggle-btn {
+      background: none; border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text-muted); cursor: pointer; padding: 6px 8px;
+      display: flex; align-items: center; transition: color 0.15s, border-color 0.15s;
+      margin: 12px 20px 0;
+    }
+    .theme-toggle-btn:hover { color: var(--text); border-color: var(--text-muted); }
+    .theme-toggle-btn svg { width: 18px; height: 18px; }
   </style>
+  <script>(function(){var t=localStorage.getItem('bd-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})();</script>
 </head>
 <body>
   <button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">&#9776;</button>
 
   <nav class="sidebar">
     <div class="sb-logo"><span>&#128222;</span> <a href="/docs" style="color:inherit">Butt-Dial Docs</a></div>
+      <button class="theme-toggle-btn" id="theme-toggle" title="Toggle light/dark mode">
+        <svg id="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        <svg id="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+      </button>
       ${sidebarHtml}
       <div class="sb-group">
         <div class="sb-heading">Links</div>
@@ -1823,6 +1850,29 @@ export function renderDocsPage(slug?: string): string | null {
     <div class="back-top"><a href="/docs">&#8592; Home</a></div>
   </main>
 
+  <script>
+    (function() {
+      var btn = document.getElementById('theme-toggle');
+      var moonIcon = document.getElementById('theme-icon-moon');
+      var sunIcon = document.getElementById('theme-icon-sun');
+      function apply(theme) {
+        if (theme === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+          moonIcon.style.display = 'none'; sunIcon.style.display = '';
+        } else {
+          document.documentElement.removeAttribute('data-theme');
+          moonIcon.style.display = ''; sunIcon.style.display = 'none';
+        }
+      }
+      apply(localStorage.getItem('bd-theme') || 'dark');
+      btn.addEventListener('click', function() {
+        var current = localStorage.getItem('bd-theme') || 'dark';
+        var next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('bd-theme', next);
+        apply(next);
+      });
+    })();
+  </script>
 </body>
 </html>`;
 }

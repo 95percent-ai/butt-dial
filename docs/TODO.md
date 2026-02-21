@@ -289,7 +289,7 @@ Hard security boundaries between organizations. No data leaks across tenants.
 
 - [x] **Organization model** — `organizations` + `org_tokens` tables, org-manager.ts CRUD + token management
 - [x] **Org → Agent association** — every table gets `org_id` column (15 tables), all existing data migrated to 'default' org
-- [x] **Tenant-scoped auth** — 3-tier auth: super-admin (master token) → org-admin (org token) → agent (agent token)
+- [x] **Tenant-scoped auth** — 3-tier auth: super-admin (orchestrator token) → org-admin (org token) → agent (agent token)
 - [x] **Data isolation** — all queries scoped by org_id via org-scope.ts helpers (orgFilter, orgWhere, requireAgentInOrg)
 - [x] **Impersonation guard** — org boundary enforced at middleware + tool level. Agent tokens include orgId
 - [x] **Credential isolation** — provider_credentials table has org_id column, queries scoped
@@ -405,7 +405,7 @@ Dead-simple developer onboarding: register → get token → test in sandbox →
 - [x] **C5.** Sandbox reply hook in send-message (MCP + REST) for all 4 channels
 
 ### D. Integration Document
-- [x] **D1.** `docs/INTEGRATION.md` — master integration guide
+- [x] **D1.** `docs/INTEGRATION.md` — orchestrator integration guide
 - [x] **D2.** Updated `/docs/integration` web page
 - [x] **D3.** `GET /api/v1/integration-guide` — returns raw markdown (public, no auth)
 

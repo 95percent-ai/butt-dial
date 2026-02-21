@@ -32,6 +32,22 @@ export function renderDisclaimerPage(): string {
       --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
     }
 
+    [data-theme="light"] {
+      --bg-body: #f5f6f8;
+      --bg-card: #ffffff;
+      --bg-input: #f0f1f3;
+      --border: #d0d7de;
+      --border-focus: #0969da;
+      --text: #1f2328;
+      --text-muted: #656d76;
+      --text-heading: #1f2328;
+      --accent: #0969da;
+      --accent-hover: #0550ae;
+      --success: #1a7f37;
+      --error: #cf222e;
+      --error-bg: #ffebe9;
+    }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
@@ -169,9 +185,24 @@ export function renderDisclaimerPage(): string {
       .disclaimer-box { padding: 1.25rem; }
       .disclaimer-scroll { max-height: 300px; }
     }
+
+    .theme-toggle-btn {
+      position: fixed; top: 16px; right: 16px; z-index: 100;
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text-muted); cursor: pointer; padding: 6px 8px;
+      display: flex; align-items: center; transition: color 0.15s, border-color 0.15s;
+    }
+    .theme-toggle-btn:hover { color: var(--text); border-color: var(--text-muted); }
+    .theme-toggle-btn svg { width: 18px; height: 18px; }
   </style>
+  <script>(function(){var t=localStorage.getItem('bd-theme');if(t==='light')document.documentElement.setAttribute('data-theme','light');})();</script>
 </head>
 <body>
+  <button class="theme-toggle-btn" id="theme-toggle" title="Toggle light/dark mode">
+    <svg id="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+    <svg id="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+  </button>
+
   <div class="disclaimer-box">
     <h1>Platform Usage Disclaimer</h1>
     <p class="subtitle">Please read and accept before continuing</p>
@@ -243,6 +274,28 @@ export function renderDisclaimerPage(): string {
   </div>
 
   <script>
+    (function() {
+      var tbtn = document.getElementById('theme-toggle');
+      var moonIcon = document.getElementById('theme-icon-moon');
+      var sunIcon = document.getElementById('theme-icon-sun');
+      function applyTheme(theme) {
+        if (theme === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+          moonIcon.style.display = 'none'; sunIcon.style.display = '';
+        } else {
+          document.documentElement.removeAttribute('data-theme');
+          moonIcon.style.display = ''; sunIcon.style.display = 'none';
+        }
+      }
+      applyTheme(localStorage.getItem('bd-theme') || 'dark');
+      tbtn.addEventListener('click', function() {
+        var current = localStorage.getItem('bd-theme') || 'dark';
+        var next = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('bd-theme', next);
+        applyTheme(next);
+      });
+    })();
+
     function toggleBtn() {
       document.getElementById('accept-btn').disabled = !document.getElementById('accept-check').checked;
     }

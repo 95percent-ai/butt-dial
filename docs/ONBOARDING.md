@@ -60,7 +60,7 @@ Required only if you need the email channel.
 
 ### Server Settings
 1. Set your **Webhook Base URL** — the public URL where Twilio/Resend can reach your server (e.g. your ngrok URL or production domain)
-2. Set a **Master Security Token** — used to authenticate admin tool calls
+2. Set an **Orchestrator Security Token** — used to authenticate admin tool calls
 3. Click **Save**
 
 ### Voice Defaults
@@ -164,7 +164,7 @@ When the server starts, it checks for missing configuration and logs warnings:
 - `[WARN] No Twilio credentials` — telephony channels use mock adapters
 - `[WARN] No Resend API key` — email uses mock adapter
 - `[WARN] Webhook URL is localhost` — inbound webhooks won't work externally
-- `[WARN] No master security token` — tool calls unauthenticated
+- `[WARN] No orchestrator security token` — tool calls unauthenticated
 - `[INFO] No ElevenLabs key` — using free Edge TTS
 - `[INFO] No Anthropic key` — answering machine disabled
 

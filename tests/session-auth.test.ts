@@ -18,7 +18,7 @@
  *   Demo mode (skips admin-rejection tests):
  *     DEMO_MODE=true in .env → start server → npx tsx tests/session-auth.test.ts
  *
- *   Live mode (full coverage, requires MASTER_SECURITY_TOKEN set):
+ *   Live mode (full coverage, requires ORCHESTRATOR_SECURITY_TOKEN set):
  *     DEMO_MODE=false in .env → start server → npx tsx tests/session-auth.test.ts --live
  *
  *   The test auto-detects the server mode. Pass --live to force live-mode
@@ -88,7 +88,7 @@ async function main() {
 
   if (forceLive && serverIsDemo) {
     console.error("ERROR: --live flag passed but server is in DEMO_MODE=true.");
-    console.error("Set DEMO_MODE=false and MASTER_SECURITY_TOKEN in .env, then restart.");
+    console.error("Set DEMO_MODE=false and ORCHESTRATOR_SECURITY_TOKEN in .env, then restart.");
     process.exit(1);
   }
 
@@ -281,7 +281,7 @@ async function main() {
   console.log(`Results: ${passed} passed, ${failed} failed${skipped ? `, ${skipped} skipped` : ""} out of ${passed + failed}`);
   if (isDemo && skipped > 0) {
     console.log(`Note: ${skipped} admin-auth rejection tests skipped in demo mode.`);
-    console.log(`Run with DEMO_MODE=false + MASTER_SECURITY_TOKEN set for full coverage.`);
+    console.log(`Run with DEMO_MODE=false + ORCHESTRATOR_SECURITY_TOKEN set for full coverage.`);
   }
   console.log(`${"═".repeat(50)}\n`);
 

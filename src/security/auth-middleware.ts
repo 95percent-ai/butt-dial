@@ -3,7 +3,7 @@
  * Validates bearer tokens and sets req.auth for the MCP SDK.
  * The SDK reads req.auth and passes it as extra.authInfo to tool callbacks.
  *
- * 3-tier auth: master token → org token → agent token
+ * 3-tier auth: orchestrator token → org token → agent token
  */
 
 import type { Request, Response, NextFunction } from "express";
@@ -40,7 +40,7 @@ const lockoutCleanup = setInterval(() => {
 }, 60_000);
 if (lockoutCleanup.unref) lockoutCleanup.unref();
 
-function recordBruteForceFailure(ip: string): boolean {
+export function recordBruteForceFailure(ip: string): boolean {
   let entry = bruteForceTracker.get(ip);
   if (!entry) {
     entry = { failures: 0, lockedUntil: null };
@@ -63,7 +63,7 @@ function recordBruteForceFailure(ip: string): boolean {
   return false;
 }
 
-function isLockedOut(ip: string): boolean {
+export function isLockedOut(ip: string): boolean {
   const entry = bruteForceTracker.get(ip);
   if (!entry || !entry.lockedUntil) return false;
   if (Date.now() > entry.lockedUntil) {
@@ -73,7 +73,7 @@ function isLockedOut(ip: string): boolean {
   return true;
 }
 
-function resetBruteForce(ip: string): void {
+export function resetBruteForce(ip: string): void {
   bruteForceTracker.delete(ip);
 }
 
@@ -121,8 +121,8 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    // No master token configured — warn but allow (graceful degradation for dev)
-    if (!config.masterSecurityToken) {
+    // No orchestrator token configured — warn but allow (graceful degradation for dev)
+    if (!config.orchestratorSecurityToken) {
       req.auth = {
         token: "unconfigured",
         clientId: "admin",
@@ -141,8 +141,8 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
 
   const token = authHeader.slice(7); // Remove "Bearer "
 
-  // 1. Check master token first → super-admin
-  if (config.masterSecurityToken && token === config.masterSecurityToken) {
+  // 1. Check orchestrator token first → super-admin
+  if (config.orchestratorSecurityToken && token === config.orchestratorSecurityToken) {
     resetBruteForce(ip);
     req.auth = {
       token,

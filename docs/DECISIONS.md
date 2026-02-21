@@ -1,6 +1,23 @@
-<!-- version: 4.2 | updated: 2026-02-21 -->
+<!-- version: 4.3 | updated: 2026-02-21 -->
 
 # Decisions Log
+
+## DEC-076: Landing Page — "Orchestrate AI Agent Communication"
+**Date:** 2026-02-21
+**What:** Changed the landing page hero from "Open Communication Infrastructure for AI Agents" to "Orchestrate AI Agent Communication" with subtitle "Phone calls, SMS, email, WhatsApp — provisioned, routed, billed, and compliant. One server, any provider, any agent."
+**Why:** The server is not just infrastructure — it actively orchestrates: routing, billing, compliance, provisioning, and failover. The new hero reflects what it does, not just what it is.
+
+## DEC-075: Rename "Master" → "Orchestrator" Across Codebase
+**Date:** 2026-02-21
+**What:** Replaced all occurrences of "master" (as in master token/key) with "orchestrator" across source code, tests, docs, config, and UI. `MASTER_SECURITY_TOKEN` → `ORCHESTRATOR_SECURITY_TOKEN`. Config reads both env vars for backward compatibility (`ORCHESTRATOR_SECURITY_TOKEN || MASTER_SECURITY_TOKEN`). SQLite system references (`sqlite_master`) left unchanged.
+**Why:** "Orchestrator" accurately describes the token's role — it controls the whole platform. More inclusive terminology. Aligns with the product's identity as a communication orchestrator.
+**Scope:** ~40 source files, ~15 test files, ~11 doc files, `.env`, `.env.example`.
+
+## DEC-074: SSE Endpoint Authenticated (Supersedes DEC-032)
+**Date:** 2026-02-21
+**What:** The `GET /sse` endpoint now requires a valid `?token=` query parameter. Same 3-tier validation as POST `/messages`: orchestrator token → org token → agent token. Agent tokens must match the `?agentId=` param. Brute-force tracking applied (10 failures → 15-min lockout). URLs sanitized in logs (`token=***`). Demo mode skips auth (same as other endpoints).
+**Why:** DEC-032 left SSE open because "SSE is server→client only." But SSE connections register agents in the agent registry and receive dispatched messages. An unauthenticated SSE endpoint allowed anyone to impersonate any agent. Now closed.
+**Query param vs header:** EventSource API doesn't support custom headers, so `?token=` is the standard approach. HTTPS encrypts the full URL in transit. Server logs sanitize token values.
 
 ## DEC-072: Dead Letter Queue — Store Only on Failure (Privacy-First)
 **Date:** 2026-02-21
@@ -38,10 +55,11 @@ The `messages` table is removed as a conversation store. Usage/billing stats sta
 **Why:** Developers testing in sandbox need to experience the full send-receive loop. Realistic IDs help catch format assumptions early. The LLM adapter uses raw fetch — zero new dependencies.
 **Config:** `SANDBOX_LLM_ENABLED` (default true), `SANDBOX_LLM_ENDPOINT` (optional), `SANDBOX_REPLY_DELAY_MS` (default 2000ms).
 
-## DEC-070: Master Integration Guide
+## DEC-070: Orchestrator Integration Guide
 **Date:** 2026-02-19
 **What:** Created `docs/INTEGRATION.md` as the single integration reference. Available as: file on disk, rendered web page at `/docs/integration`, raw markdown at `GET /api/v1/integration-guide` (public, no auth). Consolidates info from ONBOARDING, SETUP, and CHANNEL-SETUP docs.
 **Why:** Third-party developers (and their AI agents) need one comprehensive document to build a working integration. The raw markdown endpoint lets LLMs fetch and parse it programmatically.
+**Note:** Originally called "master integration guide" — renamed to "orchestrator integration guide" for inclusive terminology.
 
 ## DEC-066: Session Cookies for Admin, Tokens for APIs
 **Date:** 2026-02-19
@@ -273,9 +291,9 @@ All 7 decisions follow a pattern: **make it configurable, with sensible defaults
 **Why:** Simpler, instantly revocable via DB update (no expiration management), no token parsing needed. Plaintext returned once at provisioning, stored only as hash.
 **Alternatives considered:** JWT (complex, requires expiration + refresh flow), OAuth2 (overkill for MVP).
 
-## DEC-026: Master Token from .env
+## DEC-026: Orchestrator Token from .env
 **Date:** 2026-02-15
-**What:** A `MASTER_SECURITY_TOKEN` in `.env` serves as the admin credential. It can access any agent and perform admin-only operations.
+**What:** An `ORCHESTRATOR_SECURITY_TOKEN` in `.env` serves as the admin credential. It can access any agent and perform admin-only operations.
 **Why:** Solves the chicken-and-egg problem — you need a token before any agent exists. Admin sets it in `.env`, uses it to provision agents, agents get their own tokens.
 
 ## DEC-027: Auth Interception — Express Middleware on POST /messages
@@ -303,14 +321,14 @@ All 7 decisions follow a pattern: **make it configurable, with sensible defaults
 **What:** Provider credentials are encrypted using AES-256-GCM before storage in the `provider_credentials` table. Each record gets a unique random IV. Key from `CREDENTIALS_ENCRYPTION_KEY` in `.env`.
 **Why:** Authenticated encryption prevents both reading and tampering. Unique IV per record prevents pattern analysis. Optional — only encrypts if key is configured.
 
-## DEC-032: SSE Endpoint Not Authenticated
+## DEC-032: ~~SSE Endpoint Not Authenticated~~ → SUPERSEDED by DEC-074
 **Date:** 2026-02-15
-**What:** The `GET /sse` endpoint (SSE connection) is not authenticated. Only `POST /messages` (tool calls) requires a token.
-**Why:** SSE is server→client only (event stream). You can't call tools without `POST /messages`. Sufficient for MVP. Adding SSE auth later is backwards-compatible.
+**What:** ~~The `GET /sse` endpoint (SSE connection) is not authenticated.~~ **Superseded:** SSE is now authenticated with the same 3-tier token validation as POST `/messages`. See DEC-074.
+**Why:** Original reasoning was insufficient — SSE connections register agents and receive dispatched messages, which requires authentication.
 
-## DEC-033: Master Token Required — Warn, Don't Crash
+## DEC-033: Orchestrator Token Required — Warn, Don't Crash
 **Date:** 2026-02-15
-**What:** If `MASTER_SECURITY_TOKEN` is not set and `DEMO_MODE=false`, the server logs a warning but still starts. Tool calls pass through without auth checks.
+**What:** If `ORCHESTRATOR_SECURITY_TOKEN` is not set and `DEMO_MODE=false`, the server logs a warning but still starts. Tool calls pass through without auth checks.
 **Why:** Graceful degradation for development. Don't break existing dev workflows. The warning is visible enough to catch in production.
 
 ## DEC-034: Rate Limit Source — Query usage_logs Table
@@ -331,7 +349,7 @@ All 7 decisions follow a pattern: **make it configurable, with sensible defaults
 
 ## DEC-037: Demo Mode + Admin Skip Rate Limits
 **Date:** 2026-02-15
-**What:** Rate limiting is skipped entirely in demo mode and for admin (master token) requests. Same pattern as auth guards.
+**What:** Rate limiting is skipped entirely in demo mode and for admin (orchestrator token) requests. Same pattern as auth guards.
 **Why:** Zero friction for development and admin operations. Matches the established auth pattern.
 
 ## DEC-038: Metrics — Plain Map, No Library
@@ -401,7 +419,7 @@ All 7 decisions follow a pattern: **make it configurable, with sensible defaults
 
 ## DEC-049: Admin Route Auth — Bearer Token on POST Only
 **Date:** 2026-02-15
-**What:** Admin POST routes require `Authorization: Bearer <masterToken>`. GET /admin/setup stays open. No token configured = allow (graceful degradation).
+**What:** Admin POST routes require `Authorization: Bearer <orchestratorToken>`. GET /admin/setup stays open. No token configured = allow (graceful degradation).
 **Why:** Setup page must be accessible without auth (it's where you set the token). POST routes that modify config need protection. Graceful degradation matches existing patterns (DEC-033).
 **Alternatives considered:** Auth on all routes including GET (rejected — blocks setup page access), session cookies (rejected — adds state management complexity).
 
@@ -413,7 +431,7 @@ All 7 decisions follow a pattern: **make it configurable, with sensible defaults
 
 ## DEC-051: 3-Tier Authentication — Super-Admin, Org-Admin, Agent
 **Date:** 2026-02-16
-**What:** Three auth tiers: master token → super-admin (sees all), org token → org-admin (sees own org), agent token → agent (sees own data). Middleware checks in this order.
+**What:** Three auth tiers: orchestrator token → super-admin (sees all), org token → org-admin (sees own org), agent token → agent (sees own data). Middleware checks in this order.
 **Why:** Platform operators need full access. Org admins manage their org. Agents are scoped to themselves. Clean separation of concerns.
 **Alternatives considered:** Role field on tokens (more complex), JWT with claims (adds dependency, DEC-025 already chose bearer tokens).
 
