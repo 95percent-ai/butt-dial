@@ -740,6 +740,123 @@ export function renderAdminPage(specJson: string): string {
     .service-dot .dot.not_configured { background: var(--text-muted); }
     .service-dot .dot.error { background: var(--error); }
 
+    /* ── Info Tooltips ─────────────────────────────────────────── */
+    .info-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      border: 1px solid var(--text-muted);
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      cursor: help;
+      position: relative;
+      margin-left: 5px;
+      vertical-align: middle;
+      font-style: normal;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .info-icon .info-tooltip {
+      display: none;
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1c2128;
+      color: #e1e4e8;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 400;
+      white-space: nowrap;
+      max-width: 260px;
+      white-space: normal;
+      z-index: 1000;
+      pointer-events: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      line-height: 1.4;
+    }
+
+    .info-icon .info-tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 5px solid transparent;
+      border-top-color: #30363d;
+    }
+
+    .info-icon:hover .info-tooltip { display: block; }
+
+    /* ── Download Button ───────────────────────────────────────── */
+    .download-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.15s;
+      flex-shrink: 0;
+      padding: 0;
+    }
+
+    .download-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .download-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    /* ── Agent Filter Bar ──────────────────────────────────────── */
+    .agent-filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      padding: 0.6rem 1rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    .agent-filter-bar label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .agent-filter-bar select {
+      padding: 0.35rem 0.6rem;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.8rem;
+      font-family: var(--font);
+      cursor: pointer;
+      outline: none;
+      min-width: 180px;
+    }
+
+    .agent-filter-bar select:focus { border-color: var(--border-focus); }
+
     /* ── Activity Table ──────────────────────────────────────────── */
     .activity-table {
       width: 100%;
@@ -1340,6 +1457,10 @@ export function renderAdminPage(specJson: string): string {
         </a>
       </nav>
       <div class="sidebar-bottom">
+        <button id="api-key-btn" title="API Key" onclick="openApiKeyModal()" style="margin-bottom:0.5rem;display:flex;align-items:center;justify-content:center;gap:0.4rem;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
+          <span>API Key</span>
+        </button>
         <button id="theme-toggle" title="Toggle light/dark mode" style="margin-bottom:0.5rem;display:flex;align-items:center;justify-content:center;gap:0.4rem;">
           <svg id="theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
           <svg id="theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
@@ -1349,71 +1470,84 @@ export function renderAdminPage(specJson: string): string {
       </div>
     </aside>
 
+    <!-- API Key Modal -->
+    <div id="api-key-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;" onclick="if(event.target===this)closeApiKeyModal()">
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:2rem;max-width:480px;width:90%;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+          <h3 style="color:var(--text-heading);margin:0;font-size:1.1rem;">Your API Key</h3>
+          <button onclick="closeApiKeyModal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;padding:4px 8px;" title="Close">&times;</button>
+        </div>
+        <div style="position:relative;">
+          <div id="api-key-display" style="background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:12px 14px;font-family:monospace;font-size:13px;color:var(--text-muted);word-break:break-all;min-height:20px;">Loading...</div>
+          <button id="toggle-key-vis-btn" onclick="toggleApiKeyVisibility()" style="position:absolute;top:8px;right:8px;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--text-muted);cursor:pointer;">Show</button>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Use as <code>Authorization: Bearer &lt;key&gt;</code> or <code>?token=&lt;key&gt;</code></p>
+        <div style="display:flex;gap:8px;margin-top:1rem;">
+          <button class="btn btn-sm btn-secondary" onclick="copyApiKey()" id="copy-key-btn" style="font-size:12px;padding:6px 16px;">Copy</button>
+          <button class="btn btn-sm" onclick="regenerateApiKey()" style="font-size:12px;padding:6px 16px;background:var(--warning);color:#fff;">Regenerate</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Content -->
     <main class="content">
       <!-- ── Dashboard Tab ────────────────────────────────────── -->
       <div id="tab-dashboard" class="tab-content active">
         <h1 class="page-title">Dashboard</h1>
 
-        <div class="service-strip" id="service-strip">
-          <div class="service-dot"><span class="dot" id="svc-database"></span> System</div>
-          <div class="service-dot"><span class="dot" id="svc-telephony"></span> Phone &amp; SMS</div>
-          <div class="service-dot"><span class="dot" id="svc-email"></span> Email</div>
-          <div class="service-dot"><span class="dot" id="svc-whatsapp"></span> WhatsApp</div>
-          <div class="service-dot"><span class="dot" id="svc-voice"></span> Voice AI</div>
-          <div class="service-dot"><span class="dot" id="svc-assistant"></span> Assistant</div>
-        </div>
+        <div class="service-strip" id="service-strip"></div>
 
-        <!-- API Key Card -->
-        <div id="api-key-card" class="card" style="margin-bottom:20px;padding:20px 24px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <h3 style="font-size:15px;font-weight:600;color:var(--text-heading);margin:0;">Your API Key</h3>
-            <div style="display:flex;gap:8px;">
-              <button class="btn btn-sm btn-secondary" onclick="copyApiKey()" id="copy-key-btn" style="font-size:12px;padding:4px 12px;">Copy</button>
-              <button class="btn btn-sm" onclick="regenerateApiKey()" style="font-size:12px;padding:4px 12px;background:var(--warning);color:#fff;">Regenerate</button>
-            </div>
-          </div>
-          <div style="background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:10px 14px;font-family:monospace;font-size:13px;color:var(--text-muted);word-break:break-all;user-select:all;" id="api-key-display">Loading...</div>
-          <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Use this key as <code>Authorization: Bearer &lt;key&gt;</code> for REST API calls and <code>?token=&lt;key&gt;</code> for MCP connections.</p>
+        <!-- Agent Filter -->
+        <div class="agent-filter-bar">
+          <label for="agent-filter">Filter by Agent</label>
+          <select id="agent-filter" onchange="onAgentFilterChange()">
+            <option value="">All Agents</option>
+          </select>
         </div>
 
         <div class="health-grid">
           <div class="health-card">
             <div class="big-number" id="stat-uptime">--</div>
-            <div class="card-label">Uptime</div>
+            <div class="card-label">Uptime <span class="info-icon">i<span class="info-tooltip">Server uptime since last restart</span></span></div>
           </div>
           <div class="health-card">
             <div class="big-number" id="stat-agents">0</div>
-            <div class="card-label">Active Agents</div>
+            <div class="card-label">Active Agents <span class="info-icon">i<span class="info-tooltip">Agents with active status</span></span></div>
           </div>
           <div class="health-card">
             <div class="big-number" id="stat-messages">0</div>
-            <div class="card-label">Total Messages</div>
+            <div class="card-label">Total Messages <span class="info-icon">i<span class="info-tooltip">SMS, email, WhatsApp actions logged</span></span></div>
           </div>
           <div class="health-card">
             <div class="big-number" id="stat-calls">0</div>
-            <div class="card-label">Total Calls</div>
+            <div class="card-label">Total Calls <span class="info-icon">i<span class="info-tooltip">Voice calls initiated or received</span></span></div>
           </div>
           <div class="health-card">
             <div class="big-number" id="stat-delivery" style="color:var(--success)">--%</div>
-            <div class="card-label">Delivery Rate</div>
+            <div class="card-label">Delivery Rate <span class="info-icon">i<span class="info-tooltip">Actions delivered successfully (30d)</span></span></div>
           </div>
           <div class="health-card">
             <div class="big-number" id="stat-cost">$0.00</div>
-            <div class="card-label">Total Cost</div>
+            <div class="card-label">Total Cost <span class="info-icon">i<span class="info-tooltip">Cumulative provider costs</span></span></div>
           </div>
         </div>
 
         <div class="charts-grid">
           <div class="chart-card">
-            <h3>Messages Over Time</h3>
+            <h3 style="display:flex;align-items:center;justify-content:space-between;">
+              <span>Messages Over Time <span class="info-icon">i<span class="info-tooltip">Daily message count by channel (30d)</span></span></span>
+              <button class="download-btn" title="Download CSV" onclick="downloadMessagesChart()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </h3>
             <div class="chart-wrapper">
               <canvas id="messages-chart"></canvas>
               <div class="chart-empty" id="messages-chart-empty">No data yet</div>
             </div>
           </div>
           <div class="chart-card">
-            <h3>Cost by Channel <span id="cost-chart-total" style="float:right;color:var(--accent);font-size:0.85rem;font-weight:600"></span></h3>
+            <h3 style="display:flex;align-items:center;justify-content:space-between;">
+              <span>Cost by Channel <span class="info-icon">i<span class="info-tooltip">Cost breakdown by channel (30d)</span></span></span>
+              <span style="display:flex;align-items:center;gap:6px;"><span id="cost-chart-total" style="color:var(--text-muted);font-size:0.85rem;font-weight:600"></span><button class="download-btn" title="Download CSV" onclick="downloadCostByChannel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button></span>
+            </h3>
             <div class="chart-wrapper">
               <canvas id="cost-chart"></canvas>
               <div class="chart-empty" id="cost-chart-empty">No data yet</div>
@@ -1423,8 +1557,7 @@ export function renderAdminPage(specJson: string): string {
 
         <div class="card progress-section">
           <div class="card-header">
-            <span class="card-title">Usage vs Limits</span>
-            <a href="#agents" onclick="switchTab('agents')" style="font-size:0.75rem;color:var(--accent);text-decoration:none;font-weight:600;">Manage Limits</a>
+            <span class="card-title">Usage vs Limits <span class="info-icon">i<span class="info-tooltip">Current usage vs configured limits</span></span></span>
           </div>
           <div class="progress-item">
             <div class="progress-header">
@@ -1450,11 +1583,8 @@ export function renderAdminPage(specJson: string): string {
           <div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.5rem;">Limits are configured per-agent in the Agents tab.</div>
         </div>
 
-        <!-- Billing Note -->
-        <div class="card info-note">
-          This system tracks provider costs and applies markup per agent. It does not process payments.
-          <a href="#agents" onclick="switchTab('agents')">Configure per-agent billing</a>
-        </div>
+        <!-- spacer before analytics -->
+        <div style="height:0.5rem"></div>
 
         <!-- Analytics Section -->
         <div class="card-header" style="margin-top:0.5rem;margin-bottom:0.75rem;">
@@ -1463,20 +1593,26 @@ export function renderAdminPage(specJson: string): string {
 
         <div class="analytics-row analytics-row-3">
           <div class="chart-card">
-            <h3>Delivery Rate</h3>
+            <h3>Delivery Rate <span class="info-icon">i<span class="info-tooltip">Success vs failure rate (30d)</span></span></h3>
             <div class="analytics-big-stat" id="analytics-delivery">
               <div class="chart-empty visible">No data yet</div>
             </div>
           </div>
           <div class="chart-card">
-            <h3>Channel Distribution</h3>
+            <h3 style="display:flex;align-items:center;justify-content:space-between;">
+              <span>Channel Distribution <span class="info-icon">i<span class="info-tooltip">Actions by channel type (30d)</span></span></span>
+              <button class="download-btn" title="Download CSV" onclick="downloadChannelDist()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </h3>
             <div class="chart-wrapper">
               <canvas id="channel-dist-chart"></canvas>
               <div class="chart-empty" id="channel-dist-empty">No data yet</div>
             </div>
           </div>
           <div class="chart-card">
-            <h3>Cost Trend (14d)</h3>
+            <h3 style="display:flex;align-items:center;justify-content:space-between;">
+              <span>Cost Trend (14d) <span class="info-icon">i<span class="info-tooltip">Daily cost trend (14d)</span></span></span>
+              <button class="download-btn" title="Download CSV" onclick="downloadCostTrend()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </h3>
             <div class="chart-wrapper">
               <canvas id="cost-trend-chart"></canvas>
               <div class="chart-empty" id="cost-trend-empty">No data yet</div>
@@ -1486,14 +1622,20 @@ export function renderAdminPage(specJson: string): string {
 
         <div class="analytics-row analytics-row-2">
           <div class="chart-card">
-            <h3>Peak Hours</h3>
+            <h3 style="display:flex;align-items:center;justify-content:space-between;">
+              <span>Peak Hours <span class="info-icon">i<span class="info-tooltip">Busiest hours by action count (30d)</span></span></span>
+              <button class="download-btn" title="Download CSV" onclick="downloadPeakHours()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </h3>
             <div class="chart-wrapper">
               <canvas id="peak-hours-chart"></canvas>
               <div class="chart-empty" id="peak-hours-empty">No data yet</div>
             </div>
           </div>
           <div class="chart-card">
-            <h3>Error Rate (7d)</h3>
+            <h3 style="display:flex;align-items:center;justify-content:space-between;">
+              <span>Error Rate (7d) <span class="info-icon">i<span class="info-tooltip">Daily error percentage (7d)</span></span></span>
+              <button class="download-btn" title="Download CSV" onclick="downloadErrorRate()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </h3>
             <div class="chart-wrapper">
               <canvas id="error-rate-chart"></canvas>
               <div class="chart-empty" id="error-rate-empty">No data yet</div>
@@ -1504,7 +1646,8 @@ export function renderAdminPage(specJson: string): string {
         <!-- Top Contacts -->
         <div class="card">
           <div class="card-header">
-            <span class="card-title">Top Contacts</span>
+            <span class="card-title">Top Contacts <span class="info-icon">i<span class="info-tooltip">Most contacted addresses</span></span></span>
+            <button class="download-btn" title="Download CSV" onclick="downloadTopContacts()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
           </div>
           <table class="contacts-table">
             <thead>
@@ -1524,8 +1667,11 @@ export function renderAdminPage(specJson: string): string {
 
         <div class="card">
           <div class="card-header">
-            <span class="card-title">Recent Activity</span>
-            <input type="text" class="activity-search" id="activity-search" placeholder="Filter activity..." oninput="filterActivity()">
+            <span class="card-title">Recent Activity <span class="info-icon">i<span class="info-tooltip">Latest actions with status and cost</span></span></span>
+            <span style="display:flex;align-items:center;gap:6px;">
+              <input type="text" class="activity-search" id="activity-search" placeholder="Filter activity..." oninput="filterActivity()">
+              <button class="download-btn" title="Download CSV" onclick="downloadRecentActivity()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </span>
           </div>
           <table class="activity-table">
             <thead>
@@ -1545,8 +1691,11 @@ export function renderAdminPage(specJson: string): string {
 
         <div class="card">
           <div class="card-header">
-            <span class="card-title">Recent Alerts</span>
-            <button class="btn btn-sm btn-secondary" onclick="loadDashboard()">Refresh</button>
+            <span class="card-title">Recent Alerts <span class="info-icon">i<span class="info-tooltip">System audit events and alerts</span></span></span>
+            <span style="display:flex;align-items:center;gap:6px;">
+              <button class="btn btn-sm btn-secondary" onclick="loadDashboard()">Refresh</button>
+              <button class="download-btn" title="Download CSV" onclick="downloadRecentAlerts()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg></button>
+            </span>
           </div>
           <table class="alerts-table">
             <thead>
@@ -2029,6 +2178,10 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
     let tierPresets = {};
     let allActivity = [];
     let analyticsTimer = null;
+    let _dashData = null;
+    let _histData = null;
+    let _analyticsData = null;
+    let _topContactsData = null;
 
     /* ── Auth helpers ─────────────────────────────────────────── */
     function authHeaders() {
@@ -2255,21 +2408,56 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
     /* ── Dashboard ────────────────────────────────────────────── */
     /* ── API Key helpers ──────────────────────────────────── */
     let cachedApiKey = null;
+    let apiKeyRevealed = false;
+
+    function maskApiKey(key) {
+      if (!key) return '';
+      return '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+    }
+
+    function renderApiKeyDisplay() {
+      const el = document.getElementById('api-key-display');
+      const btn = document.getElementById('toggle-key-vis-btn');
+      if (!el) return;
+      if (!cachedApiKey) {
+        el.textContent = 'Not available (super-admin or bearer token login)';
+        if (btn) btn.style.display = 'none';
+        return;
+      }
+      el.textContent = apiKeyRevealed ? cachedApiKey : maskApiKey(cachedApiKey);
+      if (btn) { btn.textContent = apiKeyRevealed ? 'Hide' : 'Show'; btn.style.display = ''; }
+    }
 
     async function loadApiKey() {
       try {
         const res = await apiFetch('/admin/api/my-token');
         const data = await res.json();
         cachedApiKey = data.token || null;
-        const el = document.getElementById('api-key-display');
-        if (el) {
-          el.textContent = cachedApiKey || 'Not available (super-admin or bearer token login)';
-        }
+        renderApiKeyDisplay();
       } catch {
         const el = document.getElementById('api-key-display');
         if (el) el.textContent = 'Failed to load';
       }
     }
+
+    window.openApiKeyModal = function() {
+      const modal = document.getElementById('api-key-modal');
+      if (modal) { modal.style.display = 'flex'; }
+      apiKeyRevealed = false;
+      if (!cachedApiKey) { loadApiKey(); } else { renderApiKeyDisplay(); }
+    };
+
+    window.closeApiKeyModal = function() {
+      const modal = document.getElementById('api-key-modal');
+      if (modal) { modal.style.display = 'none'; }
+      apiKeyRevealed = false;
+      renderApiKeyDisplay();
+    };
+
+    window.toggleApiKeyVisibility = function() {
+      apiKeyRevealed = !apiKeyRevealed;
+      renderApiKeyDisplay();
+    };
 
     window.copyApiKey = function() {
       if (!cachedApiKey) return;
@@ -2286,24 +2474,51 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         const data = await res.json();
         if (data.token) {
           cachedApiKey = data.token;
-          const el = document.getElementById('api-key-display');
-          if (el) el.textContent = cachedApiKey;
+          apiKeyRevealed = true;
+          renderApiKeyDisplay();
         }
       } catch (err) {
         alert('Failed to regenerate token');
       }
     };
 
+    function getAgentFilter() {
+      const sel = document.getElementById('agent-filter');
+      return sel ? sel.value : '';
+    }
+
+    function agentQueryParam() {
+      const id = getAgentFilter();
+      return id ? '?agentId=' + encodeURIComponent(id) : '';
+    }
+
+    function onAgentFilterChange() {
+      loadDashboard();
+      loadAnalytics();
+    }
+
     async function loadDashboard() {
       try {
+        const aq = agentQueryParam();
         const [dashRes, histRes, healthRes] = await Promise.all([
-          apiFetch('/admin/api/dashboard'),
-          apiFetch('/admin/api/usage-history'),
+          apiFetch('/admin/api/dashboard' + aq),
+          apiFetch('/admin/api/usage-history' + aq),
           fetch('/health')
         ]);
 
         const dash = await dashRes.json();
         const hist = await histRes.json();
+        _dashData = dash;
+        _histData = hist;
+
+        /* Populate agent dropdown (always from full agent list) */
+        const agentSel = document.getElementById('agent-filter');
+        if (agentSel && dash.agents && dash.agents.length > 0) {
+          const currentVal = agentSel.value;
+          const opts = '<option value="">All Agents</option>' +
+            dash.agents.map(a => '<option value="' + escAttr(a.agent_id) + '"' + (currentVal === a.agent_id ? ' selected' : '') + '>' + escHtml(a.display_name || a.agent_id) + '</option>').join('');
+          agentSel.innerHTML = opts;
+        }
         let health = {};
         try { health = await healthRes.json(); } catch {}
 
@@ -2314,14 +2529,16 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         document.getElementById('stat-uptime').textContent =
           hours > 0 ? hours + 'h ' + mins + 'm' : mins + 'm';
 
-        /* Service status strip */
+        /* Service status strip — render provider names dynamically */
         const svc = dash.services || {};
-        ['database', 'telephony', 'email', 'whatsapp', 'voice', 'assistant'].forEach(s => {
-          const dot = document.getElementById('svc-' + s);
-          if (dot) {
-            dot.className = 'dot ' + (svc[s] || 'not_configured');
-          }
-        });
+        const stripEl = document.getElementById('service-strip');
+        if (stripEl) {
+          stripEl.innerHTML = Object.entries(svc).map(([key, val]) => {
+            const status = typeof val === 'object' ? val.status : val;
+            const provider = typeof val === 'object' && val.provider ? val.provider : key;
+            return '<div class="service-dot" title="' + escAttr(key + ': ' + status) + '"><span class="dot ' + escAttr(status || 'not_configured') + '"></span> ' + escHtml(provider) + '</div>';
+          }).join('');
+        }
 
         /* Health cards */
         const agents = dash.agents || [];
@@ -2394,8 +2611,9 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         renderCostChart(hist.costByChannel || []);
 
         /* Top contacts (non-blocking) */
-        apiFetch('/admin/api/top-contacts').then(r => r.json()).then(d => {
-          renderTopContacts(d.contacts || []);
+        apiFetch('/admin/api/top-contacts' + aq).then(r => r.json()).then(d => {
+          _topContactsData = d.contacts || [];
+          renderTopContacts(_topContactsData);
         }).catch(() => {});
 
       } catch (err) {
@@ -2406,8 +2624,9 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
     /* ── Load Analytics (separate, slower refresh) ─────────── */
     async function loadAnalytics() {
       try {
-        const res = await apiFetch('/admin/api/analytics');
+        const res = await apiFetch('/admin/api/analytics' + agentQueryParam());
         const data = await res.json();
+        _analyticsData = data;
         renderDeliveryRate(data.deliveryRate || {});
         renderChannelDistChart(data.channelDistribution || []);
         renderCostTrendChart(data.costTrend || []);
@@ -2847,6 +3066,78 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
           }
         }
       });
+    }
+
+    /* ── CSV Download Functions ─────────────────────────────── */
+    function downloadCSV(filename, headers, rows) {
+      const escape = (v) => {
+        const s = String(v == null ? '' : v);
+        return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s;
+      };
+      const csv = [headers.map(escape).join(',')].concat(
+        rows.map(r => r.map(escape).join(','))
+      ).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadMessagesChart() {
+      if (!_histData || !_histData.messagesByDay || _histData.messagesByDay.length === 0) return;
+      const rows = _histData.messagesByDay.map(d => [d.day, d.channel || 'unknown', d.count || 0]);
+      downloadCSV('messages-by-day.csv', ['Date', 'Channel', 'Count'], rows);
+    }
+
+    function downloadCostByChannel() {
+      if (!_histData || !_histData.costByChannel || _histData.costByChannel.length === 0) return;
+      const rows = _histData.costByChannel.map(d => [d.channel || 'unknown', d.total_cost || 0, d.count || 0]);
+      downloadCSV('cost-by-channel.csv', ['Channel', 'Total Cost', 'Count'], rows);
+    }
+
+    function downloadTopContacts() {
+      if (!_topContactsData || _topContactsData.length === 0) return;
+      const rows = _topContactsData.map(c => [c.target_address, c.channel, c.action_count || 0, c.total_cost || 0, c.last_activity || '']);
+      downloadCSV('top-contacts.csv', ['Contact', 'Channel', 'Actions', 'Cost', 'Last Activity'], rows);
+    }
+
+    function downloadRecentActivity() {
+      if (!allActivity || allActivity.length === 0) return;
+      const rows = allActivity.map(a => [a.actionType || '', a.channel || '', a.target || '', a.status || '', a.cost || 0, a.timestamp || '']);
+      downloadCSV('recent-activity.csv', ['Type', 'Channel', 'Target', 'Status', 'Cost', 'Timestamp'], rows);
+    }
+
+    function downloadRecentAlerts() {
+      if (!_dashData || !_dashData.alerts || _dashData.alerts.length === 0) return;
+      const rows = _dashData.alerts.map(a => [a.severity || '', a.message || '', a.timestamp || '']);
+      downloadCSV('recent-alerts.csv', ['Severity', 'Message', 'Timestamp'], rows);
+    }
+
+    function downloadChannelDist() {
+      if (!_analyticsData || !_analyticsData.channelDistribution || _analyticsData.channelDistribution.length === 0) return;
+      const rows = _analyticsData.channelDistribution.map(d => [d.channel || 'unknown', d.count || 0]);
+      downloadCSV('channel-distribution.csv', ['Channel', 'Count'], rows);
+    }
+
+    function downloadCostTrend() {
+      if (!_analyticsData || !_analyticsData.costTrend || _analyticsData.costTrend.length === 0) return;
+      const rows = _analyticsData.costTrend.map(d => [d.day || '', d.cost || 0]);
+      downloadCSV('cost-trend.csv', ['Date', 'Cost'], rows);
+    }
+
+    function downloadPeakHours() {
+      if (!_analyticsData || !_analyticsData.peakHours || _analyticsData.peakHours.length === 0) return;
+      const rows = _analyticsData.peakHours.map(d => [d.hour + ':00', d.count || 0]);
+      downloadCSV('peak-hours.csv', ['Hour', 'Count'], rows);
+    }
+
+    function downloadErrorRate() {
+      if (!_analyticsData || !_analyticsData.errorRate || _analyticsData.errorRate.length === 0) return;
+      const rows = _analyticsData.errorRate.map(d => [d.day || '', d.total || 0, d.errors || 0]);
+      downloadCSV('error-rate.csv', ['Date', 'Total', 'Errors'], rows);
     }
 
     /* ── Settings: Load Status ────────────────────────────────── */
