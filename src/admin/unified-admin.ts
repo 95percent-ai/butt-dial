@@ -487,6 +487,7 @@ export function renderAdminPage(specJson: string): string {
     .badge-success { background: var(--success-bg); color: var(--success); border: 1px solid #238636; }
     .badge-error { background: var(--error-bg); color: var(--error); border: 1px solid #da3633; }
     .badge-warning { background: var(--warning-bg); color: var(--warning); border: 1px solid #9e6a03; }
+    .badge-error { background: var(--error-bg); color: var(--error); border: 1px solid var(--error); }
     .badge-info { background: rgba(88, 166, 255, 0.1); color: var(--accent); border: 1px solid rgba(88, 166, 255, 0.3); }
 
     /* ── Dashboard ───────────────────────────────────────────────── */
@@ -1512,7 +1513,7 @@ export function renderAdminPage(specJson: string): string {
           </div>
           <div class="health-card">
             <div class="big-number" id="stat-agents">0</div>
-            <div class="card-label">Active Agents <span class="info-icon">i<span class="info-tooltip">Agents with active status</span></span></div>
+            <div class="card-label">Provisioned Agents <span class="info-icon">i<span class="info-tooltip">Total provisioned agents</span></span></div>
           </div>
           <div class="health-card">
             <div class="big-number" id="stat-messages">0</div>
@@ -2542,8 +2543,7 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
 
         /* Health cards */
         const agents = dash.agents || [];
-        const activeCount = agents.filter(a => a.status === 'active' || a.status === 'ACTIVE').length;
-        document.getElementById('stat-agents').textContent = activeCount || agents.length;
+        document.getElementById('stat-agents').textContent = agents.length;
         document.getElementById('stat-messages').textContent = (dash.usage?.totalMessages || 0).toLocaleString();
         document.getElementById('stat-calls').textContent = (dash.usage?.totalCalls || 0).toLocaleString();
         const drTotal = dash.usage?.deliveryTotal || 0;
@@ -3644,9 +3644,17 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         const limits = agent.limits || {};
         const billing = agent.billing || {};
 
-        const statusBadge = status === 'active' || status === 'ACTIVE'
-          ? '<span class="badge badge-success">Active</span>'
-          : '<span class="badge badge-warning">' + escHtml(status) + '</span>';
+        const blocked = (() => { try { return JSON.parse(agent.blocked_channels || '[]'); } catch { return []; } })();
+        const hasBlocks = blocked.length > 0;
+        let statusBadge;
+        if (status !== 'active' && status !== 'ACTIVE') {
+          statusBadge = '<span class="badge badge-warning">' + escHtml(status) + '</span>';
+        } else if (hasBlocks) {
+          const blockLabel = blocked.includes('*') ? 'all' : blocked.join(', ');
+          statusBadge = '<span class="badge badge-error" title="Blocked: ' + escAttr(blockLabel) + '">Blocked (' + escHtml(blockLabel) + ')</span>';
+        } else {
+          statusBadge = '<span class="badge badge-success">Active</span>';
+        }
 
         html += '<tr onclick="toggleAgentEdit(' + idx + ')" data-agent-idx="' + idx + '">' +
           '<td style="font-family:monospace;font-size:0.8rem;">' + escHtml(agentId) + '</td>' +
@@ -3675,6 +3683,19 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
           '<div class="field"><label>Spend / Month ($)</label><input type="number" step="0.01" id="spend-month-' + idx + '" value="' + (limits.max_spend_per_month || 100) + '"></div>' +
           '</div>' +
           '<div style="margin-top:0.75rem;"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();saveLimits(\\'' + escAttr(agentId) + '\\',' + idx + ')">Save Limits</button></div>' +
+          '<hr style="border-color:var(--border);margin:0.75rem 0;">' +
+          '<h4>Channel Blocking</h4>' +
+          '<div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;">' +
+          '<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;' + (blocked.includes('*') ? 'background:var(--error-bg);color:var(--error);border-color:var(--error);' : '') + '">' +
+          '<input type="checkbox" id="block-all-' + idx + '"' + (blocked.includes('*') ? ' checked' : '') + ' onchange="event.stopPropagation();onBlockAllChange(' + idx + ')" style="accent-color:var(--error);"> Block All</label>' +
+          ['sms','voice','email','whatsapp','line'].map(function(ch) {
+            var isBlocked = blocked.includes('*') || blocked.includes(ch);
+            var disabled = blocked.includes('*') ? ' disabled' : '';
+            return '<label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:4px;' + (isBlocked ? 'background:var(--error-bg);color:var(--error);border-color:var(--error);' : '') + '">' +
+              '<input type="checkbox" id="block-' + ch + '-' + idx + '"' + (isBlocked ? ' checked' : '') + disabled + ' style="accent-color:var(--error);"> ' + ch.charAt(0).toUpperCase() + ch.slice(1) + '</label>';
+          }).join('') +
+          '</div>' +
+          '<div style="margin-top:0.5rem;"><button class="btn btn-sm" onclick="event.stopPropagation();saveBlockedChannels(\\'' + escAttr(agentId) + '\\',' + idx + ')" style="background:var(--error);color:#fff;font-size:0.75rem;">Save Blocks</button></div>' +
           '</div>' +
           /* Right: Billing + Language */
           '<div class="edit-section">' +
@@ -3810,6 +3831,37 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         });
         const data = await res.json();
         showToast(data.success ? 'Language saved: ' + lang : (data.error || 'Failed'), data.success ? 'success' : 'error');
+        if (data.success) loadAgents();
+      } catch {
+        showToast('Network error', 'error');
+      }
+    }
+
+    function onBlockAllChange(idx) {
+      var blockAll = document.getElementById('block-all-' + idx).checked;
+      ['sms','voice','email','whatsapp','line'].forEach(function(ch) {
+        var el = document.getElementById('block-' + ch + '-' + idx);
+        if (el) { el.checked = blockAll; el.disabled = blockAll; }
+      });
+    }
+
+    async function saveBlockedChannels(agentId, idx) {
+      try {
+        var blockAll = document.getElementById('block-all-' + idx).checked;
+        var channels;
+        if (blockAll) {
+          channels = ['*'];
+        } else {
+          channels = ['sms','voice','email','whatsapp','line'].filter(function(ch) {
+            return document.getElementById('block-' + ch + '-' + idx).checked;
+          });
+        }
+        const res = await apiFetch('/admin/api/agents/' + encodeURIComponent(agentId) + '/blocked-channels', {
+          method: 'POST',
+          body: JSON.stringify({ blockedChannels: channels })
+        });
+        const data = await res.json();
+        showToast(data.success ? 'Channel blocks saved' : (data.error || 'Failed'), data.success ? 'success' : 'error');
         if (data.success) loadAgents();
       } catch {
         showToast('Network error', 'error');

@@ -21,11 +21,13 @@ import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } fro
 import { checkTcpaTimeOfDay, checkDnc, checkContentFilter } from "../security/compliance.js";
 import { applyGuardrails, applyDisclosure } from "../security/communication-guardrails.js";
 import { resolveFromNumber } from "../lib/number-pool.js";
+import { isChannelBlocked } from "../lib/channel-blocker.js";
 
 interface AgentRow {
   agent_id: string;
   phone_number: string | null;
   status: string;
+  blocked_channels: string | null;
 }
 
 /** Best-effort timezone from E.164 phone prefix. */
@@ -97,7 +99,7 @@ export function registerMakeCallTool(server: McpServer): void {
       try { requireAgentInOrg(db, agentId, authInfo); } catch (err) { return authErrorResponse(err); }
 
       const rows = db.query<AgentRow>(
-        "SELECT agent_id, phone_number, status FROM agent_channels WHERE agent_id = ?",
+        "SELECT agent_id, phone_number, status, blocked_channels FROM agent_channels WHERE agent_id = ?",
         [agentId]
       );
 
@@ -124,6 +126,14 @@ export function registerMakeCallTool(server: McpServer): void {
         logger.warn("make_call_agent_inactive", { agentId, status: agent.status });
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" is not active (status: ${agent.status})` }) }],
+          isError: true,
+        };
+      }
+
+      if (isChannelBlocked(agent.blocked_channels, "voice")) {
+        logger.warn("make_call_channel_blocked", { agentId });
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" is blocked on voice channel` }) }],
           isError: true,
         };
       }

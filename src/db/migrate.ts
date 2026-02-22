@@ -128,6 +128,13 @@ export function runMigrations(): void {
     // Column already exists
   }
 
+  // Channel blocking — per-channel kill switch without deprovisioning
+  try {
+    db.run("ALTER TABLE agent_channels ADD COLUMN blocked_channels TEXT DEFAULT '[]'");
+  } catch {
+    // Column already exists
+  }
+
   // Consent tracking + country terms
   const consentSchemaPath = path.join(projectRoot, "src", "db", "schema-consent.sql");
   const consentSchema = fs.readFileSync(consentSchemaPath, "utf-8");

@@ -47,6 +47,7 @@ import { assignFromPool, returnToPool } from "../provisioning/whatsapp-sender.js
 import { generateEmailAddress, requestDomainVerification } from "../provisioning/email-identity.js";
 import { generateToken, storeToken, revokeAgentTokens } from "../security/token-manager.js";
 import { appendAuditLog } from "../observability/audit-log.js";
+import { isChannelBlocked } from "../lib/channel-blocker.js";
 
 export const restRouter = Router();
 
@@ -130,7 +131,7 @@ restRouter.post("/send-message", async (req, res) => {
 
     // Look up agent
     const rows = db.query<any>(
-      "SELECT agent_id, phone_number, email_address, whatsapp_sender_sid, line_channel_id, status FROM agent_channels WHERE agent_id = ?",
+      "SELECT agent_id, phone_number, email_address, whatsapp_sender_sid, line_channel_id, status, blocked_channels FROM agent_channels WHERE agent_id = ?",
       [agentId],
     );
     if (rows.length === 0) return errorJson(res, 404, `Agent "${agentId}" not found`);
@@ -139,6 +140,8 @@ restRouter.post("/send-message", async (req, res) => {
 
     // Rate limit
     const actionType = channel === "email" ? "email" : channel === "whatsapp" ? "whatsapp" : channel === "line" ? "line" : "sms";
+
+    if (isChannelBlocked(agent.blocked_channels, actionType)) return errorJson(res, 403, `Agent "${agentId}" is blocked on ${actionType} channel`);
     checkRateLimits(db, agentId, actionType, channel, to, auth);
 
     // Compliance
@@ -213,7 +216,7 @@ restRouter.post("/make-call", async (req, res) => {
     requireAgentInOrg(db, agentId, auth);
 
     const rows = db.query<any>(
-      "SELECT agent_id, phone_number, status FROM agent_channels WHERE agent_id = ?",
+      "SELECT agent_id, phone_number, status, blocked_channels FROM agent_channels WHERE agent_id = ?",
       [agentId],
     );
     if (rows.length === 0) return errorJson(res, 404, `Agent "${agentId}" not found`);
@@ -222,6 +225,7 @@ restRouter.post("/make-call", async (req, res) => {
     const fromNumber = resolveFromNumber(db, agent.phone_number, to, "voice", orgId);
     if (!fromNumber) return errorJson(res, 400, `Agent "${agentId}" has no phone number available`);
     if (agent.status !== "active") return errorJson(res, 400, `Agent "${agentId}" is not active`);
+    if (isChannelBlocked(agent.blocked_channels, "voice")) return errorJson(res, 403, `Agent "${agentId}" is blocked on voice channel`);
 
     checkRateLimits(db, agentId, "voice_call", "voice", to, auth);
 
@@ -305,7 +309,7 @@ restRouter.post("/call-on-behalf", async (req, res) => {
     requireAgentInOrg(db, agentId, auth);
 
     const rows = db.query<any>(
-      "SELECT agent_id, phone_number, status FROM agent_channels WHERE agent_id = ?",
+      "SELECT agent_id, phone_number, status, blocked_channels FROM agent_channels WHERE agent_id = ?",
       [agentId],
     );
     if (rows.length === 0) return errorJson(res, 404, `Agent "${agentId}" not found`);
@@ -314,6 +318,7 @@ restRouter.post("/call-on-behalf", async (req, res) => {
     const fromNumber = resolveFromNumber(db, agent.phone_number, target, "voice", orgId);
     if (!fromNumber) return errorJson(res, 400, `Agent "${agentId}" has no phone number available`);
     if (agent.status !== "active") return errorJson(res, 400, `Agent "${agentId}" is not active`);
+    if (isChannelBlocked(agent.blocked_channels, "voice")) return errorJson(res, 403, `Agent "${agentId}" is blocked on voice channel`);
 
     checkRateLimits(db, agentId, "voice_call", "voice", target, auth);
 
@@ -410,7 +415,7 @@ restRouter.post("/send-voice-message", async (req, res) => {
     requireAgentInOrg(db, agentId, auth);
 
     const rows = db.query<any>(
-      "SELECT agent_id, phone_number, status FROM agent_channels WHERE agent_id = ?",
+      "SELECT agent_id, phone_number, status, blocked_channels FROM agent_channels WHERE agent_id = ?",
       [agentId],
     );
     if (rows.length === 0) return errorJson(res, 404, `Agent "${agentId}" not found`);
@@ -419,6 +424,7 @@ restRouter.post("/send-voice-message", async (req, res) => {
     const fromNumber = resolveFromNumber(db, agent.phone_number, to, "voice", orgId);
     if (!fromNumber) return errorJson(res, 400, `Agent "${agentId}" has no phone number available`);
     if (agent.status !== "active") return errorJson(res, 400, `Agent "${agentId}" is not active`);
+    if (isChannelBlocked(agent.blocked_channels, "voice")) return errorJson(res, 403, `Agent "${agentId}" is blocked on voice channel`);
 
     checkRateLimits(db, agentId, "voice_message", "voice", to, auth);
 

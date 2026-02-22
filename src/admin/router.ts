@@ -20,6 +20,7 @@ import { orgFilter } from "../security/org-scope.js";
 import { getSessionFromCookie, setSessionCookie, COOKIE_MAX_AGE_MS } from "../security/session.js";
 import type { AuthInfo } from "../security/auth-guard.js";
 import { getDemoDashboard, getDemoUsageHistory, getDemoTopContacts, getDemoAnalytics } from "./demo-data.js";
+import { buildBlockedChannels } from "../lib/channel-blocker.js";
 import { DISCLAIMER_VERSION } from "../public/disclaimer-page.js";
 
 export const adminRouter = Router();
@@ -177,23 +178,30 @@ adminRouter.get("/admin/api/dashboard", adminAuth, disclaimerGate, (req: Request
     const authInfo = getAuthInfo(req);
     const of = orgFilter(authInfo);
 
-    // Active agents (org-scoped)
+    // Agent filter — optional per-agent filtering
+    const agentId = req.query.agentId as string | undefined;
+    const af = agentId ? { clause: " AND agent_id = ?", params: [agentId] } : { clause: "", params: [] as unknown[] };
+    // Combined org + agent filter for data queries
+    const dataClause = of.clause + af.clause;
+    const dataParams = [...of.params, ...af.params];
+
+    // Active agents (org-scoped — never filtered by agentId so dropdown stays full)
     const agents = db.query<Record<string, unknown>>(
       `SELECT agent_id, display_name, phone_number, email_address, status FROM agent_channels WHERE 1=1${of.clause} ORDER BY provisioned_at DESC LIMIT 50`,
       of.params
     );
 
-    // Usage summary (org-scoped) — count from usage_logs instead of messages
+    // Usage summary (org-scoped + agent-filtered) — count from usage_logs instead of messages
     const totalMessages = db.query<{ cnt: number }>(
-      `SELECT COUNT(*) as cnt FROM usage_logs WHERE 1=1${of.clause}`,
-      of.params
+      `SELECT COUNT(*) as cnt FROM usage_logs WHERE 1=1${dataClause}`,
+      dataParams
     );
 
     let _todayActions = 0;
     try {
       const ta = db.query<{ cnt: number }>(
-        `SELECT COUNT(*) as cnt FROM usage_logs WHERE created_at >= datetime('now', '-1 day')${of.clause}`,
-        of.params
+        `SELECT COUNT(*) as cnt FROM usage_logs WHERE created_at >= datetime('now', '-1 day')${dataClause}`,
+        dataParams
       );
       _todayActions = ta[0]?.cnt || 0;
     } catch {}
@@ -201,67 +209,67 @@ adminRouter.get("/admin/api/dashboard", adminAuth, disclaimerGate, (req: Request
     let _totalCost = 0;
     try {
       const tc2 = db.query<{ total: number }>(
-        `SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE 1=1${of.clause}`,
-        of.params
+        `SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE 1=1${dataClause}`,
+        dataParams
       );
       _totalCost = tc2[0]?.total || 0;
     } catch {}
 
-    // Spend today (org-scoped)
+    // Spend today
     let _spendToday = 0;
     try {
       const st = db.query<{ total: number }>(
-        `SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE created_at >= date('now', 'start of day')${of.clause}`,
-        of.params
+        `SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE created_at >= date('now', 'start of day')${dataClause}`,
+        dataParams
       );
       _spendToday = st[0]?.total || 0;
     } catch {}
 
-    // Spend this month (org-scoped)
+    // Spend this month
     let _spendThisMonth = 0;
     try {
       const sm = db.query<{ total: number }>(
-        `SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE created_at >= date('now', 'start of month')${of.clause}`,
-        of.params
+        `SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE created_at >= date('now', 'start of month')${dataClause}`,
+        dataParams
       );
       _spendThisMonth = sm[0]?.total || 0;
     } catch {}
 
-    // Call stats (org-scoped)
+    // Call stats
     let _totalCalls = 0;
     let _todayCalls = 0;
     try {
       const tc = db.query<{ cnt: number }>(
-        `SELECT COUNT(*) as cnt FROM call_logs WHERE 1=1${of.clause}`,
-        of.params
+        `SELECT COUNT(*) as cnt FROM call_logs WHERE 1=1${dataClause}`,
+        dataParams
       );
       _totalCalls = tc[0]?.cnt || 0;
     } catch {}
     try {
       const tdc = db.query<{ cnt: number }>(
-        `SELECT COUNT(*) as cnt FROM call_logs WHERE created_at >= date('now', 'start of day')${of.clause}`,
-        of.params
+        `SELECT COUNT(*) as cnt FROM call_logs WHERE created_at >= date('now', 'start of day')${dataClause}`,
+        dataParams
       );
       _todayCalls = tdc[0]?.cnt || 0;
     } catch {}
 
-    // Pending dead letters (org-scoped)
+    // Pending dead letters
     let _pendingVoicemails = 0;
     try {
       const pv = db.query<{ cnt: number }>(
-        `SELECT COUNT(*) as cnt FROM dead_letters WHERE status = 'pending'${of.clause}`,
-        of.params
+        `SELECT COUNT(*) as cnt FROM dead_letters WHERE status = 'pending'${dataClause}`,
+        dataParams
       );
       _pendingVoicemails = pv[0]?.cnt || 0;
     } catch {}
 
-    // Delivery rate (30d) for top card — based on usage_logs
+    // Delivery rate (30d)
     let _deliveryTotal = 0;
     let _deliverySuccess = 0;
     try {
       const dr = db.query<{ total: number; success: number }>(
-        `SELECT COUNT(*) as total, SUM(CASE WHEN status IN ('sent','delivered','received','completed','queued') THEN 1 ELSE 0 END) as success FROM usage_logs WHERE created_at >= datetime('now', '-30 days')${of.clause}`,
-        of.params
+        `SELECT COUNT(*) as total, SUM(CASE WHEN status IN ('sent','delivered','received','completed','queued') THEN 1 ELSE 0 END) as success FROM usage_logs WHERE created_at >= datetime('now', '-30 days')${dataClause}`,
+        dataParams
       );
       if (dr[0]) { _deliveryTotal = dr[0].total || 0; _deliverySuccess = dr[0].success || 0; }
     } catch {}
@@ -270,8 +278,8 @@ adminRouter.get("/admin/api/dashboard", adminAuth, disclaimerGate, (req: Request
     let _limits: { maxActionsDay?: number; maxSpendDay?: number; maxSpendMonth?: number } = {};
     try {
       const lim = db.query<{ mad: number; msd: number; msm: number }>(
-        `SELECT MAX(max_actions_per_day) as mad, MAX(max_spend_per_day) as msd, MAX(max_spend_per_month) as msm FROM spending_limits WHERE 1=1${of.clause}`,
-        of.params
+        `SELECT MAX(max_actions_per_day) as mad, MAX(max_spend_per_day) as msd, MAX(max_spend_per_month) as msm FROM spending_limits WHERE 1=1${dataClause}`,
+        dataParams
       );
       if (lim[0]) {
         _limits = {
@@ -282,24 +290,24 @@ adminRouter.get("/admin/api/dashboard", adminAuth, disclaimerGate, (req: Request
       }
     } catch {}
 
-    // Recent activity feed (org-scoped)
+    // Recent activity feed
     let recentActivity: Array<Record<string, unknown>> = [];
     try {
       recentActivity = db.query<Record<string, unknown>>(
-        `SELECT action_type, channel, target_address, status, cost, created_at FROM usage_logs WHERE 1=1${of.clause} ORDER BY created_at DESC LIMIT 15`,
-        of.params
+        `SELECT action_type, channel, target_address, status, cost, created_at FROM usage_logs WHERE 1=1${dataClause} ORDER BY created_at DESC LIMIT 15`,
+        dataParams
       );
     } catch {}
 
-    // Service status — inline provider checks
+    // Service status — inline provider checks with provider names
     const providerStatus = getProviderStatus();
     const services = {
-      database: "ok" as string,
-      telephony: providerStatus.twilio?.configured ? "ok" : "not_configured",
-      email: providerStatus.resend?.configured ? "ok" : "not_configured",
-      whatsapp: providerStatus.twilio?.configured ? "ok" : "not_configured",
-      voice: (providerStatus.elevenlabs?.configured || providerStatus.voice?.configured) ? "ok" : "not_configured",
-      assistant: config.anthropicApiKey ? "ok" : "not_configured",
+      database: { status: "ok" as string, provider: "SQLite" },
+      telephony: { status: providerStatus.twilio?.configured ? "ok" : "not_configured", provider: "Twilio" },
+      email: { status: providerStatus.resend?.configured ? "ok" : "not_configured", provider: "Resend" },
+      whatsapp: { status: providerStatus.twilio?.configured ? "ok" : "not_configured", provider: "GreenAPI" },
+      voice: { status: (providerStatus.elevenlabs?.configured || providerStatus.voice?.configured) ? "ok" : "not_configured", provider: providerStatus.voice?.ttsProvider === "openai" ? "OpenAI" : providerStatus.voice?.ttsProvider === "edge-tts" ? "Edge TTS" : "ElevenLabs" },
+      assistant: { status: config.anthropicApiKey ? "ok" : "not_configured", provider: "Anthropic" },
     };
 
     // Recent audit log entries as "alerts" (org-scoped)
@@ -348,7 +356,7 @@ adminRouter.get("/admin/api/dashboard", adminAuth, disclaimerGate, (req: Request
       })),
     });
   } catch (err) {
-    res.json({ agents: [], usage: { totalMessages: 0, todayActions: 0, totalCost: 0, spendToday: 0, spendThisMonth: 0, totalCalls: 0, todayCalls: 0, pendingVoicemails: 0, deliveryTotal: 0, deliverySuccess: 0, limits: { maxActionsDay: 500, maxSpendDay: 10, maxSpendMonth: 100 } }, services: { database: "ok", telephony: "not_configured", email: "not_configured", whatsapp: "not_configured", voice: "not_configured" }, recentActivity: [], alerts: [] });
+    res.json({ agents: [], usage: { totalMessages: 0, todayActions: 0, totalCost: 0, spendToday: 0, spendThisMonth: 0, totalCalls: 0, todayCalls: 0, pendingVoicemails: 0, deliveryTotal: 0, deliverySuccess: 0, limits: { maxActionsDay: 500, maxSpendDay: 10, maxSpendMonth: 100 } }, services: { database: { status: "ok", provider: "SQLite" }, telephony: { status: "not_configured", provider: "Twilio" }, email: { status: "not_configured", provider: "Resend" }, whatsapp: { status: "not_configured", provider: "GreenAPI" }, voice: { status: "not_configured", provider: "ElevenLabs" }, assistant: { status: "not_configured", provider: "Anthropic" } }, recentActivity: [], alerts: [] });
   }
 });
 
@@ -444,26 +452,30 @@ adminRouter.get("/admin/api/usage-history", adminAuth, (req: Request, res: Respo
   try {
     const db = getProvider("database");
     const of = orgFilter(getAuthInfo(req));
+    const agentId = req.query.agentId as string | undefined;
+    const af = agentId ? { clause: " AND agent_id = ?", params: [agentId] } : { clause: "", params: [] as unknown[] };
+    const dataClause = of.clause + af.clause;
+    const dataParams = [...of.params, ...af.params];
 
-    // Actions by day and channel (last 30 days, org-scoped) — from usage_logs
+    // Actions by day and channel (last 30 days)
     let messagesByDay: Array<Record<string, unknown>> = [];
     try {
       messagesByDay = db.query<Record<string, unknown>>(
         `SELECT date(created_at) as day, channel, COUNT(*) as count
-         FROM usage_logs WHERE created_at >= date('now', '-30 days')${of.clause}
+         FROM usage_logs WHERE created_at >= date('now', '-30 days')${dataClause}
          GROUP BY day, channel ORDER BY day`,
-        of.params
+        dataParams
       );
     } catch {}
 
-    // Cost by channel (last 30 days, org-scoped)
+    // Cost by channel (last 30 days)
     let costByChannel: Array<Record<string, unknown>> = [];
     try {
       costByChannel = db.query<Record<string, unknown>>(
         `SELECT channel, COALESCE(SUM(cost), 0) as total_cost, COUNT(*) as count
-         FROM usage_logs WHERE created_at >= date('now', '-30 days')${of.clause}
+         FROM usage_logs WHERE created_at >= date('now', '-30 days')${dataClause}
          GROUP BY channel`,
-        of.params
+        dataParams
       );
     } catch {}
 
@@ -479,15 +491,19 @@ adminRouter.get("/admin/api/top-contacts", adminAuth, (req: Request, res: Respon
   try {
     const db = getProvider("database");
     const of = orgFilter(getAuthInfo(req));
+    const agentId = req.query.agentId as string | undefined;
+    const af = agentId ? { clause: " AND agent_id = ?", params: [agentId] } : { clause: "", params: [] as unknown[] };
+    const dataClause = of.clause + af.clause;
+    const dataParams = [...of.params, ...af.params];
 
     let contacts: Array<Record<string, unknown>> = [];
     try {
       contacts = db.query<Record<string, unknown>>(
         `SELECT target_address, channel, COUNT(*) as action_count, COALESCE(SUM(cost), 0) as total_cost, MAX(created_at) as last_activity
-         FROM usage_logs WHERE target_address IS NOT NULL AND target_address != ''${of.clause}
+         FROM usage_logs WHERE target_address IS NOT NULL AND target_address != ''${dataClause}
          GROUP BY target_address, channel
          ORDER BY action_count DESC LIMIT 10`,
-        of.params
+        dataParams
       );
     } catch {}
 
@@ -503,6 +519,10 @@ adminRouter.get("/admin/api/analytics", adminAuth, (req: Request, res: Response)
   try {
     const db = getProvider("database");
     const of = orgFilter(getAuthInfo(req));
+    const agentId = req.query.agentId as string | undefined;
+    const af = agentId ? { clause: " AND agent_id = ?", params: [agentId] } : { clause: "", params: [] as unknown[] };
+    const dataClause = of.clause + af.clause;
+    const dataParams = [...of.params, ...af.params];
 
     // Delivery rate (30d)
     let deliveryRate: Record<string, unknown> = {};
@@ -512,8 +532,8 @@ adminRouter.get("/admin/api/analytics", adminAuth, (req: Request, res: Response)
            COUNT(*) as total,
            SUM(CASE WHEN status IN ('ok','success','delivered','sent') THEN 1 ELSE 0 END) as success,
            SUM(CASE WHEN status NOT IN ('ok','success','delivered','sent') THEN 1 ELSE 0 END) as failed
-         FROM usage_logs WHERE created_at >= date('now', '-30 days')${of.clause}`,
-        of.params
+         FROM usage_logs WHERE created_at >= date('now', '-30 days')${dataClause}`,
+        dataParams
       );
       if (dr[0]) deliveryRate = { total: dr[0].total || 0, success: dr[0].success || 0, failed: dr[0].failed || 0 };
     } catch {}
@@ -523,9 +543,9 @@ adminRouter.get("/admin/api/analytics", adminAuth, (req: Request, res: Response)
     try {
       channelDistribution = db.query<Record<string, unknown>>(
         `SELECT channel, COUNT(*) as count
-         FROM usage_logs WHERE created_at >= date('now', '-30 days')${of.clause}
+         FROM usage_logs WHERE created_at >= date('now', '-30 days')${dataClause}
          GROUP BY channel ORDER BY count DESC`,
-        of.params
+        dataParams
       );
     } catch {}
 
@@ -534,9 +554,9 @@ adminRouter.get("/admin/api/analytics", adminAuth, (req: Request, res: Response)
     try {
       peakHours = db.query<Record<string, unknown>>(
         `SELECT CAST(strftime('%H', created_at) AS INTEGER) as hour, COUNT(*) as count
-         FROM usage_logs WHERE created_at >= date('now', '-30 days')${of.clause}
+         FROM usage_logs WHERE created_at >= date('now', '-30 days')${dataClause}
          GROUP BY hour ORDER BY hour`,
-        of.params
+        dataParams
       );
     } catch {}
 
@@ -545,9 +565,9 @@ adminRouter.get("/admin/api/analytics", adminAuth, (req: Request, res: Response)
     try {
       costTrend = db.query<Record<string, unknown>>(
         `SELECT date(created_at) as day, COALESCE(SUM(cost), 0) as cost
-         FROM usage_logs WHERE created_at >= date('now', '-14 days')${of.clause}
+         FROM usage_logs WHERE created_at >= date('now', '-14 days')${dataClause}
          GROUP BY day ORDER BY day`,
-        of.params
+        dataParams
       );
     } catch {}
 
@@ -558,9 +578,9 @@ adminRouter.get("/admin/api/analytics", adminAuth, (req: Request, res: Response)
         `SELECT date(created_at) as day,
                 COUNT(*) as total,
                 SUM(CASE WHEN status NOT IN ('ok','success','delivered','sent') THEN 1 ELSE 0 END) as errors
-         FROM usage_logs WHERE created_at >= date('now', '-7 days')${of.clause}
+         FROM usage_logs WHERE created_at >= date('now', '-7 days')${dataClause}
          GROUP BY day ORDER BY day`,
-        of.params
+        dataParams
       );
     } catch {}
 
@@ -588,7 +608,7 @@ adminRouter.get("/admin/api/agents", adminAuth, (req: Request, res: Response) =>
     const of = orgFilter(getAuthInfo(req));
 
     const agents = db.query<Record<string, unknown>>(
-      `SELECT agent_id, display_name, phone_number, email_address, whatsapp_sender_sid, status, language
+      `SELECT agent_id, display_name, phone_number, email_address, whatsapp_sender_sid, status, language, blocked_channels
        FROM agent_channels WHERE 1=1${of.clause} ORDER BY provisioned_at DESC LIMIT 100`,
       of.params
     );
@@ -686,6 +706,26 @@ adminRouter.post("/admin/api/agents/:agentId/language", adminAuth, (req: Request
     const db = getProvider("database");
     db.run("UPDATE agent_channels SET language = ? WHERE agent_id = ?", [language, agentId]);
     res.json({ success: true, agentId, language });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
+/** Update agent blocked channels */
+adminRouter.post("/admin/api/agents/:agentId/blocked-channels", adminAuth, (req: Request, res: Response) => {
+  try {
+    const agentId = String(req.params.agentId);
+    const { blockedChannels } = req.body ?? {};
+
+    if (!Array.isArray(blockedChannels)) {
+      res.status(400).json({ success: false, error: "blockedChannels must be an array" });
+      return;
+    }
+
+    const value = buildBlockedChannels(blockedChannels);
+    const db = getProvider("database");
+    db.run("UPDATE agent_channels SET blocked_channels = ? WHERE agent_id = ?", [value, agentId]);
+    res.json({ success: true, agentId, blockedChannels: JSON.parse(value) });
   } catch (err) {
     res.status(500).json({ success: false, error: String(err instanceof Error ? err.message : err) });
   }

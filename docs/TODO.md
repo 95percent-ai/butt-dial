@@ -1,4 +1,4 @@
-<!-- version: 5.1 | updated: 2026-02-21 -->
+<!-- version: 5.2 | updated: 2026-02-21 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -466,3 +466,6 @@ Dead-simple developer onboarding: register → get token → test in sandbox →
 - [ ] Link to provider terms — section listing Twilio ToS, Resend ToS, Vonage ToS, etc.
 - [ ] 3-step onboarding visual on landing page — Connect → Configure → Communicate
 - [ ] Trust/stats section on landing page — agents connected, messages sent, countries supported
+- [ ] Markup per account / per channel / per agent — admin UI + config for SaaS markup rules
+- [ ] Payment processing — evaluate Stripe integration for customer billing
+- [ ] Per-agent billing admin UI — tier/markup management in dashboard

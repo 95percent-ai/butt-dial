@@ -10,11 +10,13 @@ import type { Request, Response } from "express";
 import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
+import { isChannelBlocked } from "../lib/channel-blocker.js";
 
 interface AgentRow {
   agent_id: string;
   line_channel_id: string | null;
   status: string;
+  blocked_channels: string | null;
 }
 
 interface LineEvent {
@@ -90,7 +92,7 @@ export async function handleInboundLine(req: Request, res: Response): Promise<vo
 
     // Look up agent
     const rows = db.query<AgentRow>(
-      "SELECT agent_id, line_channel_id, status FROM agent_channels WHERE agent_id = ?",
+      "SELECT agent_id, line_channel_id, status, blocked_channels FROM agent_channels WHERE agent_id = ?",
       [agentId]
     );
 
@@ -104,6 +106,12 @@ export async function handleInboundLine(req: Request, res: Response): Promise<vo
 
     if (agent.status !== "active") {
       logger.warn("inbound_line_agent_inactive", { agentId, status: agent.status });
+      res.status(200).send(""); // LINE expects 200
+      return;
+    }
+
+    if (isChannelBlocked(agent.blocked_channels, "line")) {
+      logger.warn("inbound_line_channel_blocked", { agentId });
       res.status(200).send(""); // LINE expects 200
       return;
     }

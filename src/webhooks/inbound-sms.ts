@@ -12,11 +12,13 @@ import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 import { revokeConsentByAddress } from "../tools/consent-tools.js";
 import { addToDnc } from "../security/compliance.js";
+import { isChannelBlocked } from "../lib/channel-blocker.js";
 
 interface AgentRow {
   agent_id: string;
   phone_number: string | null;
   status: string;
+  blocked_channels: string | null;
 }
 
 interface TwilioSmsBody {
@@ -51,7 +53,7 @@ export async function handleInboundSms(req: Request, res: Response): Promise<voi
 
   // Look up agent by matching the To phone number
   const rows = db.query<AgentRow>(
-    "SELECT agent_id, phone_number, status FROM agent_channels WHERE agent_id = ? AND phone_number = ?",
+    "SELECT agent_id, phone_number, status, blocked_channels FROM agent_channels WHERE agent_id = ? AND phone_number = ?",
     [agentId, body.To]
   );
 
@@ -65,6 +67,12 @@ export async function handleInboundSms(req: Request, res: Response): Promise<voi
 
   if (agent.status !== "active") {
     logger.warn("inbound_sms_agent_inactive", { agentId, status: agent.status });
+    res.status(200).send("<Response/>");
+    return;
+  }
+
+  if (isChannelBlocked(agent.blocked_channels, "sms")) {
+    logger.warn("inbound_sms_channel_blocked", { agentId });
     res.status(200).send("<Response/>");
     return;
   }

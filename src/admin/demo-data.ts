@@ -37,6 +37,7 @@ export function getDemoDashboard() {
         phone_number: "+1 (555) 234-5678",
         email_address: "reception@acme-demo.com",
         status: "active",
+        blocked_channels: "[]",
       },
       {
         agent_id: "support-bot",
@@ -44,6 +45,7 @@ export function getDemoDashboard() {
         phone_number: "+1 (555) 234-5679",
         email_address: "support@acme-demo.com",
         status: "active",
+        blocked_channels: "[]",
       },
       {
         agent_id: "sales-agent",
@@ -51,6 +53,7 @@ export function getDemoDashboard() {
         phone_number: "+1 (555) 234-5680",
         email_address: "sales@acme-demo.com",
         status: "active",
+        blocked_channels: "[]",
       },
     ],
 
@@ -73,12 +76,12 @@ export function getDemoDashboard() {
     },
 
     services: {
-      database: "ok",
-      telephony: "ok",
-      email: "ok",
-      whatsapp: "ok",
-      voice: "ok",
-      assistant: "ok",
+      database: { status: "ok", provider: "SQLite" },
+      telephony: { status: "ok", provider: "Twilio" },
+      email: { status: "ok", provider: "Resend" },
+      whatsapp: { status: "ok", provider: "GreenAPI" },
+      voice: { status: "ok", provider: "ElevenLabs" },
+      assistant: { status: "ok", provider: "Anthropic" },
     },
 
     recentActivity: [

@@ -10,11 +10,13 @@ import type { Request, Response } from "express";
 import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
+import { isChannelBlocked } from "../lib/channel-blocker.js";
 
 interface AgentRow {
   agent_id: string;
   email_address: string | null;
   status: string;
+  blocked_channels: string | null;
 }
 
 interface ResendEmailPayload {
@@ -52,7 +54,7 @@ export async function handleInboundEmail(req: Request, res: Response): Promise<v
 
   // Look up agent by matching the email address
   const rows = db.query<AgentRow>(
-    "SELECT agent_id, email_address, status FROM agent_channels WHERE agent_id = ? AND email_address = ?",
+    "SELECT agent_id, email_address, status, blocked_channels FROM agent_channels WHERE agent_id = ? AND email_address = ?",
     [agentId, payload.data.to]
   );
 
@@ -66,6 +68,12 @@ export async function handleInboundEmail(req: Request, res: Response): Promise<v
 
   if (agent.status !== "active") {
     logger.warn("inbound_email_agent_inactive", { agentId, status: agent.status });
+    res.status(200).json({ ok: true });
+    return;
+  }
+
+  if (isChannelBlocked(agent.blocked_channels, "email")) {
+    logger.warn("inbound_email_channel_blocked", { agentId });
     res.status(200).json({ ok: true });
     return;
   }

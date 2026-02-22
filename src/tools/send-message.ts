@@ -18,6 +18,7 @@ import { metrics } from "../observability/metrics.js";
 import { preSendCheck } from "../security/compliance.js";
 import { resolveFromNumber } from "../lib/number-pool.js";
 import { maybeTriggerSandboxReply } from "../lib/sandbox-responder.js";
+import { isChannelBlocked } from "../lib/channel-blocker.js";
 
 interface AgentRow {
   agent_id: string;
@@ -26,6 +27,7 @@ interface AgentRow {
   whatsapp_sender_sid: string | null;
   line_channel_id: string | null;
   status: string;
+  blocked_channels: string | null;
 }
 
 /** Queue a failed outbound send to the dead_letters table */
@@ -88,7 +90,7 @@ export function registerSendMessageTool(server: McpServer): void {
       }
 
       const rows = db.query<AgentRow>(
-        "SELECT agent_id, phone_number, email_address, whatsapp_sender_sid, line_channel_id, status FROM agent_channels WHERE agent_id = ?",
+        "SELECT agent_id, phone_number, email_address, whatsapp_sender_sid, line_channel_id, status, blocked_channels FROM agent_channels WHERE agent_id = ?",
         [agentId]
       );
 
@@ -111,6 +113,14 @@ export function registerSendMessageTool(server: McpServer): void {
       }
 
       const actionType = channel === "sms" ? "sms" : channel === "email" ? "email" : channel === "whatsapp" ? "whatsapp" : "line";
+
+      if (isChannelBlocked(agent.blocked_channels, actionType)) {
+        logger.warn("send_message_channel_blocked", { agentId, channel: actionType });
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" is blocked on ${actionType} channel` }) }],
+          isError: true,
+        };
+      }
       try {
         checkRateLimits(db, agentId, actionType, channel, to, extra.authInfo as AuthInfo | undefined);
       } catch (err) {

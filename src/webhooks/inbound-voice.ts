@@ -18,11 +18,13 @@ import { getCallConfig } from "./voice-sessions.js";
 import { getAgentLanguage } from "../lib/translator.js";
 import { applyDisclosure } from "../security/communication-guardrails.js";
 import type { BridgeRoute } from "../providers/interfaces.js";
+import { isChannelBlocked } from "../lib/channel-blocker.js";
 
 interface AgentRow {
   agent_id: string;
   phone_number: string | null;
   status: string;
+  blocked_channels: string | null;
 }
 
 interface TwilioVoiceBody {
@@ -64,7 +66,7 @@ export async function handleInboundVoice(req: Request, res: Response): Promise<v
 
   // Look up agent
   const rows = db.query<AgentRow>(
-    "SELECT agent_id, phone_number, status FROM agent_channels WHERE agent_id = ? AND phone_number = ?",
+    "SELECT agent_id, phone_number, status, blocked_channels FROM agent_channels WHERE agent_id = ? AND phone_number = ?",
     [agentId, body.To]
   );
 
@@ -78,6 +80,12 @@ export async function handleInboundVoice(req: Request, res: Response): Promise<v
 
   if (agent.status !== "active") {
     logger.warn("inbound_voice_agent_inactive", { agentId, status: agent.status });
+    res.status(200).type("text/xml").send("<Response/>");
+    return;
+  }
+
+  if (isChannelBlocked(agent.blocked_channels, "voice")) {
+    logger.warn("inbound_voice_channel_blocked", { agentId });
     res.status(200).type("text/xml").send("<Response/>");
     return;
   }

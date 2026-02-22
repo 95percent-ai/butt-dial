@@ -1,13 +1,13 @@
 /**
- * Dry test for Admin Dashboard (updated for dashboard overhaul).
+ * Dry test for Admin Dashboard (updated for dashboard enhancements).
  *
  * Tests:
- * 1. Dashboard page loads with renamed service labels
- * 2. Dashboard data API returns JSON with assistant field
- * 3. Dashboard data has agents, usage, alerts
+ * 1. Dashboard page loads with key UI elements
+ * 2. New features: info tooltips, download buttons, agent filter
+ * 3. Dashboard data API returns JSON with provider names in services
  * 4. Top contacts API works
  * 5. Analytics API works
- * 6. New UI elements present (billing note, manage limits, search, analytics)
+ * 6. Agent filter query param works
  * 7. Regression: setup, swagger, health
  *
  * Prerequisites:
@@ -32,29 +32,43 @@ function assert(condition: boolean, label: string) {
 }
 
 async function main() {
-  console.log("\n=== Admin Dashboard overhaul dry test ===\n");
+  console.log("\n=== Admin Dashboard dry test ===\n");
+
+  // Login to get session cookie for page tests
+  let cookie = "";
+  try {
+    const loginRes = await fetch(`${SERVER_URL}/auth/api/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "inon@95percent.ai", password: "12345678" }),
+    });
+    const setCookie = loginRes.headers.get("set-cookie");
+    if (setCookie) cookie = setCookie.split(";")[0];
+  } catch {}
+
+  const pageHeaders: Record<string, string> = cookie ? { Cookie: cookie } : {};
 
   // ------------------------------------------------------------------
-  // 1. Dashboard page loads with new labels
+  // 1. Dashboard page loads with key elements
   // ------------------------------------------------------------------
-  console.log("Test: dashboard page + renamed labels");
-  const dashRes = await fetch(`${SERVER_URL}/admin/dashboard`, { redirect: "follow" });
+  console.log("Test: dashboard page loads");
+  const dashRes = await fetch(`${SERVER_URL}/admin`, { headers: pageHeaders, redirect: "follow" });
   assert(dashRes.status === 200, "Dashboard returns 200");
   const dashHtml = await dashRes.text();
   assert(dashHtml.includes("Butt-Dial"), "HTML has title");
-  assert(dashHtml.includes("System"), "Has System service label (was Database)");
-  assert(dashHtml.includes("Phone &amp; SMS") || dashHtml.includes("Phone"), "Has Phone & SMS label (was Telephony)");
-  assert(dashHtml.includes("Voice AI"), "Has Voice AI label (was Voice)");
-  assert(dashHtml.includes("svc-assistant"), "Has Assistant service dot");
-  assert(dashHtml.includes("Active Agents") || dashHtml.includes("Agents"), "Has agents section");
-  assert(dashHtml.includes("Usage") || dashHtml.includes("usage"), "Has usage section");
+  assert(dashHtml.includes("Provisioned Agents") || dashHtml.includes("Agents"), "Has agents section");
+  assert(dashHtml.includes("service-strip"), "Has service status strip");
 
   // ------------------------------------------------------------------
-  // 2. New UI elements
+  // 2. New UI features
   // ------------------------------------------------------------------
-  console.log("\nTest: new UI elements");
-  assert(dashHtml.includes("Manage Limits"), "Has Manage Limits link");
-  assert(dashHtml.includes("does not process payments"), "Has billing note");
+  console.log("\nTest: new UI features");
+  assert(dashHtml.includes("info-icon"), "Has info tooltip icons");
+  assert(dashHtml.includes("info-tooltip"), "Has tooltip content");
+  assert(dashHtml.includes("download-btn"), "Has download buttons");
+  assert(dashHtml.includes("agent-filter"), "Has agent filter dropdown");
+  assert(dashHtml.includes("downloadCSV"), "Has CSV download function");
+  assert(dashHtml.includes("onAgentFilterChange"), "Has agent filter change handler");
   assert(dashHtml.includes("activity-search"), "Has activity search input");
   assert(dashHtml.includes("No data yet"), "Has chart empty state placeholder");
   assert(dashHtml.includes("Top Contacts"), "Has top contacts section");
@@ -66,7 +80,7 @@ async function main() {
   assert(dashHtml.includes("Cost Trend"), "Has cost trend chart");
 
   // ------------------------------------------------------------------
-  // 3. Dashboard data API with assistant
+  // 3. Dashboard data API with provider names
   // ------------------------------------------------------------------
   console.log("\nTest: dashboard data API");
   const dataRes = await fetch(`${SERVER_URL}/admin/api/dashboard`);
@@ -82,9 +96,12 @@ async function main() {
 
   assert(Array.isArray(data.alerts), "Has alerts array");
 
-  const services = data.services as Record<string, unknown>;
+  const services = data.services as Record<string, Record<string, unknown>>;
   assert(services != null, "Has services object");
-  assert(typeof services.assistant === "string", "Services has assistant field");
+  assert(typeof services.assistant === "object" && services.assistant.provider === "Anthropic", "Services assistant has provider name");
+  assert(typeof services.database === "object" && services.database.provider === "SQLite", "Services database has provider name");
+  assert(typeof services.telephony === "object" && services.telephony.provider === "Twilio", "Services telephony has provider name");
+  assert(typeof services.email === "object" && services.email.provider === "Resend", "Services email has provider name");
 
   // ------------------------------------------------------------------
   // 4. Top contacts API
@@ -109,10 +126,24 @@ async function main() {
   assert(Array.isArray(analytics.errorRate), "Has errorRate array");
 
   // ------------------------------------------------------------------
-  // 6. Demo mode banner
+  // 6. Agent filter query param
   // ------------------------------------------------------------------
-  console.log("\nTest: demo mode banner");
-  assert(dashHtml.includes("DEMO MODE"), "Dashboard shows demo mode banner");
+  console.log("\nTest: agent filter query param");
+  const filteredRes = await fetch(`${SERVER_URL}/admin/api/dashboard?agentId=main-receptionist`);
+  assert(filteredRes.status === 200, "Filtered dashboard API returns 200");
+  const filteredData = await filteredRes.json() as Record<string, unknown>;
+  assert(Array.isArray(filteredData.agents), "Filtered response still has agents array");
+  // Agents list should NOT be filtered (always full for dropdown)
+  assert((filteredData.agents as Array<unknown>).length >= 1, "Agents list not filtered by agentId");
+
+  const filteredHistRes = await fetch(`${SERVER_URL}/admin/api/usage-history?agentId=main-receptionist`);
+  assert(filteredHistRes.status === 200, "Filtered usage-history returns 200");
+
+  const filteredAnalyticsRes = await fetch(`${SERVER_URL}/admin/api/analytics?agentId=main-receptionist`);
+  assert(filteredAnalyticsRes.status === 200, "Filtered analytics returns 200");
+
+  const filteredContactsRes = await fetch(`${SERVER_URL}/admin/api/top-contacts?agentId=main-receptionist`);
+  assert(filteredContactsRes.status === 200, "Filtered top-contacts returns 200");
 
   // ------------------------------------------------------------------
   // 7. Regression tests

@@ -11,11 +11,13 @@ import type { Request, Response } from "express";
 import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
+import { isChannelBlocked } from "../lib/channel-blocker.js";
 
 interface AgentRow {
   agent_id: string;
   whatsapp_sender_sid: string | null;
   status: string;
+  blocked_channels: string | null;
 }
 
 interface TwilioWhatsAppBody {
@@ -58,7 +60,7 @@ export async function handleInboundWhatsApp(req: Request, res: Response): Promis
 
   // Look up agent by matching the WhatsApp sender SID
   const rows = db.query<AgentRow>(
-    "SELECT agent_id, whatsapp_sender_sid, status FROM agent_channels WHERE agent_id = ? AND whatsapp_sender_sid = ?",
+    "SELECT agent_id, whatsapp_sender_sid, status, blocked_channels FROM agent_channels WHERE agent_id = ? AND whatsapp_sender_sid = ?",
     [agentId, toNumber]
   );
 
@@ -72,6 +74,12 @@ export async function handleInboundWhatsApp(req: Request, res: Response): Promis
 
   if (agent.status !== "active") {
     logger.warn("inbound_whatsapp_agent_inactive", { agentId, status: agent.status });
+    res.status(200).send("<Response/>");
+    return;
+  }
+
+  if (isChannelBlocked(agent.blocked_channels, "whatsapp")) {
+    logger.warn("inbound_whatsapp_channel_blocked", { agentId });
     res.status(200).send("<Response/>");
     return;
   }

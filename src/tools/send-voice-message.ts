@@ -15,11 +15,13 @@ import { requireAgentInOrg } from "../security/org-scope.js";
 import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 import { resolveFromNumber } from "../lib/number-pool.js";
+import { isChannelBlocked } from "../lib/channel-blocker.js";
 
 interface AgentRow {
   agent_id: string;
   phone_number: string | null;
   status: string;
+  blocked_channels: string | null;
 }
 
 export function registerSendVoiceMessageTool(server: McpServer): void {
@@ -61,7 +63,7 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
 
       // 1. Look up the agent
       const rows = db.query<AgentRow>(
-        "SELECT agent_id, phone_number, status FROM agent_channels WHERE agent_id = ?",
+        "SELECT agent_id, phone_number, status, blocked_channels FROM agent_channels WHERE agent_id = ?",
         [agentId]
       );
 
@@ -89,6 +91,14 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
         logger.warn("send_voice_agent_inactive", { agentId, status: agent.status });
         return {
           content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" is not active (status: ${agent.status})` }) }],
+          isError: true,
+        };
+      }
+
+      if (isChannelBlocked(agent.blocked_channels, "voice")) {
+        logger.warn("send_voice_channel_blocked", { agentId });
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: `Agent "${agentId}" is blocked on voice channel` }) }],
           isError: true,
         };
       }
