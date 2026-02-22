@@ -1479,7 +1479,7 @@ export function renderAdminPage(specJson: string): string {
           <button onclick="closeApiKeyModal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;padding:4px 8px;" title="Close">&times;</button>
         </div>
         <div style="position:relative;">
-          <div id="api-key-display" style="background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:12px 14px;font-family:monospace;font-size:13px;color:var(--text-muted);word-break:break-all;min-height:20px;">Loading...</div>
+          <div id="api-key-display" style="background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:12px 60px 12px 14px;font-family:monospace;font-size:13px;color:var(--text-muted);word-break:break-all;min-height:20px;">Loading...</div>
           <button id="toggle-key-vis-btn" onclick="toggleApiKeyVisibility()" style="position:absolute;top:8px;right:8px;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:11px;color:var(--text-muted);cursor:pointer;">Show</button>
         </div>
         <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">Use as <code>Authorization: Bearer &lt;key&gt;</code> or <code>?token=&lt;key&gt;</code></p>
