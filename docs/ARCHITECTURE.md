@@ -1,3 +1,5 @@
+<!-- version: 1.0 | updated: 2026-02-22 -->
+
 # System Architecture
 
 ## Overview
@@ -63,8 +65,8 @@ Inbound Call → Webhook → ConversationRelay TwiML → WebSocket
 ```
 Inbound Call → WebSocket → Agent not connected
   → Built-in Anthropic LLM as answering machine
-  → Collects message → Stores voicemail
-  → Agent reconnects → Voicemail dispatched
+  → Collects message → Stores in dead_letters
+  → Agent reconnects → Dead letters dispatched
 ```
 
 ## Key Components
@@ -97,7 +99,8 @@ Resolves config → adapter instances. Demo mode → mock adapters.
 - **voice-sessions.ts** — In-memory store for active call configs
 - **voice-ws.ts** — WebSocket handler (setup/prompt/interrupt/dtmf)
 - **agent-registry.ts** — Maps agentId → MCP Server session for sampling
-- **voicemail-dispatcher.ts** — Dispatches voicemails on agent reconnect
+- **message-dispatcher.ts** — Dispatches dead letters on agent reconnect
+- **channel-blocker.ts** — Per-channel kill switch (parse, check, build blocked channels)
 
 ### Observability
 - **metrics.ts** — Prometheus counters/gauges
@@ -108,7 +111,7 @@ Resolves config → adapter instances. Demo mode → mock adapters.
 ## Database Schema
 
 ```
-agent_channels ←── messages
+agent_channels ←── dead_letters (failed/undeliverable messages)
      │              call_logs
      │              usage_logs
      │              spending_limits
@@ -120,7 +123,7 @@ agent_channels ←── messages
      ├── provider_credentials
      ├── dnc_list
      ├── erasure_requests
-     ├── voicemail_messages
+     ├── otp_codes
      ├── audit_log
      ├── contact_consent
      ├── country_terms_accepted

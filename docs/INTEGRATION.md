@@ -1,4 +1,4 @@
-<!-- version: 1.2 | updated: 2026-02-21 -->
+<!-- version: 1.3 | updated: 2026-02-22 -->
 
 # Butt-Dial MCP — Integration Guide
 

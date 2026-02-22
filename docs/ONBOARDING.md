@@ -1,4 +1,4 @@
-<!-- version: 1.0 | updated: 2026-02-15 -->
+<!-- version: 1.1 | updated: 2026-02-22 -->
 
 # Onboarding Guide — AgentOS Communication MCP Server
 
@@ -80,13 +80,13 @@ Your AI agent connects to this server using MCP over SSE (Server-Sent Events).
 ### 1. Connect via SSE
 
 ```
-GET http://localhost:3100/sse?agentId=your-agent-id
+GET http://localhost:3100/sse?token=<your-agent-token>&agentId=your-agent-id
 ```
 
-The `agentId` parameter registers your agent session. This is required for:
+The `token` parameter is required for authentication. The `agentId` parameter registers your agent session. This is required for:
 - Receiving inbound messages routed to your agent
 - Voice call routing (caller talks to *your* agent, not a generic bot)
-- Voicemail dispatch (messages collected while you were offline)
+- Dead letter dispatch (messages collected while you were offline)
 
 ### 2. Send Messages via POST
 
@@ -105,9 +105,9 @@ Once connected, your MCP client can list available tools. The server exposes 11 
 ### 4. Handle Inbound Messages
 
 When someone texts, emails, or calls your agent's number, the server:
-1. Receives the webhook from Twilio/Resend
-2. Stores the message in the database
-3. Routes it to your connected agent session
+1. Receives the webhook from Twilio/Resend/LINE
+2. Forwards it to your connected agent session (or stores as dead letter if offline)
+3. Checks channel blocking — blocked channels are silently dropped
 
 For voice calls, the server sends the caller's speech as text to your agent via MCP sampling (`server.createMessage()`), and your agent responds with text that gets spoken back to the caller.
 
@@ -118,7 +118,7 @@ For voice calls, the server sends the caller's speech as text to your agent via 
 | Tool | Description |
 |------|-------------|
 | `comms_send_message` | Send SMS, email, or WhatsApp message |
-| `comms_get_messages` | List messages for an agent (filter by channel, direction, date) |
+| `comms_get_waiting_messages` | Fetch messages that failed delivery (dead letters) — fetch = acknowledge |
 | `comms_send_voice_message` | Send a pre-recorded TTS voice call |
 | `comms_make_call` | Start a live AI voice conversation |
 | `comms_provision_channels` | Provision phone number, WhatsApp, email for a new agent |
@@ -138,6 +138,7 @@ For voice calls, the server sends the caller's speech as text to your agent via 
 | **Voice** | Twilio Account SID + Auth Token | Same Twilio creds as SMS. ElevenLabs optional (for TTS) |
 | **Email** | Resend API Key | Need a verified domain for sending |
 | **WhatsApp** | Twilio Account SID + Auth Token | Needs WhatsApp sender (sandbox or verified number) |
+| **LINE** | LINE Channel Secret + Access Token | Needs LINE Official Account |
 
 ---
 
@@ -147,11 +148,11 @@ When a call comes in:
 
 1. **Agent connected?** The server routes the caller's speech to your agent via MCP sampling. Your agent decides what to say. The response is spoken back via Twilio ConversationRelay.
 
-2. **Agent not connected?** The server activates the **answering machine** — a built-in fallback (using Anthropic Claude, if configured) that apologizes, collects the caller's message and preferences, and stores everything as a voicemail.
+2. **Agent not connected?** The server activates the **answering machine** — a built-in fallback (using Anthropic Claude, if configured) that apologizes, collects the caller's message and preferences, and stores everything in the dead letters queue.
 
 3. **No Anthropic key?** The server plays a hard-coded "unavailable" message.
 
-When your agent reconnects, all voicemails collected while offline are automatically dispatched as notifications.
+When your agent reconnects, all dead letters collected while offline are automatically dispatched as notifications.
 
 **Key point:** Your agent is the brain. The server is the telephone. During live calls, the server never generates AI responses — it only relays between the caller and your agent.
 

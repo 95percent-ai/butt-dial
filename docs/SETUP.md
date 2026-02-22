@@ -1,3 +1,5 @@
+<!-- version: 1.0 | updated: 2026-02-22 -->
+
 # Setup Guide
 
 ## Prerequisites
@@ -51,8 +53,7 @@ WEBHOOK_BASE_URL=https://your-domain.com
 
 # Data retention (days, 0 = keep forever)
 DATA_RETENTION_ENABLED=true
-DATA_RETENTION_MESSAGES_DAYS=90
-DATA_RETENTION_VOICEMAIL_DAYS=30
+DEAD_LETTER_RETENTION_DAYS=7
 DATA_RETENTION_OTP_DAYS=1
 ```
 

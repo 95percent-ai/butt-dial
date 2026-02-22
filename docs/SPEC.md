@@ -1,4 +1,4 @@
-<!-- version: 2.1 | updated: 2026-02-21 -->
+<!-- version: 2.2 | updated: 2026-02-22 -->
 
 # AgentOS Communication MCP Server — Spec
 
@@ -220,7 +220,7 @@ Agents communicate with each other through the same channels used for humans. Ag
 ## Database
 
 Standard SQL schema (adapted per provider). Key tables:
-- `agent_channels` — channel mappings per agent
+- `agent_channels` — channel mappings per agent (includes `blocked_channels` JSON for per-channel kill switch)
 - `dead_letters` — failed/undeliverable messages (stored only on failure, auto-purged)
 - `call_logs` — call records
 - `whatsapp_pool` — pre-provisioned WhatsApp senders
@@ -294,7 +294,7 @@ Full schema in `docs/references/PROJECT-SCOPE.md`.
 - **WhatsApp alerts** to admin on critical events (CRITICAL/HIGH/MEDIUM/LOW severity)
 - **Swagger UI** at `/admin/api-docs` — interactive API explorer
 - **Setup wizard** at `/admin/setup` — 7-step guided configuration
-- **Dashboard** at `/admin/dashboard` — live agent status, costs, alerts
+- **Dashboard** at `/admin/dashboard` — provisioned agents, costs, alerts, channel blocking controls
 - **Demo mode** (`DEMO_MODE=true`) — mock providers, no real costs
 
 ---

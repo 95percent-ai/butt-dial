@@ -1,6 +1,15 @@
-<!-- version: 4.3 | updated: 2026-02-21 -->
+<!-- version: 4.4 | updated: 2026-02-22 -->
 
 # Decisions Log
+
+## DEC-077: Agent Channel Blocking — Per-Channel Kill Switch
+**Date:** 2026-02-22
+**What:** Added `blocked_channels` JSON column to `agent_channels`. Admins can block specific channels (sms, voice, email, whatsapp, line) or all channels with `["*"]` without deprovisioning the agent.
+**Why:** Agents can spiral out of control — spamming a channel, getting flagged by Twilio, or running up costs. The admin needs a quick kill switch per-channel without losing the agent's configuration (phone number, email address, etc.). Deprovisioning is too destructive.
+**Alternatives considered:**
+- Boolean `is_blocked` flag per agent — too coarse, can't block just one channel
+- Separate `blocked_channels` table — extra complexity, JSON column on the existing row is simpler
+- Admin-only MCP tool — not needed, admin UI toggle + REST endpoint is sufficient
 
 ## DEC-076: Landing Page — "Orchestrate AI Agent Communication"
 **Date:** 2026-02-21

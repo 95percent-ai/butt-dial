@@ -1,6 +1,33 @@
-<!-- version: 4.1 | updated: 2026-02-21 -->
+<!-- version: 4.2 | updated: 2026-02-22 -->
 
 # Changelog
+
+## Session 27 — 2026-02-22
+
+### Phase 28 — Agent Channel Blocking (DEC-077)
+- Added `blocked_channels` column to `agent_channels` table (JSON: `[]`, `["sms","voice"]`, or `["*"]`)
+- Created `src/lib/channel-blocker.ts` — three pure functions: `parseBlockedChannels`, `isChannelBlocked`, `buildBlockedChannels`
+- New endpoint: `POST /admin/api/agents/:agentId/blocked-channels` — set/unset blocked channels
+- Updated `GET /admin/api/agents` to include `blocked_channels` in response
+- Blocked-channel checks added to all 12 communication paths:
+  - 3 MCP tools: `send-message`, `make-call`, `send-voice-message` — return error
+  - 4 REST endpoints: same tools via REST API — return 403
+  - 5 inbound webhooks: `sms`, `voice`, `whatsapp`, `email`, `line` — silently return 200
+- Dashboard: renamed "Active Agents" stat → "Provisioned Agents" (shows total count)
+- Dashboard: agent status badge shows "Blocked (all)" or "Blocked (sms, voice)" in red when channels blocked
+- Dashboard: agent edit panel has channel blocking toggles (Block All + per-channel: sms, voice, email, whatsapp, line)
+- Demo data: all agents include `blocked_channels: "[]"`
+- New test: `tests/channel-blocking.test.ts` — 41 assertions (unit + API + UI)
+- Updated `tests/dashboard.test.ts` — "Provisioned Agents" assertion
+
+### API Key Modal Fixes
+- Fixed modal not opening: `\n` inside downloadCSV template literal was interpreted as real newline, breaking the entire `<script>` block. Changed to `\\n`.
+- Fixed Show/Hide button overlap: added right padding (60px) to token display so text doesn't flow under the button.
+
+### Documentation Update
+- Updated all user-facing docs to reflect current state: channel blocking, dead letter queue, SSE auth, orchestrator rename
+- Added version headers to 7 docs files that were missing them
+- Updated old references: `comms_get_messages` → `comms_get_waiting_messages`, `messages` table → `dead_letters`, `voicemail_messages` → removed
 
 ## Session 26 — 2026-02-21
 

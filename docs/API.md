@@ -1,3 +1,5 @@
+<!-- version: 1.0 | updated: 2026-02-22 -->
+
 # REST API Reference
 
 The server exposes both MCP (SSE) and REST endpoints.
@@ -42,19 +44,21 @@ Privacy Policy page. Public, no auth required.
 ## MCP Transport
 
 ### GET /sse
-Server-Sent Events endpoint for MCP client connections.
+Server-Sent Events endpoint for MCP client connections. **Requires authentication** (DEC-074).
 
 ```
 GET /sse?token=<agent-security-token>&agentId=<agent-id>
 ```
 
 Query params:
-- `token` — Security token for authentication
-- `agentId` — Agent ID to register for voice routing
+- `token` (required) — Security token for authentication. Supports orchestrator, org, or agent tokens.
+- `agentId` (optional) — Agent ID to register for voice routing. If an agent token is used, `agentId` must match the token's bound agent.
+
+Auth validation: same 3-tier logic as POST `/messages`. Brute-force tracking applies (10 failures → 15-min lockout). Demo mode skips auth.
 
 ## Webhooks
 
-All webhooks are POST endpoints that receive provider callbacks.
+All webhooks are POST endpoints that receive provider callbacks. Inbound messages on blocked channels return silently (HTTP 200 with empty body).
 
 ### POST /webhooks/:agentId/sms
 Twilio inbound SMS. Validates `X-Twilio-Signature`.
@@ -67,6 +71,9 @@ Twilio inbound WhatsApp. Validates `X-Twilio-Signature`.
 
 ### POST /webhooks/:agentId/voice
 Inbound voice call. Returns ConversationRelay TwiML.
+
+### POST /webhooks/:agentId/line
+Inbound LINE message. Validates `x-line-signature` via HMAC-SHA256.
 
 ### POST /webhooks/:agentId/outbound-voice
 Outbound voice call webhook. Query param: `session=<sessionId>`.
@@ -83,11 +90,11 @@ WebSocket for live AI voice conversation. Handles:
 
 ## Admin Endpoints
 
+### GET /admin
+Unified admin panel (dashboard, agents, settings, API docs, simulator). Requires session cookie or Bearer token.
+
 ### GET /admin/setup
 Web-based setup wizard UI.
-
-### GET /admin/dashboard
-Admin dashboard UI (agent status, costs, alerts).
 
 ### GET /admin/api-docs
 Swagger UI with interactive API explorer.
@@ -99,7 +106,55 @@ Raw OpenAPI 3.1 specification as JSON.
 Provider configuration status (masked values).
 
 ### GET /admin/api/dashboard
-Dashboard data API. Returns agents, usage summary, alerts.
+Dashboard data API. Returns agents (with `blocked_channels`), usage summary (totalMessages, todayActions, totalCost), services with provider names, and alerts.
+
+Query params:
+- `agentId` (optional) — Filter usage data by agent (agents list always returns full set for dropdown).
+
+### GET /admin/api/agents
+List all provisioned agents. Returns `agents` array with channel mappings, status, and `blocked_channels`.
+
+### GET /admin/api/analytics
+Analytics data: delivery rate, channel distribution, peak hours, error rate, cost trend.
+
+Query params:
+- `agentId` (optional) — Filter by agent.
+
+### GET /admin/api/top-contacts
+Top contacts by message volume.
+
+Query params:
+- `agentId` (optional) — Filter by agent.
+
+### GET /admin/api/usage-history
+Usage history data for charts.
+
+Query params:
+- `agentId` (optional) — Filter by agent.
+
+### GET /admin/api/my-token
+Returns the current user's API token (from session cookie).
+
+### POST /admin/api/regenerate-token
+Generates a new API token for the current user.
+
+### GET /admin/api/my-org
+Returns the caller's organization info (role, org ID, name, mode, status, agent count, pool capacity).
+
+### POST /admin/api/agents/:agentId/blocked-channels
+Set blocked channels for an agent. Requires session cookie or Bearer token.
+
+Body:
+```json
+{"blockedChannels": ["sms", "voice"]}
+```
+
+Valid channels: `sms`, `voice`, `email`, `whatsapp`, `line`. Use `["*"]` to block all channels. Use `[]` to unblock all.
+
+Response:
+```json
+{"success": true, "agentId": "my-agent", "blockedChannels": ["sms", "voice"]}
+```
 
 ### POST /admin/api/test/twilio
 Test Twilio credentials. Body: `{"accountSid":"...","authToken":"..."}`.

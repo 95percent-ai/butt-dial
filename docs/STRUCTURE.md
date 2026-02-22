@@ -1,4 +1,4 @@
-<!-- version: 3.7 | updated: 2026-02-19 -->
+<!-- version: 3.8 | updated: 2026-02-22 -->
 
 # Project Structure
 
@@ -18,7 +18,8 @@ agentos-comms-mcp/
 │   │   ├── types.ts              # Shared TypeScript types
 │   │   ├── logger.ts             # Structured JSON logger (no PII)
 │   │   ├── agent-registry.ts     # Maps agentId → MCP server session (for voice routing)
-│   │   ├── voicemail-dispatcher.ts # Dispatches pending voicemails when agent reconnects via SSE
+│   │   ├── message-dispatcher.ts # Dispatches pending dead letters when agent reconnects via SSE
+│   │   ├── channel-blocker.ts   # Per-channel kill switch: parseBlockedChannels, isChannelBlocked, buildBlockedChannels
 │   │   ├── billing.ts            # Billing module: markup, tiers, spending alerts
 │   │   ├── audio-converter.ts    # PCM ↔ mu-law 8kHz converter + WAV headers
 │   │   ├── llm-adapter.ts         # Plug-and-play LLM interface (Anthropic, OpenAI, custom endpoint)
@@ -27,7 +28,7 @@ agentos-comms-mcp/
 │   │   ├── translator.ts         # Language detection + translation via Anthropic API (Claude Haiku)
 │   │   ├── number-pool.ts       # Smart number routing: country detection + pool selection for outbound calls/SMS
 │   │   ├── country-compliance.ts # Per-country regulatory rules engine (37 countries: TCPA, GDPR, CASL, etc.)
-│   │   └── data-retention.ts   # Configurable auto-purge for messages, logs, voicemail, OTP, consent
+│   │   └── data-retention.ts   # Configurable auto-purge for dead letters, logs, OTP, consent
 │   │
 │   ├── providers/                # Pluggable provider adapters
 │   │   ├── interfaces.ts         # All 8 provider interfaces
@@ -55,11 +56,11 @@ agentos-comms-mcp/
 │   │
 │   ├── db/                       # Database layer
 │   │   ├── client.ts             # SQLite provider (implements IDBProvider)
-│   │   ├── schema.sql            # Core tables (agent_channels, messages, agent_pool, whatsapp_pool)
+│   │   ├── schema.sql            # Core tables (agent_channels, agent_pool, whatsapp_pool)
 │   │   ├── schema-security.sql   # Security tables (agent_tokens, provider_credentials, spending_limits)
 │   │   ├── schema-rate-limiting.sql # Rate limiting table (usage_logs with indexes)
 │   │   ├── schema-observability.sql # Audit log table with hash chain
-│   │   ├── schema-voicemail.sql  # Voicemail messages table (answering machine storage)
+│   │   ├── schema-dead-letters.sql # Dead letters table (failed/undeliverable messages across all channels)
 │   │   ├── schema-call-logs.sql # Call logs table (duration, cost, recording, transfer)
 │   │   ├── schema-compliance.sql # DNC list + GDPR erasure requests tables
 │   │   ├── schema-billing.sql   # Billing config table
@@ -75,13 +76,14 @@ agentos-comms-mcp/
 │   │   ├── inbound-sms.ts        # POST /webhooks/:agentId/sms — Twilio inbound SMS handler
 │   │   ├── inbound-email.ts      # POST /webhooks/:agentId/email — Resend inbound email handler
 │   │   ├── inbound-whatsapp.ts   # POST /webhooks/:agentId/whatsapp — Twilio inbound WhatsApp handler
+│   │   ├── inbound-line.ts       # POST /webhooks/:agentId/line — LINE inbound message handler
 │   │   ├── inbound-voice.ts      # POST /webhooks/:agentId/voice + outbound-voice — ConversationRelay TwiML
 │   │   ├── voice-ws.ts           # WebSocket handler for live voice (agent sampling → answering machine → fallback)
 │   │   └── voice-sessions.ts     # Shared in-memory store for voice call configs + conversations (mode: agent/answering-machine)
 │   │
 │   ├── tools/                    # MCP tools
 │   │   ├── send-message.ts       # comms_send_message (SMS + email + WhatsApp via provider routing)
-│   │   ├── get-messages.ts       # comms_get_messages (list messages for an agent)
+│   │   ├── waiting-messages.ts   # comms_get_waiting_messages (fetch dead letters — fetch = acknowledge)
 │   │   ├── send-voice-message.ts # comms_send_voice_message (TTS → call → play audio)
 │   │   ├── make-call.ts          # comms_make_call (outbound AI voice call via ConversationRelay)
 │   │   ├── provision-channels.ts # comms_provision_channels (buy number, assign WhatsApp, generate email)
@@ -169,7 +171,8 @@ agentos-comms-mcp/
 │   ├── advanced-voice.test.ts # Dry test for advanced voice (transfer, call logs, STT, audio) — 26 assertions
 │   ├── provider-adapters.test.ts # Dry test for provider adapters (Vonage, S3, R2, Turso, Convex) — 42 assertions
 │   ├── swagger.test.ts        # Dry test for Swagger UI + OpenAPI spec — 29 assertions
-│   ├── dashboard.test.ts      # Dry test for admin dashboard — 17 assertions
+│   ├── dashboard.test.ts      # Dry test for admin dashboard — 48 assertions
+│   ├── channel-blocking.test.ts # Dry test for channel blocking — 41 assertions
 │   ├── compliance.test.ts     # Dry test for compliance (content filter, DNC, TCPA, GDPR) — 27 assertions
 │   ├── billing.test.ts        # Dry test for billing & markup — 36 assertions
 │   ├── documentation.test.ts  # Dry test for documentation completeness — 52 assertions

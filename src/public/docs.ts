@@ -18,9 +18,12 @@ Butt-Dial is an open-source [MCP](https://modelcontextprotocol.io/) server that 
 ## Key Features
 
 - **Phone Calls** — Real-time AI voice conversations with ConversationRelay
-- **SMS** — Two-way text messaging with full history
+- **SMS** — Two-way text messaging
 - **Email** — Transactional and conversational, with HTML and attachments
 - **WhatsApp** — Rich messaging via WhatsApp Business
+- **LINE** — LINE Official Account messaging
+- **Channel Blocking** — Per-channel kill switch without deprovisioning
+- **Dead Letter Queue** — Failed messages stored and dispatched on reconnect
 - **Pluggable Providers** — Swap Twilio for Vonage, ElevenLabs for OpenAI TTS, etc.
 - **Multi-Tenant** — Per-agent billing, rate limiting, and compliance
 - **Self-Hosted** — Your data, your servers. Deploy anywhere.
@@ -162,10 +165,13 @@ Once connected, your MCP client can list and call all available tools. See [MCP 
 
 When someone texts, emails, or calls your agent's number:
 
-1. The server receives the webhook from Twilio/Resend
+1. The server receives the webhook from Twilio/Resend/LINE
 2. Validates the signature
-3. Stores metadata in the database
-4. Routes it to your connected agent session
+3. Checks channel blocking — blocked channels are silently dropped
+4. Forwards the message to your connected agent session
+5. If the agent is offline, stores it in the dead letter queue
+
+When your agent reconnects, call \`comms_get_waiting_messages\` to fetch any messages that arrived while offline. Fetching acknowledges them automatically.
 
 For voice calls, the server relays the caller's speech as text to your agent via MCP sampling, and your agent's text response is spoken back to the caller.
 
@@ -219,10 +225,10 @@ Send SMS, email, or WhatsApp message.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| \`agentId\` | string | Yes | Agent ID |
+| \`agentId\` | string | No | Auto-detected from agent token |
 | \`to\` | string | Yes | Recipient (E.164 phone or email) |
 | \`body\` | string | Yes | Message text |
-| \`channel\` | enum | No | \`sms\`, \`email\`, or \`whatsapp\` (default: sms) |
+| \`channel\` | enum | No | \`sms\`, \`email\`, \`whatsapp\`, or \`line\` (default: sms) |
 | \`subject\` | string | No | Email subject (required for email) |
 | \`html\` | string | No | HTML body for email |
 | \`templateId\` | string | No | WhatsApp template SID |
@@ -251,12 +257,13 @@ Initiate an outbound AI voice call.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| \`agentId\` | string | Yes | Agent ID |
+| \`agentId\` | string | No | Auto-detected from agent token |
 | \`to\` | string | Yes | Phone number in E.164 format |
 | \`systemPrompt\` | string | No | AI instructions for this call |
 | \`greeting\` | string | No | First thing the AI says |
 | \`voice\` | string | No | TTS voice ID |
 | \`language\` | string | No | Language code (e.g. en-US) |
+| \`recipientTimezone\` | string | No | IANA timezone (e.g. America/New_York). Auto-detected from phone prefix if omitted |
 
 \`\`\`json
 {
@@ -277,24 +284,41 @@ Generate TTS audio and deliver via phone call.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| \`agentId\` | string | Yes | Agent ID |
+| \`agentId\` | string | No | Auto-detected from agent token |
 | \`to\` | string | Yes | Phone number in E.164 |
 | \`text\` | string | Yes | Text to speak |
 | \`voice\` | string | No | TTS voice ID |
 
 ---
 
-## comms_get_messages
+## comms_get_waiting_messages
 
-Retrieve message history for an agent.
+Fetch messages that couldn't be delivered while your agent was offline (dead letters). Fetching automatically acknowledges them — no separate step needed.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | \`agentId\` | string | Yes | Agent ID |
-| \`channel\` | enum | No | Filter by channel |
-| \`direction\` | enum | No | inbound or outbound |
-| \`limit\` | number | No | Max results (default: 50) |
-| \`offset\` | number | No | Pagination offset |
+
+\`\`\`json
+{
+  "success": true,
+  "messages": [
+    {
+      "id": 1,
+      "channel": "sms",
+      "direction": "inbound",
+      "from": "+15559876543",
+      "to": "+15551234567",
+      "body": "Are you there?",
+      "reason": "agent_offline",
+      "createdAt": "2026-02-22T10:00:00Z"
+    }
+  ],
+  "count": 1
+}
+\`\`\`
+
+Dead letters are stored when: agent is offline (inbound), send fails (outbound), or provider errors. Acknowledged messages are auto-purged after 7 days.
 
 ---
 
@@ -304,10 +328,115 @@ Transfer a live voice call to a human or another agent.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| \`agentId\` | string | Yes | Agent ID |
+| \`agentId\` | string | No | Auto-detected from agent token |
 | \`callSid\` | string | Yes | Active call SID |
 | \`to\` | string | Yes | Destination phone or agent ID |
 | \`announcementText\` | string | No | Text to say before transfer |
+
+---
+
+## comms_call_on_behalf
+
+Secretary call — calls someone on your behalf. An AI asks if they're available, and if yes, bridges you into the call.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| \`agentId\` | string | No | Auto-detected from agent token |
+| \`target\` | string | Yes | Phone number to call (E.164) |
+| \`requesterPhone\` | string | Yes | Your phone number — where to bridge if they say yes |
+| \`targetName\` | string | No | Name of the person being called |
+| \`requesterName\` | string | No | Your name |
+| \`message\` | string | No | Reason for the call |
+| \`recipientTimezone\` | string | No | IANA timezone. Auto-detected from phone prefix if omitted |
+
+---
+
+## comms_bridge_call
+
+Manage call bridges — route inbound local calls to outbound local numbers via VoIP.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| \`action\` | enum | Yes | \`setup\`, \`remove\`, \`list\`, or \`call\` |
+| \`fromNumber\` | string | No | (setup) Caller ID to match, or \`*\` for any |
+| \`localNumber\` | string | No | (setup) Twilio number that receives the call |
+| \`destinationNumber\` | string | No | (setup/call) Number to dial outbound |
+| \`label\` | string | No | (setup) Human-readable label |
+| \`bridgeId\` | string | No | (remove/call) Bridge route ID |
+| \`callerNumber\` | string | No | (call) Number to call first |
+
+---
+
+## comms_send_otp
+
+Send a one-time verification code via SMS, email, or WhatsApp. Code expires in 5 minutes.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| \`agentId\` | string | No | Auto-detected from agent token |
+| \`to\` | string | Yes | Recipient (phone E.164 or email) |
+| \`channel\` | enum | Yes | \`sms\`, \`email\`, or \`whatsapp\` |
+| \`purpose\` | string | No | Description like "account verification" |
+
+---
+
+## comms_verify_otp
+
+Verify a one-time code. Returns whether the code is valid.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| \`agentId\` | string | No | Auto-detected from agent token |
+| \`contactAddress\` | string | Yes | Phone or email that received the code |
+| \`code\` | string | Yes | The 6-digit code to verify |
+
+---
+
+## comms_record_consent
+
+Record that a contact has given consent to be contacted on a channel.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| \`agentId\` | string | No | Auto-detected from agent token |
+| \`contactAddress\` | string | Yes | Phone number or email |
+| \`channel\` | enum | Yes | \`sms\`, \`voice\`, \`email\`, or \`whatsapp\` |
+| \`consentType\` | enum | No | \`express\`, \`implied\`, or \`transactional\` (default: express) |
+| \`source\` | string | No | How consent was obtained (web_form, verbal, etc.) |
+
+---
+
+## comms_revoke_consent
+
+Revoke a contact's consent on a channel. No further outbound allowed.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| \`agentId\` | string | No | Auto-detected from agent token |
+| \`contactAddress\` | string | Yes | Phone number or email |
+| \`channel\` | enum | Yes | \`sms\`, \`voice\`, \`email\`, or \`whatsapp\` |
+
+---
+
+## comms_check_consent
+
+Check whether a contact has granted consent on a channel.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| \`agentId\` | string | No | Auto-detected from agent token |
+| \`contactAddress\` | string | Yes | Phone number or email |
+| \`channel\` | enum | Yes | \`sms\`, \`voice\`, \`email\`, or \`whatsapp\` |
+
+---
+
+## comms_expand_agent_pool
+
+Resize the agent pool. Admin only.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| \`maxAgents\` | number | Yes | New maximum agent count (1–10000) |
 
 ---
 
@@ -317,9 +446,9 @@ Provision phone/SMS/WhatsApp/email/voice for a new agent.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| \`agentId\` | string | Yes | New agent ID |
+| \`agentId\` | string | Yes | Agent ID to provision |
 | \`displayName\` | string | Yes | Display name |
-| \`capabilities\` | array | Yes | Channels: sms, voice, whatsapp, email |
+| \`capabilities\` | array | Yes | Channels: sms, voice, whatsapp, email, line |
 | \`country\` | string | No | Country code for phone number |
 | \`emailDomain\` | string | No | Custom email domain |
 
@@ -331,7 +460,7 @@ Tear down all channels for an agent. Releases phone number and WhatsApp pool slo
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| \`agentId\` | string | Yes | Agent to deprovision |
+| \`agentId\` | string | Yes | Agent ID to deprovision |
 
 ---
 
@@ -342,6 +471,8 @@ Check provisioning and health status of all channels for an agent.
 ---
 
 ## comms_onboard_customer
+
+*Enterprise/SaaS edition only.*
 
 Full automated onboarding: provisions all channels, generates DNS records, returns setup package.
 
@@ -374,7 +505,7 @@ Configure rate limits and spending caps. Admin only.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| \`agentId\` | string | Yes | Agent to configure |
+| \`agentId\` | string | Yes | Agent ID to configure |
 | \`limits.maxActionsPerMinute\` | number | No | Per-minute burst limit |
 | \`limits.maxActionsPerHour\` | number | No | Hourly limit |
 | \`limits.maxActionsPerDay\` | number | No | Daily limit |
@@ -396,11 +527,15 @@ Usage statistics, costs, and rate limits per agent.
 
 ## comms_get_billing_summary
 
+*Enterprise/SaaS edition only.*
+
 Billing summary with provider costs, markup, and billed costs.
 
 ---
 
 ## comms_set_billing_config
+
+*Enterprise/SaaS edition only.*
 
 Set billing tier, markup, and billing email. Admin only.
 
@@ -472,8 +607,8 @@ GET /sse?token=<agent-security-token>&agentId=<agent-id>
 
 | Parameter | Description |
 |-----------|-------------|
-| \`token\` | Security token for authentication |
-| \`agentId\` | Agent ID to register for voice routing |
+| \`token\` | **Required.** Agent or org token for authentication |
+| \`agentId\` | Agent ID to register for voice routing and message delivery |
 
 ### POST /messages
 
@@ -491,10 +626,36 @@ All webhooks are POST endpoints that receive provider callbacks. Signatures are 
 | \`POST /webhooks/:agentId/sms\` | Inbound SMS (validates X-Twilio-Signature) |
 | \`POST /webhooks/:agentId/email\` | Inbound email (validates Svix signature) |
 | \`POST /webhooks/:agentId/whatsapp\` | Inbound WhatsApp (validates X-Twilio-Signature) |
+| \`POST /webhooks/:agentId/line\` | Inbound LINE (validates X-Line-Signature) |
 | \`POST /webhooks/:agentId/voice\` | Inbound voice call — returns ConversationRelay TwiML |
 | \`POST /webhooks/:agentId/outbound-voice\` | Outbound call webhook |
 | \`POST /webhooks/:agentId/call-status\` | Call status updates |
 | \`WSS /webhooks/:agentId/voice-ws\` | Live AI voice WebSocket |
+
+Blocked channels silently return 200 with no processing.
+
+---
+
+## REST API v1
+
+All endpoints at \`/api/v1/\`. Require \`Authorization: Bearer <token>\`.
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| \`/api/v1/send-message\` | POST | Send SMS, email, WhatsApp, or LINE |
+| \`/api/v1/make-call\` | POST | Start an AI voice call |
+| \`/api/v1/call-on-behalf\` | POST | Secretary call — bridge if available |
+| \`/api/v1/send-voice-message\` | POST | Send TTS voice message |
+| \`/api/v1/transfer-call\` | POST | Transfer a live call |
+| \`/api/v1/waiting-messages\` | GET | Fetch dead letters (auto-acknowledges) |
+| \`/api/v1/channel-status\` | GET | Agent channel status |
+| \`/api/v1/usage\` | GET | Usage stats and limits |
+| \`/api/v1/billing\` | GET | Billing summary |
+| \`/api/v1/provision\` | POST | Provision agent channels |
+| \`/api/v1/deprovision\` | POST | Deprovision agent |
+| \`/api/v1/health\` | GET | Health check |
+| \`/api/v1/openapi.json\` | GET | OpenAPI 3.1 spec |
+| \`/api/v1/integration-guide\` | GET | Integration guide (markdown) |
 
 ---
 
@@ -510,7 +671,7 @@ All webhooks are POST endpoints that receive provider callbacks. Signatures are 
 
 ### API Routes
 
-All POST routes require \`Authorization: Bearer <orchestratorToken>\`.
+Most routes require \`Authorization: Bearer <token>\`. Public endpoints (\`/health\`, \`/openapi.json\`, \`/integration-guide\`) do not require auth.
 
 | Endpoint | Description |
 |----------|-------------|
@@ -521,6 +682,10 @@ All POST routes require \`Authorization: Bearer <orchestratorToken>\`.
 | \`POST /admin/api/test/resend\` | Test Resend credentials |
 | \`POST /admin/api/save\` | Save credentials to .env |
 | \`POST /admin/api/deploy\` | Restart server with new settings |
+| \`GET /admin/api/agents\` | List all provisioned agents |
+| \`POST /admin/api/agents/:agentId/blocked-channels\` | Set blocked channels |
+| \`GET /admin/api/my-token\` | Get current org token |
+| \`POST /admin/api/regenerate-token\` | Regenerate org token |
 
 ### Example
 
@@ -623,6 +788,66 @@ download(key): Promise<Buffer>
 delete(key): Promise<void>
 \`\`\`
 
+## Alternative Providers (Not Yet Implemented)
+
+The following providers can be added as adapters. Each implements the same interface as existing adapters.
+
+### Telephony Alternatives
+
+| Provider | Key Advantage | Pricing |
+|----------|---------------|---------|
+| **Telnyx** | Owns its own IP network — sub-200ms latency | SMS: $0.0025/msg, Voice: pay-per-minute |
+| **Plivo** | Developer-focused, 190+ countries | SMS: ~$0.005/msg, Voice: from $0.050/min |
+| **Bandwidth** | Tier-1 US carrier, no middlemen | SMS: $0.004/msg, Voice: $0.0055/min |
+
+### Email Alternatives
+
+| Provider | Key Advantage | Pricing |
+|----------|---------------|---------|
+| **Postmark** | 22% better inbox placement than SendGrid | Free: 100/mo, Paid: $15/mo for 10K |
+| **Amazon SES** | Cheapest at scale | $0.10 per 1,000 emails |
+| **Mailgun** | Strong deliverability analytics | From $0.80 per 1,000 emails |
+
+### WhatsApp Alternatives
+
+| Provider | Key Advantage | Pricing |
+|----------|---------------|---------|
+| **Meta Cloud API** | Zero markup, direct from Meta | Meta's per-message rates only |
+| **Gupshup** | Early access to WhatsApp features | Meta fees + $0.001/msg |
+| **Infobip** | Enterprise omnichannel platform | Meta fees + Infobip markup |
+
+### TTS Alternatives
+
+| Provider | Key Advantage | Pricing |
+|----------|---------------|---------|
+| **Cartesia (Sonic-3)** | Ultra-low latency (40-90ms) | Free: 10K credits, Pro: $5/mo |
+| **PlayHT** | 900+ voices with voice cloning | Free: 12,500 chars/mo, Creator: $39/mo |
+| **Amazon Polly** | 60+ languages, Neural + Standard | Free: 5M chars/mo (12mo) |
+
+### STT Alternatives
+
+| Provider | Key Advantage | Pricing |
+|----------|---------------|---------|
+| **AssemblyAI** | Best accuracy (Universal-2) | Free: $50 credit, Then $0.15/hr |
+| **Speechmatics** | Cloud, on-prem, or edge deployment | Free: 8 hrs/mo |
+| **Rev.ai** | Lowest entry-level pricing | $0.002/min standard |
+
+### Database Alternatives
+
+| Provider | Key Advantage | Pricing |
+|----------|---------------|---------|
+| **Neon** | Serverless Postgres with branching | Free: 100 projects, Paid: from $19/mo |
+| **Supabase** | Full stack — Postgres + Auth + Storage | Free: 500MB, Pro: $25/mo |
+| **CockroachDB** | Distributed SQL, auto-sharding | Free: $15/mo credit |
+
+### Storage Alternatives
+
+| Provider | Key Advantage | Pricing |
+|----------|---------------|---------|
+| **Backblaze B2** | 1/5th the cost of S3 | Free: 10GB, Storage: $0.006/GB-mo |
+| **DigitalOcean Spaces** | Flat $5/mo, CDN included | $5/mo: 250GB + 1TB outbound |
+| **MinIO** | Open-source self-hosted S3 | Free (AGPL v3) |
+
 ## Adding a New Provider
 
 1. Create adapter file in \`src/providers/\` (e.g., \`telephony-plivo.ts\`)
@@ -693,8 +918,8 @@ Agent -> comms_send_message -> Auth -> Sanitize -> Compliance Check
 
 ### Inbound Message
 \`\`\`
-Provider Webhook -> Signature Verify -> Replay Check
-  -> Parse -> Store Metadata -> Forward to Agent Callback
+Provider Webhook -> Signature Verify -> Replay Check -> Channel Block Check
+  -> Parse -> Forward to Agent (or store in dead_letters if offline)
 \`\`\`
 
 ### Live Voice Call
@@ -708,8 +933,8 @@ Inbound Call -> Webhook -> ConversationRelay TwiML -> WebSocket
 \`\`\`
 Inbound Call -> WebSocket -> Agent not connected
   -> Built-in Anthropic LLM as answering machine
-  -> Collects message -> Stores voicemail
-  -> Agent reconnects -> Voicemail dispatched
+  -> Collects message -> Stores in dead_letters
+  -> Agent reconnects -> Dead letters dispatched
 \`\`\`
 
 ## Key Components
@@ -726,7 +951,8 @@ Inbound Call -> WebSocket -> Agent not connected
 | Voice Sessions | In-memory store for active call configs |
 | Voice WebSocket | WebSocket handler (setup/prompt/interrupt/dtmf) |
 | Agent Registry | Maps agentId to MCP Server session |
-| Voicemail Dispatcher | Dispatches voicemails on agent reconnect |
+| Message Dispatcher | Dispatches dead letters on agent reconnect |
+| Channel Blocker | Per-channel blocking without deprovisioning |
 | Metrics | Prometheus counters and gauges |
 | Audit Log | SHA-256 hash-chained event log |
 | Alert Manager | Severity-routed alerts |
@@ -1069,9 +1295,9 @@ When the AI agent is not connected (8-second timeout):
 
 1. Apologizes to the caller on behalf of the agent
 2. Asks for message and preferences (e.g., "call me back after 8 AM")
-3. Stores everything as a voicemail
+3. Stores everything in the dead letter queue
 
-When the agent reconnects, voicemails are automatically dispatched.
+When the agent reconnects, dead letters are automatically dispatched via \`comms_get_waiting_messages\`.
 
 \`\`\`env
 ANTHROPIC_API_KEY=sk-ant-...    # Required for answering machine
@@ -1119,14 +1345,6 @@ DEFAULT_VOICE_LANGUAGE=en-US
 \`\`\`
 
 All settings can be overridden per call via tool parameters.
-
-### Translation
-
-Each agent has an operating language. When translation is enabled and the caller speaks a different language, the system translates in real-time.
-
-\`\`\`env
-TRANSLATION_ENABLED=true    # Default: false
-\`\`\`
 
 ---
 
@@ -1227,14 +1445,14 @@ curl -X POST http://localhost:3100/api/v1/send-message \\
   -d '{"agentId":"test-agent-001","to":"+15559876543","body":"Hello!","channel":"sms"}'
 \`\`\`
 
-### Check the Result
+### Check for Waiting Messages
 
 \`\`\`bash
-curl http://localhost:3100/api/v1/messages?agentId=test-agent-001 \\
+curl http://localhost:3100/api/v1/waiting-messages?agentId=test-agent-001 \\
   -H "Authorization: Bearer YOUR_TOKEN"
 \`\`\`
 
-If an LLM key is configured, you'll see a simulated reply after ~2 seconds.
+This returns any messages that couldn't be delivered while your agent was offline. Fetching acknowledges them automatically. If an LLM key is configured, sandbox sends also generate a simulated reply after ~2 seconds.
 
 ---
 
@@ -1273,8 +1491,8 @@ curl -X POST /api/v1/send-message -d '{"agentId":"bot","to":"user@example.com","
 # Voice call
 curl -X POST /api/v1/make-call -d '{"agentId":"bot","to":"+15559876543","greeting":"Hello!"}'
 
-# Messages
-curl /api/v1/messages?agentId=bot
+# Waiting messages (dead letters)
+curl /api/v1/waiting-messages?agentId=bot
 
 # Provision agent
 curl -X POST /api/v1/provision -d '{"agentId":"bot","displayName":"My Bot","capabilities":["sms","voice"]}'
@@ -1841,6 +2059,7 @@ export function renderDocsPage(slug?: string): string | null {
       <div class="sb-group">
         <div class="sb-heading">Links</div>
         <a href="/">Landing Page</a>
+        <a href="/admin">Admin Dashboard</a>
         <a href="/admin/setup">Admin Setup</a>
       </div>
   </nav>

@@ -1,3 +1,5 @@
+<!-- version: 1.0 | updated: 2026-02-22 -->
+
 # Troubleshooting
 
 ## Server Won't Start

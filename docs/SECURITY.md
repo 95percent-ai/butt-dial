@@ -1,3 +1,5 @@
+<!-- version: 1.0 | updated: 2026-02-22 -->
+
 # Security Model
 
 ## Authentication
@@ -138,7 +140,8 @@ ANOMALY_DETECTOR_ENABLED=true
 - **Consent enforcement:** `preSendCheck()` blocks outbound messages when no active consent exists for the agent/contact/channel
 - **STOP keyword:** Inbound SMS containing "STOP", "UNSUBSCRIBE", "CANCEL", "END", or "QUIT" auto-revokes consent and adds sender to DNC list
 - **Country compliance:** 37 countries with per-country rules for A2P registration, DNC checks, calling hours, recording consent. Provisioning blocked if requirements not met.
-- **Data retention:** Configurable auto-purge (messages 90d, usage 365d, voicemail 30d, OTP 1d, revoked consent 730d)
+- **Channel blocking:** Per-channel kill switch (`blocked_channels` on agents) — blocks outbound tools and silently drops inbound webhooks for blocked channels
+- **Data retention:** Configurable auto-purge (dead letters 7d, usage 365d, OTP 1d, revoked consent 730d)
 - **Sandbox gating:** New organizations start in sandbox mode (mock providers). Production requires admin approval after KYC review.
 
 ## Body Size Limits

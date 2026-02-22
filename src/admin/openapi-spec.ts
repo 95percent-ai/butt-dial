@@ -620,12 +620,12 @@ function getMcpToolDocs(): Array<Record<string, unknown>> {
       },
     },
     {
-      name: "comms_get_messages",
-      description: "List messages for an agent",
+      name: "comms_get_waiting_messages",
+      description: "Get undelivered messages (dead letters). Fetch = acknowledge.",
       parameters: {
-        agentId: { type: "string", required: true },
-        channel: { type: "string", optional: true },
-        limit: { type: "number", optional: true },
+        agentId: { type: "string", optional: true, description: "Auto-detected from agent token" },
+        channel: { type: "string", optional: true, description: "Filter by channel" },
+        limit: { type: "number", optional: true, description: "Max results (default 50)" },
       },
     },
     {

@@ -1,3 +1,5 @@
+<!-- version: 1.0 | updated: 2026-02-22 -->
+
 # MCP Tools Reference
 
 All tools are called via the MCP protocol over SSE transport. Each tool requires authentication unless in demo mode.
@@ -22,7 +24,7 @@ Health check / connectivity test.
 
 ## comms_send_message
 
-Send SMS, email, or WhatsApp message.
+Send SMS, email, or WhatsApp message. Blocked if the agent's channel is in `blocked_channels`.
 
 **Input:**
 - `agentId` (string) — Agent ID
@@ -52,7 +54,7 @@ Send SMS, email, or WhatsApp message.
 
 ## comms_make_call
 
-Initiate outbound AI voice call. When connected, opens a live conversation.
+Initiate outbound AI voice call. When connected, opens a live conversation. Blocked if the agent's voice channel is in `blocked_channels`.
 
 **Input:**
 - `agentId` (string) — Agent ID
@@ -78,7 +80,7 @@ Initiate outbound AI voice call. When connected, opens a live conversation.
 
 ## comms_send_voice_message
 
-Generate TTS audio and deliver via phone call.
+Generate TTS audio and deliver via phone call. Blocked if the agent's voice channel is in `blocked_channels`.
 
 **Input:**
 - `agentId` (string) — Agent ID
@@ -96,16 +98,16 @@ Generate TTS audio and deliver via phone call.
 }
 ```
 
-## comms_get_messages
+## comms_get_waiting_messages
 
-Retrieve message history for an agent.
+Fetch messages that failed delivery (dead letters). Uses a **fetch = acknowledge** pattern — retrieved messages are marked as acknowledged and auto-purged after 7 days.
+
+Dead letters are stored only on failure: `agent_offline`, `send_failed`, `provider_error`. Successful communications store nothing (privacy-first).
 
 **Input:**
 - `agentId` (string) — Agent ID
-- `channel` (enum, optional) — Filter by channel
-- `direction` (enum: inbound/outbound, optional) — Filter by direction
+- `channel` (enum, optional) — Filter by channel (sms/voice/email/whatsapp/line)
 - `limit` (number, default: 50) — Max results
-- `offset` (number, default: 0) — Pagination offset
 
 **Output:**
 ```json
@@ -113,16 +115,18 @@ Retrieve message history for an agent.
   "messages": [
     {
       "id": "uuid",
-      "channel": "sms",
-      "direction": "outbound",
-      "from": "+15551234567",
-      "to": "+15559876543",
-      "body": "Hello!",
-      "status": "sent",
-      "createdAt": "2026-02-15T12:00:00Z"
+      "channel": "voice",
+      "direction": "inbound",
+      "reason": "agent_offline",
+      "from_address": "+15559876543",
+      "to_address": "+15551234567",
+      "body": "Please call me back after 3pm",
+      "status": "pending",
+      "created_at": "2026-02-22T12:00:00Z"
     }
   ],
-  "total": 1
+  "total": 1,
+  "acknowledged": 1
 }
 ```
 
