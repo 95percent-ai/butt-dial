@@ -608,7 +608,7 @@ adminRouter.get("/admin/api/agents", adminAuth, (req: Request, res: Response) =>
     const of = orgFilter(getAuthInfo(req));
 
     const agents = db.query<Record<string, unknown>>(
-      `SELECT agent_id, display_name, phone_number, email_address, whatsapp_sender_sid, status, language, blocked_channels
+      `SELECT agent_id, display_name, phone_number, email_address, whatsapp_sender_sid, status, language, blocked_channels, agent_gender
        FROM agent_channels WHERE 1=1${of.clause} ORDER BY provisioned_at DESC LIMIT 100`,
       of.params
     );
@@ -726,6 +726,25 @@ adminRouter.post("/admin/api/agents/:agentId/blocked-channels", adminAuth, (req:
     const db = getProvider("database");
     db.run("UPDATE agent_channels SET blocked_channels = ? WHERE agent_id = ?", [value, agentId]);
     res.json({ success: true, agentId, blockedChannels: JSON.parse(value) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
+/** Update agent gender */
+adminRouter.post("/admin/api/agents/:agentId/gender", adminAuth, (req: Request, res: Response) => {
+  try {
+    const agentId = String(req.params.agentId);
+    const { gender } = req.body ?? {};
+
+    if (!gender || !["male", "female", "neutral"].includes(gender)) {
+      res.status(400).json({ success: false, error: "gender must be 'male', 'female', or 'neutral'" });
+      return;
+    }
+
+    const db = getProvider("database");
+    db.run("UPDATE agent_channels SET agent_gender = ? WHERE agent_id = ?", [gender, agentId]);
+    res.json({ success: true, agentId, gender });
   } catch (err) {
     res.status(500).json({ success: false, error: String(err instanceof Error ? err.message : err) });
   }

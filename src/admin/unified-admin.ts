@@ -3727,6 +3727,13 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
           '<option value="tr-TR"' + (a.language === 'tr-TR' ? ' selected' : '') + '>Turkish</option>' +
           '</select></div>' +
           '<div style="margin-top:0.5rem;"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();saveAgentLanguage(\\'' + escAttr(agentId) + '\\',' + idx + ')">Save Language</button></div>' +
+          '<div class="field" style="margin-top:0.75rem;"><label>Gender <span style="color:var(--text-dim);font-size:0.75rem">(for gendered languages)</span></label>' +
+          '<select id="agent-gender-' + idx + '">' +
+          '<option value="male"' + (a.agent_gender === 'male' || !a.agent_gender ? ' selected' : '') + '>Male</option>' +
+          '<option value="female"' + (a.agent_gender === 'female' ? ' selected' : '') + '>Female</option>' +
+          '<option value="neutral"' + (a.agent_gender === 'neutral' ? ' selected' : '') + '>Neutral</option>' +
+          '</select></div>' +
+          '<div style="margin-top:0.5rem;"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();saveAgentGender(\\'' + escAttr(agentId) + '\\',' + idx + ')">Save Gender</button></div>' +
           '<hr style="border-color:var(--border);margin:0.75rem 0;">' +
           '<h4>Billing</h4>' +
           '<div class="field"><label>Tier</label>' +
@@ -3835,6 +3842,21 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         });
         const data = await res.json();
         showToast(data.success ? 'Language saved: ' + lang : (data.error || 'Failed'), data.success ? 'success' : 'error');
+        if (data.success) loadAgents();
+      } catch {
+        showToast('Network error', 'error');
+      }
+    }
+
+    async function saveAgentGender(agentId, idx) {
+      try {
+        const gender = document.getElementById('agent-gender-' + idx).value;
+        const res = await apiFetch('/admin/api/agents/' + encodeURIComponent(agentId) + '/gender', {
+          method: 'POST',
+          body: JSON.stringify({ gender: gender })
+        });
+        const data = await res.json();
+        showToast(data.success ? 'Gender saved: ' + gender : (data.error || 'Failed'), data.success ? 'success' : 'error');
         if (data.success) loadAgents();
       } catch {
         showToast('Network error', 'error');

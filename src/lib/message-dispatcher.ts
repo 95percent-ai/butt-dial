@@ -8,6 +8,7 @@
 import type { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "./logger.js";
+import { getAgentGender } from "./gender-context.js";
 
 interface DeadLetterRow {
   id: string;
@@ -39,6 +40,8 @@ export async function dispatchPendingMessages(
 
   if (rows.length === 0) return;
 
+  const agentGender = getAgentGender(db, agentId);
+
   logger.info("message_dispatch_start", { agentId, count: rows.length });
 
   for (const row of rows) {
@@ -68,6 +71,7 @@ export async function dispatchPendingMessages(
           mediaUrl: row.media_url,
           externalId: row.external_id,
           receivedAt: row.created_at,
+          agentGender,
           summary,
         },
       });

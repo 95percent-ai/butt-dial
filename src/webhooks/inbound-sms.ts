@@ -13,6 +13,7 @@ import { logger } from "../lib/logger.js";
 import { revokeConsentByAddress } from "../tools/consent-tools.js";
 import { addToDnc } from "../security/compliance.js";
 import { isChannelBlocked } from "../lib/channel-blocker.js";
+import { getAgentGender } from "../lib/gender-context.js";
 
 interface AgentRow {
   agent_id: string;
@@ -113,6 +114,7 @@ export async function handleInboundSms(req: Request, res: Response): Promise<voi
     "{agentId}",
     agentId as string
   );
+  const agentGender = getAgentGender(db, agentId as string);
   forwardToCallback(callbackUrl, {
     agentId,
     channel: "sms",
@@ -123,6 +125,7 @@ export async function handleInboundSms(req: Request, res: Response): Promise<voi
     mediaUrl: body.MediaUrl0 || null,
     mediaType: body.MediaContentType0 || null,
     externalId: body.MessageSid || null,
+    agentGender,
   }, { db, agentId: agentId as string, orgId, channel: "sms", from: body.From, to: body.To, body: body.Body || "", mediaUrl: body.MediaUrl0 || null, externalId: body.MessageSid || null });
 
   // Return empty TwiML — Twilio expects this

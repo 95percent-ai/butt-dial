@@ -197,6 +197,17 @@ These are warnings, not errors. The server always starts.
 
 All tools are called via the MCP protocol over SSE transport. Each tool requires authentication unless running in demo mode.
 
+### Gendered Languages
+
+Languages like Hebrew, Arabic, French, Spanish, Portuguese, Italian, German, Russian, Polish, and Hindi conjugate verbs and adjectives by gender. For these languages:
+
+- **Agent gender** (\`agentGender\`) — set during provisioning (male/female/neutral). Determines how the AI refers to itself.
+- **Target gender** (\`targetGender\`) — set per-interaction on outbound tools (male/female/unknown). Determines how the AI addresses the recipient.
+
+For voice calls, gender conjugation instructions are automatically appended to the system prompt. For text messages, gender context is returned as metadata in the response so your AI can conjugate correctly.
+
+Non-gendered languages (English, Chinese, Japanese, etc.) are unaffected — the gender parameters are accepted but produce no instructions.
+
 ---
 
 ## comms_ping
@@ -233,6 +244,7 @@ Send SMS, email, or WhatsApp message.
 | \`html\` | string | No | HTML body for email |
 | \`templateId\` | string | No | WhatsApp template SID |
 | \`templateVars\` | object | No | Template variables |
+| \`targetGender\` | enum | No | \`male\`, \`female\`, or \`unknown\` — gender of the message recipient. Used for gendered languages (Hebrew, Arabic, French, etc.). Returns gender context metadata in the response so your AI can conjugate correctly. |
 
 \`\`\`json
 {
@@ -243,7 +255,8 @@ Send SMS, email, or WhatsApp message.
   "cost": 0.0075,
   "channel": "sms",
   "from": "+15551234567",
-  "to": "+15559876543"
+  "to": "+15559876543",
+  "genderContext": { "agentGender": "male", "targetGender": "female" }
 }
 \`\`\`
 
@@ -263,6 +276,7 @@ Initiate an outbound AI voice call.
 | \`greeting\` | string | No | First thing the AI says |
 | \`voice\` | string | No | TTS voice ID |
 | \`language\` | string | No | Language code (e.g. en-US) |
+| \`targetGender\` | enum | No | \`male\`, \`female\`, or \`unknown\` — gender of the call recipient. For gendered languages, gender conjugation instructions are automatically appended to the system prompt. |
 | \`recipientTimezone\` | string | No | IANA timezone (e.g. America/New_York). Auto-detected from phone prefix if omitted |
 
 \`\`\`json
@@ -288,6 +302,7 @@ Generate TTS audio and deliver via phone call.
 | \`to\` | string | Yes | Phone number in E.164 |
 | \`text\` | string | Yes | Text to speak |
 | \`voice\` | string | No | TTS voice ID |
+| \`targetGender\` | enum | No | \`male\`, \`female\`, or \`unknown\` — gender of the call recipient |
 
 ---
 
@@ -347,6 +362,7 @@ Secretary call — calls someone on your behalf. An AI asks if they're available
 | \`targetName\` | string | No | Name of the person being called |
 | \`requesterName\` | string | No | Your name |
 | \`message\` | string | No | Reason for the call |
+| \`targetGender\` | enum | No | \`male\`, \`female\`, or \`unknown\` — gender of the person being called |
 | \`recipientTimezone\` | string | No | IANA timezone. Auto-detected from phone prefix if omitted |
 
 ---
@@ -451,6 +467,7 @@ Provision phone/SMS/WhatsApp/email/voice for a new agent.
 | \`capabilities\` | array | Yes | Channels: sms, voice, whatsapp, email, line |
 | \`country\` | string | No | Country code for phone number |
 | \`emailDomain\` | string | No | Custom email domain |
+| \`agentGender\` | enum | No | \`male\`, \`female\`, or \`neutral\` (default: male). Used for gendered languages — the agent's grammatical gender when speaking/writing in Hebrew, Arabic, French, Spanish, etc. |
 
 ---
 

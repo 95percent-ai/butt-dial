@@ -11,6 +11,7 @@ import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 import { isChannelBlocked } from "../lib/channel-blocker.js";
+import { getAgentGender } from "../lib/gender-context.js";
 
 interface AgentRow {
   agent_id: string;
@@ -125,6 +126,7 @@ export async function handleInboundLine(req: Request, res: Response): Promise<vo
 
     // Forward to callback URL — queue to dead_letters on failure
     const callbackUrl = config.agentosCallbackUrl.replace("{agentId}", agentId as string);
+    const agentGender = getAgentGender(db, agentId as string);
     forwardToCallback(callbackUrl, {
       agentId,
       channel: "line",
@@ -133,6 +135,7 @@ export async function handleInboundLine(req: Request, res: Response): Promise<vo
       to: agentId,
       body: messageText,
       externalId: lineMessageId || null,
+      agentGender,
     }, { db, agentId: agentId as string, orgId, channel: "line", from: userId, to: agentId as string, body: messageText, externalId: lineMessageId || null });
   }
 

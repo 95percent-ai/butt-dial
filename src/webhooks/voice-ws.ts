@@ -30,6 +30,7 @@ import {
 } from "./voice-sessions.js";
 import { getAgentLanguage } from "../lib/translator.js";
 import { applyGuardrails, checkResponseContent } from "../security/communication-guardrails.js";
+import { getAgentGender, buildGenderInstructions } from "../lib/gender-context.js";
 
 /** Extract agentId from the WebSocket URL path: /webhooks/:agentId/voice-ws */
 function extractAgentId(url: string | undefined): string | null {
@@ -430,17 +431,31 @@ export function handleVoiceWebSocket(ws: WebSocket, req: IncomingMessage): void 
         const db = getProvider("database");
         const agentLang = agentId ? getAgentLanguage(db, agentId) : config.voiceDefaultLanguage;
 
+        // Resolve gender context — outbound calls use config, inbound look up from DB
+        const agentGender = callConfig?.agentGender || (agentId ? getAgentGender(db, agentId) : "male");
+        const callTargetGender = callConfig?.targetGender || "unknown";
+
+        // Append gender instructions to system prompt for inbound calls (outbound already have them)
+        let finalSystemPrompt = systemPrompt;
+        if (!callConfig) {
+          // Inbound call — append gender instructions
+          const genderInstructions = buildGenderInstructions({ language: agentLang, agentGender, targetGender: callTargetGender });
+          finalSystemPrompt = systemPrompt + genderInstructions;
+        }
+
         const conv: VoiceConversation = {
           agentId: agentId || "unknown",
           callSid: callSid || "unknown",
           from,
           to,
-          systemPrompt,
+          systemPrompt: finalSystemPrompt,
           history: [],
           abortController: null,
           mode,
           callerLanguage: agentLang,
           agentLanguage: agentLang,
+          agentGender,
+          targetGender: callTargetGender,
         };
 
         storeConversation(callSid || "unknown", conv);

@@ -22,6 +22,7 @@ import { checkTcpaTimeOfDay, checkDnc, checkContentFilter } from "../security/co
 import { applyGuardrails, applyDisclosure } from "../security/communication-guardrails.js";
 import { resolveFromNumber } from "../lib/number-pool.js";
 import { isChannelBlocked } from "../lib/channel-blocker.js";
+import { getAgentGender, buildGenderInstructions } from "../lib/gender-context.js";
 
 interface AgentRow {
   agent_id: string;
@@ -71,8 +72,12 @@ export function registerMakeCallTool(server: McpServer): void {
         .string()
         .optional()
         .describe("Recipient's IANA timezone (e.g. Asia/Jerusalem, Europe/London). Auto-detected from phone prefix if omitted."),
+      targetGender: z
+        .enum(["male", "female", "unknown"])
+        .optional()
+        .describe("Gender of the person being called — used for correct conjugation in gendered languages (Hebrew, Arabic, French, etc.). Defaults to 'male'."),
     },
-    async ({ agentId: explicitAgentId, to, systemPrompt, greeting, voice, language, recipientTimezone }, extra) => {
+    async ({ agentId: explicitAgentId, to, systemPrompt, greeting, voice, language, recipientTimezone, targetGender }, extra) => {
       const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
       if (!agentId) {
         return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
@@ -180,13 +185,18 @@ export function registerMakeCallTool(server: McpServer): void {
       const sessionId = randomUUID();
       const agentLang = getAgentLanguage(db, agentId);
       const callLang = language || agentLang;
+      const agentGender = getAgentGender(db, agentId);
+      const resolvedTargetGender = targetGender || "male";
+      const genderInstructions = buildGenderInstructions({ language: callLang, agentGender, targetGender: resolvedTargetGender });
       storeCallConfig(sessionId, {
         agentId,
-        systemPrompt: applyGuardrails(systemPrompt || config.voiceDefaultSystemPrompt),
+        systemPrompt: applyGuardrails(systemPrompt || config.voiceDefaultSystemPrompt) + genderInstructions,
         greeting: applyDisclosure(greeting || config.voiceDefaultGreeting),
         voice: voice || config.voiceDefaultVoice,
         language: callLang,
         agentLanguage: agentLang,
+        agentGender,
+        targetGender: resolvedTargetGender,
       });
 
       const webhookUrl = `${config.webhookBaseUrl}/webhooks/${agentId}/outbound-voice?session=${sessionId}`;

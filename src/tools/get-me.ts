@@ -21,6 +21,7 @@ import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } fro
 import { checkTcpaTimeOfDay, checkDnc } from "../security/compliance.js";
 import { applyGuardrails, applyDisclosure } from "../security/communication-guardrails.js";
 import { resolveFromNumber } from "../lib/number-pool.js";
+import { getAgentGender, buildGenderInstructions } from "../lib/gender-context.js";
 
 interface AgentRow {
   agent_id: string;
@@ -72,8 +73,9 @@ export function registerGetMeTool(server: McpServer): void {
       requesterName: z.string().optional().describe("Your name (e.g. Inon)"),
       message: z.string().optional().describe("Reason for the call — included in the greeting (e.g. 'He wants to discuss the proposal')"),
       recipientTimezone: z.string().optional().describe("Recipient's IANA timezone. Auto-detected from phone prefix if omitted."),
+      targetGender: z.enum(["male", "female", "unknown"]).optional().describe("Gender of the person being called — used for correct conjugation in gendered languages"),
     },
-    async ({ agentId: explicitAgentId, target, targetName, requesterPhone, requesterName, message, recipientTimezone }, extra) => {
+    async ({ agentId: explicitAgentId, target, targetName, requesterPhone, requesterName, message, recipientTimezone, targetGender }, extra) => {
       const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
       if (!agentId) {
         return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
@@ -150,13 +152,18 @@ export function registerGetMeTool(server: McpServer): void {
       // Store call config with forceMode so it always uses answering-machine (Anthropic) path
       const sessionId = randomUUID();
       const agentLang = getAgentLanguage(db, agentId);
+      const agentGender = getAgentGender(db, agentId);
+      const resolvedTargetGender = targetGender || "male";
+      const genderInstructions = buildGenderInstructions({ language: agentLang, agentGender, targetGender: resolvedTargetGender });
       storeCallConfig(sessionId, {
         agentId,
-        systemPrompt: applyGuardrails(systemPrompt),
+        systemPrompt: applyGuardrails(systemPrompt) + genderInstructions,
         greeting,
         voice: config.voiceDefaultVoice,
         language: agentLang,
         agentLanguage: agentLang,
+        agentGender,
+        targetGender: resolvedTargetGender,
         forceMode: "answering-machine",
       });
 

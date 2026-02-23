@@ -30,6 +30,7 @@ import {
 import { preSendCheck, checkTcpaTimeOfDay, checkDnc, checkContentFilter } from "../security/compliance.js";
 import { getAgentLanguage } from "../lib/translator.js";
 import { resolveFromNumber } from "../lib/number-pool.js";
+import { getAgentGender, buildGenderInstructions } from "../lib/gender-context.js";
 import { maybeTriggerSandboxReply } from "../lib/sandbox-responder.js";
 import { storeCallConfig } from "../webhooks/voice-sessions.js";
 import { applyGuardrails, applyDisclosure } from "../security/communication-guardrails.js";
@@ -112,7 +113,7 @@ function handleAuthError(res: any, err: unknown) {
 // POST /api/v1/send-message
 restRouter.post("/send-message", async (req, res) => {
   try {
-    const { to, body, channel = "sms", subject, html, templateId, templateVars } = req.body;
+    const { to, body, channel = "sms", subject, html, templateId, templateVars, targetGender } = req.body;
     const agentId = resolveAgentId(authInfo(req), req.body.agentId);
 
     if (!agentId || !to || !body) {
@@ -148,6 +149,11 @@ restRouter.post("/send-message", async (req, res) => {
     const compliance = preSendCheck(db, { channel, to, body, html });
     if (!compliance.allowed) return errorJson(res, 403, `Compliance: ${compliance.reason}`);
 
+    // Resolve gender context for response metadata
+    const resolvedAgentGender = getAgentGender(db, agentId);
+    const resolvedTargetGender = targetGender || "male";
+    const genderContext = { agentGender: resolvedAgentGender, targetGender: resolvedTargetGender };
+
     // Route by channel — no message storage on success, queue dead_letters on failure
     let result: any;
 
@@ -159,7 +165,7 @@ restRouter.post("/send-message", async (req, res) => {
       logUsage(db, { agentId, actionType: "email", channel: "email", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
       metrics.increment("mcp_messages_sent_total", { channel: "email" });
       maybeTriggerSandboxReply({ orgId, agentId, channel: "email", to, from: agent.email_address, body });
-      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "email", from: agent.email_address, to });
+      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "email", from: agent.email_address, to, genderContext });
     }
 
     if (channel === "whatsapp") {
@@ -169,7 +175,7 @@ restRouter.post("/send-message", async (req, res) => {
       logUsage(db, { agentId, actionType: "whatsapp", channel: "whatsapp", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
       metrics.increment("mcp_messages_sent_total", { channel: "whatsapp" });
       maybeTriggerSandboxReply({ orgId, agentId, channel: "whatsapp", to, from: agent.whatsapp_sender_sid, body });
-      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "whatsapp", from: agent.whatsapp_sender_sid, to });
+      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "whatsapp", from: agent.whatsapp_sender_sid, to, genderContext });
     }
 
     if (channel === "line") {
@@ -179,7 +185,7 @@ restRouter.post("/send-message", async (req, res) => {
       logUsage(db, { agentId, actionType: "line", channel: "line", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
       metrics.increment("mcp_messages_sent_total", { channel: "line" });
       maybeTriggerSandboxReply({ orgId, agentId, channel: "line", to, from: agentId, body });
-      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "line", from: agentId, to });
+      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "line", from: agentId, to, genderContext });
     }
 
     // Default: SMS
@@ -192,7 +198,7 @@ restRouter.post("/send-message", async (req, res) => {
     maybeTriggerSandboxReply({ orgId, agentId, channel: "sms", to, from: fromNumber, body });
 
     logger.info("rest_send_message", { agentId, to, channel: "sms" });
-    return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "sms", from: fromNumber, to });
+    return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "sms", from: fromNumber, to, genderContext });
   } catch (err) {
     return handleRestError(res, err);
   }
@@ -201,7 +207,7 @@ restRouter.post("/send-message", async (req, res) => {
 // POST /api/v1/make-call
 restRouter.post("/make-call", async (req, res) => {
   try {
-    const { to, systemPrompt, greeting, voice, language, recipientTimezone } = req.body;
+    const { to, systemPrompt, greeting, voice, language, recipientTimezone, targetGender } = req.body;
     const agentId = resolveAgentId(authInfo(req), req.body.agentId);
     if (!agentId || !to) return errorJson(res, 400, "Required: agentId (or use an agent token), to");
 
@@ -247,13 +253,18 @@ restRouter.post("/make-call", async (req, res) => {
     const sessionId = randomUUID();
     const agentLang = getAgentLanguage(db, agentId);
     const callLang = language || agentLang;
+    const agentGender = getAgentGender(db, agentId);
+    const resolvedTargetGender = targetGender || "male";
+    const genderInstructions = buildGenderInstructions({ language: callLang, agentGender, targetGender: resolvedTargetGender });
     storeCallConfig(sessionId, {
       agentId,
-      systemPrompt: applyGuardrails(systemPrompt || config.voiceDefaultSystemPrompt),
+      systemPrompt: applyGuardrails(systemPrompt || config.voiceDefaultSystemPrompt) + genderInstructions,
       greeting: applyDisclosure(greeting || config.voiceDefaultGreeting),
       voice: voice || config.voiceDefaultVoice,
       language: callLang,
       agentLanguage: agentLang,
+      agentGender,
+      targetGender: resolvedTargetGender,
     });
 
     const webhookUrl = `${config.webhookBaseUrl}/webhooks/${agentId}/outbound-voice?session=${sessionId}`;
@@ -267,7 +278,7 @@ restRouter.post("/make-call", async (req, res) => {
       try {
         db.run(
           `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, original_request, error_details, status) VALUES (?, ?, ?, 'voice', 'outbound', 'send_failed', ?, ?, ?, ?, ?, 'pending')`,
-          [randomUUID(), agentId, orgId, fromNumber, to, systemPrompt || null, JSON.stringify({ to, systemPrompt, greeting, voice, language }), errMsg],
+          [randomUUID(), agentId, orgId, fromNumber, to, systemPrompt || null, JSON.stringify({ to, systemPrompt, greeting, voice, language, targetGender }), errMsg],
         );
       } catch {}
       return errorJson(res, 500, errMsg);
@@ -292,7 +303,7 @@ restRouter.post("/make-call", async (req, res) => {
 // POST /api/v1/call-on-behalf
 restRouter.post("/call-on-behalf", async (req, res) => {
   try {
-    const { target, targetName, requesterPhone, requesterName, message, recipientTimezone } = req.body;
+    const { target, targetName, requesterPhone, requesterName, message, recipientTimezone, targetGender } = req.body;
     const agentId = resolveAgentId(authInfo(req), req.body.agentId);
     if (!agentId || !target || !requesterPhone) return errorJson(res, 400, "Required: agentId (or use an agent token), target, requesterPhone");
 
@@ -351,13 +362,18 @@ Keep it natural and brief — this is a phone call.`;
 
     const sessionId = randomUUID();
     const agentLang = getAgentLanguage(db, agentId);
+    const agentGender = getAgentGender(db, agentId);
+    const resolvedTargetGender = targetGender || "male";
+    const genderInstructions = buildGenderInstructions({ language: agentLang, agentGender, targetGender: resolvedTargetGender });
     storeCallConfig(sessionId, {
       agentId,
-      systemPrompt: applyGuardrails(systemPrompt),
+      systemPrompt: applyGuardrails(systemPrompt) + genderInstructions,
       greeting,
       voice: config.voiceDefaultVoice,
       language: agentLang,
       agentLanguage: agentLang,
+      agentGender,
+      targetGender: resolvedTargetGender,
       forceMode: "answering-machine",
     });
 
@@ -372,7 +388,7 @@ Keep it natural and brief — this is a phone call.`;
       try {
         db.run(
           `INSERT INTO dead_letters (id, agent_id, org_id, channel, direction, reason, from_address, to_address, body, original_request, error_details, status) VALUES (?, ?, ?, 'voice', 'outbound', 'send_failed', ?, ?, ?, ?, ?, 'pending')`,
-          [randomUUID(), agentId, orgId, fromNumber, target, `[Call On Behalf] ${callerName} → ${calleeName || target}`, JSON.stringify({ target, targetName, requesterPhone, requesterName, message }), errMsg],
+          [randomUUID(), agentId, orgId, fromNumber, target, `[Call On Behalf] ${callerName} → ${calleeName || target}`, JSON.stringify({ target, targetName, requesterPhone, requesterName, message, targetGender }), errMsg],
         );
       } catch {}
       return errorJson(res, 500, errMsg);

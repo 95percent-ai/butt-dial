@@ -11,6 +11,7 @@ import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 import { isChannelBlocked } from "../lib/channel-blocker.js";
+import { getAgentGender } from "../lib/gender-context.js";
 
 interface AgentRow {
   agent_id: string;
@@ -91,6 +92,7 @@ export async function handleInboundEmail(req: Request, res: Response): Promise<v
 
   // Forward to callback URL — queue to dead_letters on failure
   const callbackUrl = config.agentosCallbackUrl.replace("{agentId}", agentId as string);
+  const agentGender = getAgentGender(db, agentId as string);
   forwardToCallback(callbackUrl, {
     agentId,
     channel: "email",
@@ -101,6 +103,7 @@ export async function handleInboundEmail(req: Request, res: Response): Promise<v
     body: payload.data.text || "",
     html: payload.data.html || null,
     externalId: payload.data.email_id || null,
+    agentGender,
   }, { db, agentId: agentId as string, orgId, channel: "email", from: payload.data.from, to: payload.data.to, body: bodyText, externalId: payload.data.email_id || null });
 
   // Resend expects 200 OK

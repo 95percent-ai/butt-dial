@@ -12,6 +12,7 @@ import { getProvider } from "../providers/factory.js";
 import { config } from "../lib/config.js";
 import { logger } from "../lib/logger.js";
 import { isChannelBlocked } from "../lib/channel-blocker.js";
+import { getAgentGender } from "../lib/gender-context.js";
 
 interface AgentRow {
   agent_id: string;
@@ -96,6 +97,7 @@ export async function handleInboundWhatsApp(req: Request, res: Response): Promis
     "{agentId}",
     agentId as string
   );
+  const agentGender = getAgentGender(db, agentId as string);
   forwardToCallback(callbackUrl, {
     agentId,
     channel: "whatsapp",
@@ -106,6 +108,7 @@ export async function handleInboundWhatsApp(req: Request, res: Response): Promis
     mediaUrl: body.MediaUrl0 || null,
     mediaType: body.MediaContentType0 || null,
     externalId: body.MessageSid || null,
+    agentGender,
   }, { db, agentId: agentId as string, orgId, channel: "whatsapp", from: fromNumber, to: toNumber, body: body.Body || "", mediaUrl: body.MediaUrl0 || null, externalId: body.MessageSid || null });
 
   // Return empty TwiML — Twilio expects this

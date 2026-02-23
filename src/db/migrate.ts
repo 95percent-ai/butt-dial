@@ -135,6 +135,13 @@ export function runMigrations(): void {
     // Column already exists
   }
 
+  // Agent gender for gendered languages (Hebrew, Arabic, French, etc.)
+  try {
+    db.run("ALTER TABLE agent_channels ADD COLUMN agent_gender TEXT DEFAULT 'male'");
+  } catch {
+    // Column already exists
+  }
+
   // Consent tracking + country terms
   const consentSchemaPath = path.join(projectRoot, "src", "db", "schema-consent.sql");
   const consentSchema = fs.readFileSync(consentSchemaPath, "utf-8");

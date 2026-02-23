@@ -20,6 +20,10 @@ export interface VoiceCallConfig {
   agentLanguage?: string;
   /** Force a specific voice mode, bypassing agent-connection detection */
   forceMode?: "answering-machine";
+  /** Agent's grammatical gender for gendered languages */
+  agentGender?: "male" | "female" | "neutral";
+  /** Target person's grammatical gender for gendered languages */
+  targetGender?: "male" | "female" | "unknown";
 }
 
 export interface VoiceConversation {
@@ -39,6 +43,10 @@ export interface VoiceConversation {
   callerLanguage?: string;
   /** Agent's operating language */
   agentLanguage?: string;
+  /** Agent's grammatical gender for gendered languages */
+  agentGender?: "male" | "female" | "neutral";
+  /** Target person's grammatical gender for gendered languages */
+  targetGender?: "male" | "female" | "unknown";
 }
 
 /** Pre-call config stored by comms_make_call, read by outbound webhook */

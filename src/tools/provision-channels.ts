@@ -46,8 +46,9 @@ export function registerProvisionChannelsTool(server: McpServer): void {
       emailDomain: z.string().optional().describe("Email domain (falls back to config default)"),
       providerOverrides: z.record(z.string()).optional().describe("Per-provider config overrides"),
       routeDuplication: z.record(z.string()).optional().describe("Route duplication config"),
+      agentGender: z.enum(["male", "female", "neutral"]).default("male").describe("Agent's grammatical gender for gendered languages (Hebrew, Arabic, French, etc.)"),
     },
-    async ({ agentId, displayName, greeting, systemPrompt, country, capabilities, emailDomain, providerOverrides, routeDuplication }, extra) => {
+    async ({ agentId, displayName, greeting, systemPrompt, country, capabilities, emailDomain, providerOverrides, routeDuplication, agentGender }, extra) => {
       // Auth: only admin can provision
       try {
         requireAdmin(extra.authInfo as AuthInfo | undefined);
@@ -154,8 +155,8 @@ export function registerProvisionChannelsTool(server: McpServer): void {
         // 6. Insert agent row first (needed before WhatsApp pool FK)
         const channelId = randomUUID();
         db.run(
-          `INSERT INTO agent_channels (id, agent_id, display_name, phone_number, whatsapp_sender_sid, whatsapp_status, email_address, voice_id, system_prompt, greeting, provider_overrides, route_duplication, status, org_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
+          `INSERT INTO agent_channels (id, agent_id, display_name, phone_number, whatsapp_sender_sid, whatsapp_status, email_address, voice_id, system_prompt, greeting, provider_overrides, route_duplication, status, org_id, agent_gender)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`,
           [
             channelId,
             agentId,
@@ -170,6 +171,7 @@ export function registerProvisionChannelsTool(server: McpServer): void {
             providerOverrides ? JSON.stringify(providerOverrides) : null,
             routeDuplication ? JSON.stringify(routeDuplication) : null,
             orgId,
+            agentGender,
           ]
         );
         agentInserted = true;
@@ -234,6 +236,7 @@ export function registerProvisionChannelsTool(server: McpServer): void {
               success: true,
               agentId,
               displayName,
+              agentGender,
               securityToken: plainToken,
               channels: {
                 phone: phoneNumber ? { number: phoneNumber, status: "active" } : null,

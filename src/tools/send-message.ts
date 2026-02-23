@@ -19,6 +19,7 @@ import { preSendCheck } from "../security/compliance.js";
 import { resolveFromNumber } from "../lib/number-pool.js";
 import { maybeTriggerSandboxReply } from "../lib/sandbox-responder.js";
 import { isChannelBlocked } from "../lib/channel-blocker.js";
+import { getAgentGender, type AgentGender, type TargetGender } from "../lib/gender-context.js";
 
 interface AgentRow {
   agent_id: string;
@@ -59,8 +60,9 @@ export function registerSendMessageTool(server: McpServer): void {
       html: z.string().optional().describe("Optional HTML body for email"),
       templateId: z.string().optional().describe("WhatsApp content template SID (e.g. HX...) for messages outside 24h window"),
       templateVars: z.record(z.string()).optional().describe("Template variable substitutions (e.g. {\"1\": \"John\"})"),
+      targetGender: z.enum(["male", "female", "unknown"]).optional().describe("Gender of the recipient — returned as metadata so the AI can conjugate correctly in gendered languages"),
     },
-    async ({ agentId: explicitAgentId, to, body, channel, subject, html, templateId, templateVars }, extra) => {
+    async ({ agentId: explicitAgentId, to, body, channel, subject, html, templateId, templateVars, targetGender }, extra) => {
       const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
       if (!agentId) {
         return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
@@ -137,14 +139,19 @@ export function registerSendMessageTool(server: McpServer): void {
         };
       }
 
+      // Resolve gender context for response metadata
+      const resolvedAgentGender = getAgentGender(db, agentId);
+      const resolvedTargetGender = targetGender || "male";
+      const genderContext = { agentGender: resolvedAgentGender, targetGender: resolvedTargetGender };
+
       if (channel === "email") {
-        return await sendEmail(db, agent, agentId, to, body, orgId, subject, html);
+        return await sendEmail(db, agent, agentId, to, body, orgId, genderContext, subject, html);
       } else if (channel === "whatsapp") {
-        return await sendWhatsApp(db, agent, agentId, to, body, orgId, templateId, templateVars);
+        return await sendWhatsApp(db, agent, agentId, to, body, orgId, genderContext, templateId, templateVars);
       } else if (channel === "line") {
-        return await sendLine(db, agent, agentId, to, body, orgId);
+        return await sendLine(db, agent, agentId, to, body, orgId, genderContext);
       } else {
-        return await sendSms(db, agent, agentId, to, body, orgId);
+        return await sendSms(db, agent, agentId, to, body, orgId, genderContext);
       }
     }
   );
@@ -159,6 +166,7 @@ async function sendSms(
   to: string,
   body: string,
   orgId: string,
+  genderContext: { agentGender: AgentGender; targetGender: TargetGender },
 ) {
   const fromNumber = resolveFromNumber(db, agent.phone_number, to, "sms", orgId);
   if (!fromNumber) {
@@ -200,6 +208,7 @@ async function sendSms(
         success: true, externalId: result.messageId,
         status: result.status, cost: result.cost ?? null,
         channel: "sms", from: fromNumber, to,
+        genderContext,
       }, null, 2),
     }],
   };
@@ -212,6 +221,7 @@ async function sendEmail(
   to: string,
   body: string,
   orgId: string,
+  genderContext: { agentGender: AgentGender; targetGender: TargetGender },
   subject?: string,
   html?: string,
 ) {
@@ -260,6 +270,7 @@ async function sendEmail(
         success: true, externalId: result.messageId,
         status: result.status, cost: result.cost ?? null,
         channel: "email", from: agent.email_address, to, subject,
+        genderContext,
       }, null, 2),
     }],
   };
@@ -272,6 +283,7 @@ async function sendWhatsApp(
   to: string,
   body: string,
   orgId: string,
+  genderContext: { agentGender: AgentGender; targetGender: TargetGender },
   templateId?: string,
   templateVars?: Record<string, string>,
 ) {
@@ -314,6 +326,7 @@ async function sendWhatsApp(
         success: true, externalId: result.messageId,
         status: result.status, cost: result.cost ?? null,
         channel: "whatsapp", from: agent.whatsapp_sender_sid, to,
+        genderContext,
       }, null, 2),
     }],
   };
@@ -326,6 +339,7 @@ async function sendLine(
   to: string,
   body: string,
   orgId: string,
+  genderContext: { agentGender: AgentGender; targetGender: TargetGender },
 ) {
   if (!agent.line_channel_id) {
     return {
@@ -365,6 +379,7 @@ async function sendLine(
         success: true, externalId: result.messageId,
         status: result.status, cost: result.cost ?? null,
         channel: "line", from: agentId, to,
+        genderContext,
       }, null, 2),
     }],
   };

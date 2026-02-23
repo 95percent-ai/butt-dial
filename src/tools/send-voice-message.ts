@@ -16,6 +16,7 @@ import { sanitize, sanitizationErrorResponse } from "../security/sanitizer.js";
 import { checkRateLimits, logUsage, rateLimitErrorResponse, RateLimitError } from "../security/rate-limiter.js";
 import { resolveFromNumber } from "../lib/number-pool.js";
 import { isChannelBlocked } from "../lib/channel-blocker.js";
+import { getAgentGender, buildGenderInstructions } from "../lib/gender-context.js";
 
 interface AgentRow {
   agent_id: string;
@@ -33,8 +34,9 @@ export function registerSendVoiceMessageTool(server: McpServer): void {
       to: z.string().describe("Recipient phone number in E.164 format (e.g. +1234567890)"),
       text: z.string().min(1).describe("The message text to convert to speech and play"),
       voice: z.string().optional().describe("TTS voice ID (optional, uses default if omitted)"),
+      targetGender: z.enum(["male", "female", "unknown"]).optional().describe("Gender of the recipient — used for correct conjugation in gendered languages"),
     },
-    async ({ agentId: explicitAgentId, to, text, voice }, extra) => {
+    async ({ agentId: explicitAgentId, to, text, voice, targetGender }, extra) => {
       const agentId = resolveAgentId(extra.authInfo as AuthInfo | undefined, explicitAgentId);
       if (!agentId) {
         return { content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (or use an agent token)" }) }], isError: true };
