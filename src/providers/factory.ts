@@ -24,6 +24,7 @@ import { createMockEmailProvider } from "./email-mock.js";
 import { createResendEmailProvider } from "./email-resend.js";
 import { createMockWhatsAppProvider } from "./whatsapp-mock.js";
 import { createTwilioWhatsAppProvider } from "./whatsapp-twilio.js";
+import { createGreenapiWhatsAppProvider } from "./whatsapp-greenapi.js";
 import { createMockSTTProvider } from "./stt-mock.js";
 import { createDeepgramSTTProvider } from "./stt-deepgram.js";
 import { createOpenAITTSProvider } from "./tts-openai.js";
@@ -174,11 +175,18 @@ export function initProviders(): void {
       authToken: config.twilioAuthToken,
     });
     logger.info("provider_initialized", { slot: "whatsapp", provider: "twilio" });
+  } else if (config.greenapiInstanceId && config.greenapiAccessToken && !config.providerWhatsappGreenapiDisabled) {
+    providers.whatsapp = createGreenapiWhatsAppProvider({
+      apiUrl: config.greenapiApiUrl,
+      idInstance: config.greenapiInstanceId,
+      apiTokenInstance: config.greenapiAccessToken,
+    });
+    logger.info("provider_initialized", { slot: "whatsapp", provider: "greenapi" });
   } else {
     providers.whatsapp = createMockWhatsAppProvider();
     logger.warn("provider_fallback_mock", {
       slot: "whatsapp",
-      reason: "No Twilio credentials found — using mock adapter",
+      reason: "No WhatsApp credentials found — using mock adapter",
     });
   }
 

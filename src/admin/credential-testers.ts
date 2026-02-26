@@ -250,6 +250,42 @@ export async function testWhatsAppTwilioCredentials(
   return testTwilioCredentials(accountSid, authToken);
 }
 
+/** Test GreenAPI credentials by calling GET /getSettings */
+export async function testWhatsAppGreenapiCredentials(
+  instanceId: string,
+  accessToken: string,
+  apiUrl: string = "7103.api.greenapi.com"
+): Promise<TestResult> {
+  const url = `https://${apiUrl}/waInstance${instanceId}/getSettings/${accessToken}`;
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        return { success: false, message: "Invalid Instance ID or Access Token" };
+      }
+      const body = await response.text();
+      return { success: false, message: `GreenAPI error ${response.status}: ${body.slice(0, 200)}` };
+    }
+
+    const data = (await response.json()) as { wid?: string; phone?: string };
+    const phone = data.phone ?? data.wid ?? instanceId;
+    return {
+      success: true,
+      message: `Connected — instance phone: ${phone}`,
+    };
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      return { success: false, message: "Connection timed out (10s)" };
+    }
+    return { success: false, message: `Connection failed: ${String(err)}` };
+  }
+}
+
 /** Test LINE credentials by calling GET /v2/bot/info */
 export async function testLINECredentials(
   channelAccessToken: string

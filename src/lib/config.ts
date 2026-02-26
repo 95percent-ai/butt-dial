@@ -86,6 +86,11 @@ const configSchema = z.object({
   convexDeploymentUrl: z.string().optional(),
   convexAdminKey: z.string().optional(),
 
+  // GreenAPI (WhatsApp)
+  greenapiApiUrl: z.string().default("7103.api.greenapi.com"),
+  greenapiInstanceId: z.string().optional(),
+  greenapiAccessToken: z.string().optional(),
+
   // LINE Messaging API
   lineChannelAccessToken: z.string().optional(),
   lineChannelSecret: z.string().optional(),
@@ -172,6 +177,7 @@ const configSchema = z.object({
   providerDeepgramDisabled: z.string().transform((v) => v === "true").default("false"),
   providerAnthropicDisabled: z.string().transform((v) => v === "true").default("false"),
   providerWhatsappTwilioDisabled: z.string().transform((v) => v === "true").default("false"),
+  providerWhatsappGreenapiDisabled: z.string().transform((v) => v === "true").default("false"),
   providerLineDisabled: z.string().transform((v) => v === "true").default("false"),
   providerS3Disabled: z.string().transform((v) => v === "true").default("false"),
   providerR2Disabled: z.string().transform((v) => v === "true").default("false"),
@@ -233,6 +239,9 @@ function loadConfig() {
     tursoAuthToken: process.env.TURSO_AUTH_TOKEN,
     convexDeploymentUrl: process.env.CONVEX_DEPLOYMENT_URL,
     convexAdminKey: process.env.CONVEX_ADMIN_KEY,
+    greenapiApiUrl: process.env.GREENAPI_API_URL,
+    greenapiInstanceId: process.env.GREENAPI_INSTANCE_ID,
+    greenapiAccessToken: process.env.GREENAPI_ACCESS_TOKEN,
     lineChannelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
     lineChannelSecret: process.env.LINE_CHANNEL_SECRET,
     providerLine: process.env.PROVIDER_LINE,
@@ -275,6 +284,7 @@ function loadConfig() {
     providerDeepgramDisabled: process.env.PROVIDER_DEEPGRAM_DISABLED,
     providerAnthropicDisabled: process.env.PROVIDER_ANTHROPIC_DISABLED,
     providerWhatsappTwilioDisabled: process.env.PROVIDER_WHATSAPP_TWILIO_DISABLED,
+    providerWhatsappGreenapiDisabled: process.env.PROVIDER_WHATSAPP_GREENAPI_DISABLED,
     providerLineDisabled: process.env.PROVIDER_LINE_DISABLED,
     providerS3Disabled: process.env.PROVIDER_S3_DISABLED,
     providerR2Disabled: process.env.PROVIDER_R2_DISABLED,

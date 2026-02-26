@@ -7,6 +7,7 @@ import {
   testTwilioCredentials, testElevenLabsCredentials, testResendCredentials,
   testAnthropicCredentials, testOpenAICredentials, testDeepgramCredentials,
   testVonageCredentials, testLINECredentials, testWhatsAppTwilioCredentials,
+  testWhatsAppGreenapiCredentials,
 } from "./credential-testers.js";
 import { PROVIDER_CATALOG, getCatalogProvider, getAllCatalogEnvKeys } from "./provider-catalog.js";
 import { renderSetupPage } from "./setup-page.js";
@@ -1254,6 +1255,10 @@ adminRouter.post("/admin/api/providers/:id/test", adminAuth, async (req: Request
         if (!creds.accountSid || !creds.authToken) { res.status(400).json({ success: false, message: "accountSid and authToken required" }); return; }
         result = await testWhatsAppTwilioCredentials(String(creds.accountSid), String(creds.authToken));
         break;
+      case "whatsapp-greenapi":
+        if (!creds.instanceId || !creds.accessToken) { res.status(400).json({ success: false, message: "instanceId and accessToken required" }); return; }
+        result = await testWhatsAppGreenapiCredentials(String(creds.instanceId), String(creds.accessToken), creds.apiUrl ? String(creds.apiUrl) : undefined);
+        break;
       case "line":
         if (!creds.channelAccessToken) { res.status(400).json({ success: false, message: "channelAccessToken required" }); return; }
         result = await testLINECredentials(String(creds.channelAccessToken));
@@ -1422,6 +1427,13 @@ adminRouter.get("/admin/api/providers/:id/health", adminAuth, async (req: Reques
         const token = process.env.TWILIO_AUTH_TOKEN;
         if (!sid || !token) { res.json({ success: false, message: "Not configured" }); return; }
         result = await testWhatsAppTwilioCredentials(sid, token);
+        break;
+      }
+      case "whatsapp-greenapi": {
+        const gInstanceId = process.env.GREENAPI_INSTANCE_ID;
+        const gAccessToken = process.env.GREENAPI_ACCESS_TOKEN;
+        if (!gInstanceId || !gAccessToken) { res.json({ success: false, message: "Not configured" }); return; }
+        result = await testWhatsAppGreenapiCredentials(gInstanceId, gAccessToken, process.env.GREENAPI_API_URL);
         break;
       }
       case "line": {

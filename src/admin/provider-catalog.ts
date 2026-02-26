@@ -145,6 +145,20 @@ export const PROVIDER_CATALOG: CatalogProvider[] = [
     testable: true,
   },
   {
+    id: "whatsapp-greenapi",
+    name: "WhatsApp (GreenAPI)",
+    type: "messaging",
+    description: "WhatsApp Business API via green-api.com. One instance per phone number.",
+    services: ["WhatsApp Messages"],
+    costInfo: "Free trial available. Plans from $12.80/mo per instance.",
+    fields: [
+      { key: "instanceId", envKey: "GREENAPI_INSTANCE_ID", label: "Instance ID", placeholder: "1101234567", type: "text" },
+      { key: "accessToken", envKey: "GREENAPI_ACCESS_TOKEN", label: "Access Token", placeholder: "Your GreenAPI access token", type: "password" },
+      { key: "apiUrl", envKey: "GREENAPI_API_URL", label: "API URL (optional)", placeholder: "7103.api.greenapi.com", type: "text" },
+    ],
+    testable: true,
+  },
+  {
     id: "line",
     name: "LINE",
     type: "messaging",
