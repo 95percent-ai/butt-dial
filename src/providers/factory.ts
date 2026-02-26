@@ -71,13 +71,13 @@ export function initProviders(): void {
   if (config.demoMode) {
     providers.telephony = createMockTelephonyProvider();
     logger.info("provider_initialized", { slot: "telephony", provider: "mock (demo mode)" });
-  } else if (config.providerTelephony === "vonage" && config.vonageApiKey && config.vonageApiSecret) {
+  } else if (config.providerTelephony === "vonage" && config.vonageApiKey && config.vonageApiSecret && !config.providerVonageDisabled) {
     providers.telephony = createVonageTelephonyProvider({
       apiKey: config.vonageApiKey,
       apiSecret: config.vonageApiSecret,
     });
     logger.info("provider_initialized", { slot: "telephony", provider: "vonage" });
-  } else if (config.twilioAccountSid && config.twilioAuthToken) {
+  } else if (config.twilioAccountSid && config.twilioAuthToken && !config.providerTwilioDisabled) {
     providers.telephony = createTwilioTelephonyProvider({
       accountSid: config.twilioAccountSid,
       authToken: config.twilioAuthToken,
@@ -88,7 +88,7 @@ export function initProviders(): void {
     providers.telephony = createMockTelephonyProvider();
     logger.warn("provider_fallback_mock", {
       slot: "telephony",
-      reason: "No telephony credentials found — using mock adapter",
+      reason: "No telephony credentials or provider disabled — using mock adapter",
     });
   }
 
@@ -96,19 +96,28 @@ export function initProviders(): void {
   if (config.demoMode) {
     providers.tts = createMockTTSProvider();
     logger.info("provider_initialized", { slot: "tts", provider: "mock (demo mode)" });
-  } else if (config.elevenlabsApiKey) {
+  } else if (config.providerTts === "openai" && config.openaiApiKey && !config.providerOpenaiTtsDisabled) {
+    providers.tts = createOpenAITTSProvider({
+      apiKey: config.openaiApiKey,
+      defaultVoice: config.openaiTtsVoice,
+    });
+    logger.info("provider_initialized", { slot: "tts", provider: "openai" });
+  } else if (config.elevenlabsApiKey && !config.providerElevenlabsDisabled) {
     providers.tts = createElevenLabsTTSProvider({
       apiKey: config.elevenlabsApiKey,
       defaultVoice: config.elevenlabsDefaultVoice,
     });
     logger.info("provider_initialized", { slot: "tts", provider: "elevenlabs" });
-  } else {
+  } else if (!config.providerEdgeTtsDisabled) {
     providers.tts = createEdgeTTSProvider();
     logger.info("provider_initialized", { slot: "tts", provider: "edge-tts (free, no API key)" });
+  } else {
+    providers.tts = createMockTTSProvider();
+    logger.warn("provider_fallback_mock", { slot: "tts", reason: "All TTS providers disabled — using mock adapter" });
   }
 
   // Storage
-  if (config.providerStorage === "s3" && config.awsAccessKeyId && config.awsSecretAccessKey && config.s3Bucket) {
+  if (config.providerStorage === "s3" && config.awsAccessKeyId && config.awsSecretAccessKey && config.s3Bucket && !config.providerS3Disabled) {
     providers.storage = createS3StorageProvider({
       bucket: config.s3Bucket,
       region: config.s3Region,
@@ -117,7 +126,7 @@ export function initProviders(): void {
       publicUrl: config.s3PublicUrl,
     });
     logger.info("provider_initialized", { slot: "storage", provider: "s3" });
-  } else if (config.providerStorage === "r2" && config.r2AccountId && config.r2AccessKeyId && config.r2SecretAccessKey && config.r2Bucket) {
+  } else if (config.providerStorage === "r2" && config.r2AccountId && config.r2AccessKeyId && config.r2SecretAccessKey && config.r2Bucket && !config.providerR2Disabled) {
     providers.storage = createR2StorageProvider({
       accountId: config.r2AccountId,
       bucket: config.r2Bucket,
@@ -144,7 +153,7 @@ export function initProviders(): void {
   if (config.demoMode) {
     providers.email = createMockEmailProvider();
     logger.info("provider_initialized", { slot: "email", provider: "mock (demo mode)" });
-  } else if (config.resendApiKey) {
+  } else if (config.resendApiKey && !config.providerResendDisabled) {
     providers.email = createResendEmailProvider({ apiKey: config.resendApiKey });
     logger.info("provider_initialized", { slot: "email", provider: "resend" });
   } else {
@@ -159,7 +168,7 @@ export function initProviders(): void {
   if (config.demoMode) {
     providers.whatsapp = createMockWhatsAppProvider();
     logger.info("provider_initialized", { slot: "whatsapp", provider: "mock (demo mode)" });
-  } else if (config.twilioAccountSid && config.twilioAuthToken) {
+  } else if (config.twilioAccountSid && config.twilioAuthToken && !config.providerTwilioDisabled) {
     providers.whatsapp = createTwilioWhatsAppProvider({
       accountSid: config.twilioAccountSid,
       authToken: config.twilioAuthToken,
@@ -177,7 +186,7 @@ export function initProviders(): void {
   if (config.demoMode) {
     providers.line = createMockLineProvider();
     logger.info("provider_initialized", { slot: "line", provider: "mock (demo mode)" });
-  } else if (config.lineChannelAccessToken) {
+  } else if (config.lineChannelAccessToken && !config.providerLineDisabled) {
     providers.line = createLineProvider({
       channelAccessToken: config.lineChannelAccessToken,
     });
@@ -194,7 +203,7 @@ export function initProviders(): void {
   if (config.demoMode) {
     providers.stt = createMockSTTProvider();
     logger.info("provider_initialized", { slot: "stt", provider: "mock (demo mode)" });
-  } else if (config.deepgramApiKey) {
+  } else if (config.deepgramApiKey && !config.providerDeepgramDisabled) {
     providers.stt = createDeepgramSTTProvider({ apiKey: config.deepgramApiKey });
     logger.info("provider_initialized", { slot: "stt", provider: "deepgram" });
   } else {

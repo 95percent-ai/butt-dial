@@ -1,4 +1,4 @@
-<!-- version: 3.8 | updated: 2026-02-22 -->
+<!-- version: 3.9 | updated: 2026-02-23 -->
 
 # Project Structure
 
@@ -136,8 +136,9 @@ agentos-comms-mcp/
 │   │   └── legal-pages.ts       # Terms of Service, AUP, Privacy Policy HTML pages
 │   │
 │   └── admin/                    # Admin UI — setup wizard, credential management
-│       ├── env-writer.ts         # Read/write .env file (atomic, preserves comments)
-│       ├── credential-testers.ts # Test Twilio + ElevenLabs + Resend API credentials
+│       ├── provider-catalog.ts   # Single source of truth for all 11 provider metadata (fields, env keys, descriptions)
+│       ├── env-writer.ts         # Read/write/delete .env keys (atomic, preserves comments) + getConfiguredProviders
+│       ├── credential-testers.ts # Test credentials for 8 providers (Twilio, Resend, ElevenLabs, Anthropic, OpenAI, Deepgram, Vonage, LINE)
 │       ├── setup-page.ts         # HTML setup page (5 cards: Twilio, ElevenLabs, Resend, Server, Voice)
 │       ├── dashboard-page.ts    # Admin dashboard HTML page (agents, usage, alerts)
 │       ├── swagger-page.ts      # Swagger UI HTML page (CDN-based, dark theme)

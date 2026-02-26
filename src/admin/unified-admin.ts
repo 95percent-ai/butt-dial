@@ -13,7 +13,7 @@ export function renderAdminPage(specJson: string): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Butt-Dial Admin</title>
-  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css">
+  <!-- Swagger UI CSS loaded on demand -->
   <style>
     /* ── CSS Variables ─────────────────────────────────────────── */
     :root {
@@ -948,6 +948,136 @@ export function renderAdminPage(specJson: string): string {
     .conditional-field { display: none; }
     .conditional-field.visible { display: block; }
 
+    /* ── Providers Table ─────────────────────────────────────────── */
+    .providers-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    .providers-table th {
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .providers-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    .providers-table tr:last-child td { border-bottom: none; }
+    .providers-table .prov-name {
+      font-weight: 600;
+      color: var(--text-heading);
+    }
+    .providers-table .prov-subtitle {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .type-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #fff;
+    }
+    .health-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+    .health-dot.ok { background: var(--success); }
+    .health-dot.error { background: var(--error); }
+    .health-dot.checking { background: var(--warning); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .toggle-switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      cursor: pointer;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .toggle-slider {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 20px;
+      transition: background 0.2s;
+    }
+    .toggle-slider::before {
+      content: "";
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      left: 2px;
+      top: 2px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .toggle-switch input:checked + .toggle-slider {
+      background: var(--success);
+    }
+    .toggle-switch input:checked + .toggle-slider::before {
+      transform: translateX(16px);
+    }
+    .provider-action-btn {
+      background: none;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 4px 8px;
+    }
+    .provider-action-btn:hover { color: var(--accent-hover); }
+    .provider-action-btn.danger { color: var(--error); }
+    .provider-action-btn.danger:hover { color: #ff7b73; }
+    .restart-indicator {
+      display: inline-block;
+      font-size: 0.65rem;
+      color: var(--warning);
+      margin-left: 6px;
+    }
+    /* Catalog grid tiles */
+    .catalog-tile {
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .catalog-tile:hover {
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.05);
+    }
+    .catalog-tile.configured {
+      border-color: var(--success);
+      opacity: 0.7;
+    }
+    .catalog-tile .tile-name {
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--text-heading);
+    }
+    .catalog-tile .tile-desc {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.3;
+    }
+
     /* ── Agents Table ────────────────────────────────────────────── */
     .agents-table {
       width: 100%;
@@ -1517,7 +1647,7 @@ export function renderAdminPage(specJson: string): string {
           </div>
           <div class="health-card">
             <div class="big-number" id="stat-agents">0</div>
-            <div class="card-label">Provisioned Agents <span class="info-icon">i<span class="info-tooltip">Total provisioned agents</span></span></div>
+            <div class="card-label">Agents <span class="info-icon">i<span class="info-tooltip">Total provisioned agents</span></span></div>
           </div>
           <div class="health-card">
             <div class="big-number" id="stat-messages">0</div>
@@ -1721,81 +1851,65 @@ export function renderAdminPage(specJson: string): string {
       <div id="tab-settings" class="tab-content">
         <h1 class="page-title">Settings</h1>
 
-        <!-- Communications Group -->
-        <div class="group-heading">Communications</div>
+        <!-- ── Section 1: Providers ────────────────────────────── -->
+        <div class="group-heading" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>Providers</span>
+          <button class="btn btn-sm btn-primary" onclick="openAddProvider()" style="padding:6px 14px;font-size:0.75rem;">+ Add Provider</button>
+        </div>
 
-        <div class="card" id="card-twilio">
-          <div class="card-header">
-            <span class="card-title">Twilio</span>
-            <span class="badge badge-info" id="twilio-badge">--</span>
-          </div>
-          <div class="card-desc">SMS, WhatsApp, and Voice calls via Twilio.</div>
-          <div class="field">
-            <label>Account SID</label>
-            <input type="text" id="twilio-sid" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-          </div>
-          <div class="field">
-            <label>Auth Token</label>
-            <input type="password" id="twilio-token" placeholder="Your Twilio auth token">
-          </div>
-          <div class="settings-actions">
-            <button class="btn btn-sm btn-secondary" onclick="testTwilio()">Test Connection</button>
-            <button class="btn btn-sm btn-primary" onclick="saveComms()">Save</button>
-            <span class="test-result" id="twilio-result"></span>
+        <div class="card" id="providers-card" style="padding:0;overflow:hidden;">
+          <table class="providers-table" id="providers-table">
+            <thead>
+              <tr>
+                <th>Provider</th>
+                <th>Type</th>
+                <th>Health</th>
+                <th>Active</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="providers-body">
+              <tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:1.5rem;">Loading providers...</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Add Provider Modal -->
+        <div id="add-provider-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:0;max-width:640px;width:90%;max-height:85vh;overflow-y:auto;">
+            <!-- Step 1: Catalog -->
+            <div id="provider-step-catalog" style="padding:1.5rem;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+                <h3 style="color:var(--text-heading);margin:0;font-size:1rem;">Add Provider</h3>
+                <button onclick="closeProviderModal()" style="background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;padding:4px 8px;">&times;</button>
+              </div>
+              <div id="provider-catalog-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;"></div>
+            </div>
+            <!-- Step 2: Configure -->
+            <div id="provider-step-configure" style="display:none;padding:1.5rem;">
+              <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+                <button onclick="showCatalogStep()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:0.85rem;padding:0;">&larr; Back</button>
+                <h3 id="configure-provider-title" style="color:var(--text-heading);margin:0;font-size:1rem;"></h3>
+                <button onclick="closeProviderModal()" style="background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;padding:4px 8px;margin-left:auto;">&times;</button>
+              </div>
+              <p id="configure-provider-desc" style="color:var(--text-muted);font-size:0.8rem;margin-bottom:0.25rem;"></p>
+              <p id="configure-provider-cost" style="color:var(--text-muted);font-size:0.75rem;font-style:italic;margin-bottom:1rem;"></p>
+              <div id="configure-provider-fields"></div>
+              <div style="display:flex;align-items:center;gap:0.75rem;margin-top:1rem;">
+                <button class="btn btn-sm btn-secondary" id="provider-test-btn" onclick="testCurrentProvider()">Test Connection</button>
+                <button class="btn btn-sm btn-primary" onclick="saveCurrentProvider()">Save</button>
+                <span class="test-result" id="provider-modal-result"></span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="card" id="card-resend">
-          <div class="card-header">
-            <span class="card-title">Resend</span>
-            <span class="badge badge-info" id="resend-badge">--</span>
-          </div>
-          <div class="card-desc">Email sending via Resend.</div>
-          <div class="field">
-            <label>API Key</label>
-            <input type="password" id="resend-key" placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-          </div>
-          <div class="settings-actions">
-            <button class="btn btn-sm btn-secondary" onclick="testResend()">Test Connection</button>
-            <button class="btn btn-sm btn-primary" onclick="saveComms()">Save</button>
-            <span class="test-result" id="resend-result"></span>
-          </div>
-        </div>
-
-        <!-- Voice & TTS Group -->
-        <div class="group-heading">Voice &amp; TTS</div>
-
-        <div class="card" id="card-tts">
-          <div class="card-header">
-            <span class="card-title">Text-to-Speech</span>
-            <span class="badge badge-info" id="tts-badge">--</span>
-          </div>
-          <div class="card-desc">Voice synthesis provider for outbound calls.</div>
-          <div class="field">
-            <label>TTS Provider</label>
-            <select id="tts-provider" onchange="onTtsProviderChange()">
-              <option value="elevenlabs">ElevenLabs</option>
-              <option value="edge-tts">Edge TTS (free)</option>
-              <option value="openai">OpenAI</option>
-            </select>
-          </div>
-          <div class="field conditional-field" id="field-elevenlabs-key">
-            <label>ElevenLabs API Key</label>
-            <input type="password" id="elevenlabs-key" placeholder="Your ElevenLabs API key">
-          </div>
-          <div class="field conditional-field" id="field-openai-key">
-            <label>OpenAI API Key</label>
-            <input type="password" id="openai-key" placeholder="sk-...">
-          </div>
-          <div class="settings-actions">
-            <button class="btn btn-sm btn-secondary" onclick="testTts()">Test Connection</button>
-            <span class="test-result" id="tts-result"></span>
-          </div>
-        </div>
+        <!-- ── Section 2: Configuration ────────────────────────── -->
+        <div class="group-heading">Voice Configuration</div>
 
         <div class="card" id="card-voice">
           <div class="card-header">
-            <span class="card-title">Voice Configuration</span>
+            <span class="card-title">Voice Defaults</span>
           </div>
           <div class="field">
             <label>Voice</label>
@@ -1840,7 +1954,6 @@ export function renderAdminPage(specJson: string): string {
           </div>
         </div>
 
-        <!-- Compliance Group -->
         <div class="group-heading">Compliance</div>
 
         <div class="card" id="card-disclosure">
@@ -1868,7 +1981,6 @@ export function renderAdminPage(specJson: string): string {
           </div>
         </div>
 
-        <!-- Registration Group -->
         <div class="group-heading">Registration</div>
 
         <div class="card" id="card-email-verification">
@@ -1892,7 +2004,6 @@ export function renderAdminPage(specJson: string): string {
           </div>
         </div>
 
-        <!-- Server Group -->
         <div class="group-heading">Server</div>
 
         <div class="card" id="card-server">
@@ -2165,9 +2276,7 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
     </main>
   </div>
 
-  <!-- ── Chart.js CDN ────────────────────────────────────────── -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
+  <!-- Chart.js + Swagger UI loaded on demand -->
 
   <script>
     /* ── Globals ──────────────────────────────────────────────── */
@@ -2183,6 +2292,44 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
     let tierPresets = {};
     let allActivity = [];
     let analyticsTimer = null;
+
+    /* ── Lazy CDN Loader ─────────────────────────────────────── */
+    var _cdnCache = {};
+    function loadScript(url) {
+      if (_cdnCache[url]) return _cdnCache[url];
+      _cdnCache[url] = new Promise(function(resolve, reject) {
+        var s = document.createElement('script');
+        s.src = url;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+      return _cdnCache[url];
+    }
+    function loadCSS(url) {
+      if (_cdnCache[url]) return _cdnCache[url];
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = url;
+      document.head.appendChild(link);
+      _cdnCache[url] = Promise.resolve();
+      return _cdnCache[url];
+    }
+    var chartReady = null;
+    function ensureChartJS() {
+      if (window.Chart) return Promise.resolve();
+      if (chartReady) return chartReady;
+      chartReady = loadScript('https://cdn.jsdelivr.net/npm/chart.js');
+      return chartReady;
+    }
+    var swaggerAssetsReady = null;
+    function ensureSwaggerUI() {
+      if (window.SwaggerUIBundle) return Promise.resolve();
+      if (swaggerAssetsReady) return swaggerAssetsReady;
+      loadCSS('https://unpkg.com/swagger-ui-dist/swagger-ui.css');
+      swaggerAssetsReady = loadScript('https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js');
+      return swaggerAssetsReady;
+    }
     let _dashData = null;
     let _histData = null;
     let _analyticsData = null;
@@ -2317,6 +2464,7 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
       loadAnalytics();
       loadSettingsStatus();
       loadVoices();
+      loadProviders();
 
       /* Auto-refresh dashboard every 30 seconds */
       if (dashboardTimer) clearInterval(dashboardTimer);
@@ -2504,6 +2652,7 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
 
     async function loadDashboard() {
       try {
+        await ensureChartJS();
         const aq = agentQueryParam();
         const [dashRes, histRes, healthRes] = await Promise.all([
           apiFetch('/admin/api/dashboard' + aq),
@@ -2628,6 +2777,7 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
     /* ── Load Analytics (separate, slower refresh) ─────────── */
     async function loadAnalytics() {
       try {
+        await ensureChartJS();
         const res = await apiFetch('/admin/api/analytics' + agentQueryParam());
         const data = await res.json();
         _analyticsData = data;
@@ -3144,30 +3294,312 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
       downloadCSV('error-rate.csv', ['Date', 'Total', 'Errors'], rows);
     }
 
-    /* ── Settings: Load Status ────────────────────────────────── */
+    /* ── Settings: Provider Management ─────────────────────────── */
+    let _providersData = [];
+    let _catalogData = [];
+    let _currentProviderId = null;
+
+    const TYPE_COLORS = {
+      telephony: '#58a6ff',
+      email: '#d2a8ff',
+      tts: '#3fb950',
+      stt: '#f0883e',
+      'ai-assistant': '#f778ba',
+      messaging: '#56d364',
+      storage: '#8b949e'
+    };
+
+    async function loadProviders() {
+      try {
+        const res = await apiFetch('/admin/api/providers');
+        const data = await res.json();
+        _providersData = data.providers || [];
+        renderProvidersTable();
+        /* Kick off health checks for testable providers */
+        _providersData.forEach(p => {
+          const cat = _catalogData.find(c => c.id === p.id);
+          if (cat && cat.testable) checkProviderHealth(p.id);
+        });
+      } catch (err) {
+        console.error('Providers load error:', err);
+      }
+    }
+
+    function renderProvidersTable() {
+      const tbody = document.getElementById('providers-body');
+      if (!tbody) return;
+
+      if (_providersData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:1.5rem;">No providers configured. Click "+ Add Provider" to get started.</td></tr>';
+        return;
+      }
+
+      let html = '';
+      _providersData.forEach(p => {
+        const typeColor = TYPE_COLORS[p.type] || '#8b949e';
+        const fieldSummary = Object.values(p.fields || {}).join(', ');
+        const isActive = !p.disabled;
+        html += '<tr id="prov-row-' + escAttr(p.id) + '">';
+        html += '<td><div class="prov-name">' + escHtml(p.name) + '</div>';
+        if (fieldSummary) html += '<div class="prov-subtitle">' + escHtml(fieldSummary) + '</div>';
+        html += '</td>';
+        html += '<td><span class="type-badge" style="background:' + typeColor + ';">' + escHtml(p.type) + '</span></td>';
+        html += '<td><span class="health-dot checking" id="health-' + escAttr(p.id) + '" title="Checking..."></span></td>';
+        html += '<td><label class="toggle-switch"><input type="checkbox" ' + (isActive ? 'checked' : '') + ' onchange="toggleProvider(\'' + escAttr(p.id) + '\', !this.checked)"><span class="toggle-slider"></span></label><span class="restart-indicator" id="restart-' + escAttr(p.id) + '" style="display:none;">restart required</span></td>';
+        html += '<td style="text-align:right;">';
+        html += '<button class="provider-action-btn" onclick="editProvider(\'' + escAttr(p.id) + '\')" title="Edit">Edit</button>';
+        /* Edge TTS has no fields — can't delete */
+        const cat = _catalogData.find(c => c.id === p.id);
+        if (cat && cat.fields && cat.fields.length > 0) {
+          html += '<button class="provider-action-btn danger" onclick="deleteProvider(\'' + escAttr(p.id) + '\')" title="Delete">Delete</button>';
+        }
+        html += '</td>';
+        html += '</tr>';
+      });
+      tbody.innerHTML = html;
+    }
+
+    async function checkProviderHealth(id) {
+      const dot = document.getElementById('health-' + id);
+      if (!dot) return;
+      dot.className = 'health-dot checking';
+      dot.title = 'Checking...';
+      try {
+        const res = await apiFetch('/admin/api/providers/' + encodeURIComponent(id) + '/health');
+        const data = await res.json();
+        dot.className = 'health-dot ' + (data.success ? 'ok' : 'error');
+        dot.title = data.message || (data.success ? 'Healthy' : 'Error');
+      } catch {
+        dot.className = 'health-dot error';
+        dot.title = 'Health check failed';
+      }
+    }
+
+    async function openAddProvider() {
+      /* Load catalog if not cached */
+      if (_catalogData.length === 0) {
+        try {
+          const res = await apiFetch('/admin/api/providers/catalog');
+          const data = await res.json();
+          _catalogData = data.catalog || [];
+        } catch { return; }
+      }
+      renderCatalogGrid();
+      showCatalogStep();
+      document.getElementById('add-provider-modal').style.display = 'flex';
+    }
+
+    function closeProviderModal() {
+      document.getElementById('add-provider-modal').style.display = 'none';
+      _currentProviderId = null;
+    }
+
+    function showCatalogStep() {
+      document.getElementById('provider-step-catalog').style.display = 'block';
+      document.getElementById('provider-step-configure').style.display = 'none';
+    }
+
+    function renderCatalogGrid() {
+      const grid = document.getElementById('provider-catalog-grid');
+      const configuredIds = new Set(_providersData.map(p => p.id));
+      /* Group by type */
+      const groups = {};
+      _catalogData.forEach(p => {
+        if (!groups[p.type]) groups[p.type] = [];
+        groups[p.type].push(p);
+      });
+
+      let html = '';
+      for (const [type, providers] of Object.entries(groups)) {
+        html += '<div style="grid-column:1/-1;margin-top:0.5rem;"><span class="type-badge" style="background:' + (TYPE_COLORS[type] || '#8b949e') + ';">' + escHtml(type) + '</span></div>';
+        providers.forEach(p => {
+          const isCfg = configuredIds.has(p.id);
+          html += '<div class="catalog-tile' + (isCfg ? ' configured' : '') + '" onclick="selectCatalogProvider(\'' + escAttr(p.id) + '\')">';
+          html += '<div class="tile-name">' + escHtml(p.name) + (isCfg ? ' <span style="font-size:0.65rem;color:var(--success);">&#10003; connected</span>' : '') + '</div>';
+          html += '<div class="tile-desc">' + escHtml(p.description) + '</div>';
+          html += '</div>';
+        });
+      }
+      grid.innerHTML = html;
+    }
+
+    function selectCatalogProvider(id) {
+      const cat = _catalogData.find(c => c.id === id);
+      if (!cat) return;
+      _currentProviderId = id;
+
+      document.getElementById('configure-provider-title').textContent = cat.name;
+      document.getElementById('configure-provider-desc').textContent = cat.description;
+      document.getElementById('configure-provider-cost').textContent = cat.costInfo;
+
+      /* Build fields */
+      const container = document.getElementById('configure-provider-fields');
+      if (cat.fields.length === 0) {
+        container.innerHTML = '<p style="color:var(--success);font-size:0.85rem;">No credentials needed — this provider works out of the box.</p>';
+        document.getElementById('provider-test-btn').style.display = 'none';
+      } else {
+        let fhtml = '';
+        cat.fields.forEach(f => {
+          fhtml += '<div class="field" style="margin-bottom:0.75rem;">';
+          fhtml += '<label>' + escHtml(f.label) + '</label>';
+          fhtml += '<input type="' + f.type + '" id="prov-field-' + escAttr(f.key) + '" placeholder="' + escAttr(f.placeholder) + '" style="width:100%;padding:8px 10px;font-size:0.85rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;outline:none;">';
+          fhtml += '</div>';
+        });
+        container.innerHTML = fhtml;
+        document.getElementById('provider-test-btn').style.display = cat.testable ? '' : 'none';
+      }
+
+      document.getElementById('provider-modal-result').textContent = '';
+      document.getElementById('provider-modal-result').className = 'test-result';
+
+      /* Pre-fill if editing an existing provider */
+      const existing = _providersData.find(p => p.id === id);
+      if (existing && existing.fields) {
+        cat.fields.forEach(f => {
+          const input = document.getElementById('prov-field-' + f.key);
+          if (input && existing.fields[f.key]) {
+            input.placeholder = existing.fields[f.key];
+          }
+        });
+      }
+
+      document.getElementById('provider-step-catalog').style.display = 'none';
+      document.getElementById('provider-step-configure').style.display = 'block';
+    }
+
+    async function testCurrentProvider() {
+      if (!_currentProviderId) return;
+      const cat = _catalogData.find(c => c.id === _currentProviderId);
+      if (!cat) return;
+
+      const resultEl = document.getElementById('provider-modal-result');
+      resultEl.className = 'test-result';
+      resultEl.textContent = 'Testing...';
+
+      const creds = {};
+      cat.fields.forEach(f => {
+        const input = document.getElementById('prov-field-' + f.key);
+        if (input && input.value.trim()) creds[f.key] = input.value.trim();
+      });
+
+      try {
+        const res = await apiFetch('/admin/api/providers/' + encodeURIComponent(_currentProviderId) + '/test', {
+          method: 'POST',
+          body: JSON.stringify(creds)
+        });
+        const data = await res.json();
+        resultEl.className = 'test-result ' + (data.success ? 'success' : 'error');
+        resultEl.innerHTML = (data.success ? '&#10003; ' : '&#10007; ') + escHtml(data.message || '');
+      } catch {
+        resultEl.className = 'test-result error';
+        resultEl.textContent = 'Network error';
+      }
+    }
+
+    async function saveCurrentProvider() {
+      if (!_currentProviderId) return;
+      const cat = _catalogData.find(c => c.id === _currentProviderId);
+      if (!cat) return;
+
+      /* For providers with no fields (e.g. Edge TTS), just close modal */
+      if (cat.fields.length === 0) {
+        showToast(cat.name + ' is always available — no credentials to save.', 'success');
+        closeProviderModal();
+        return;
+      }
+
+      const creds = {};
+      cat.fields.forEach(f => {
+        const input = document.getElementById('prov-field-' + f.key);
+        if (input && input.value.trim()) creds[f.key] = input.value.trim();
+      });
+
+      if (Object.keys(creds).length === 0) {
+        showToast('Enter at least one credential.', 'error');
+        return;
+      }
+
+      try {
+        const res = await apiFetch('/admin/api/providers/' + encodeURIComponent(_currentProviderId) + '/save', {
+          method: 'POST',
+          body: JSON.stringify(creds)
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message || 'Saved', 'success');
+          closeProviderModal();
+          loadProviders();
+        } else {
+          showToast(data.message || 'Failed', 'error');
+        }
+      } catch {
+        showToast('Network error', 'error');
+      }
+    }
+
+    function editProvider(id) {
+      if (_catalogData.length === 0) {
+        openAddProvider().then(() => selectCatalogProvider(id));
+        return;
+      }
+      selectCatalogProvider(id);
+      document.getElementById('add-provider-modal').style.display = 'flex';
+    }
+
+    async function deleteProvider(id) {
+      const p = _providersData.find(x => x.id === id);
+      if (!p) return;
+      if (!confirm('Remove ' + p.name + ' credentials? You will need to re-enter them to reconnect.')) return;
+
+      try {
+        const res = await apiFetch('/admin/api/providers/' + encodeURIComponent(id), { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message || 'Removed', 'success');
+          loadProviders();
+        } else {
+          showToast(data.message || 'Failed', 'error');
+        }
+      } catch {
+        showToast('Network error', 'error');
+      }
+    }
+
+    async function toggleProvider(id, disabled) {
+      try {
+        const res = await apiFetch('/admin/api/providers/' + encodeURIComponent(id) + '/toggle', {
+          method: 'POST',
+          body: JSON.stringify({ disabled })
+        });
+        const data = await res.json();
+        if (data.success) {
+          /* Show restart required indicator */
+          const indicator = document.getElementById('restart-' + id);
+          if (indicator) indicator.style.display = 'inline';
+          /* Update local data */
+          const p = _providersData.find(x => x.id === id);
+          if (p) p.disabled = disabled;
+        } else {
+          showToast(data.message || 'Failed', 'error');
+          loadProviders(); /* revert UI */
+        }
+      } catch {
+        showToast('Network error', 'error');
+        loadProviders();
+      }
+    }
+
+    /* ── Settings: Load Config Status ─────────────────────────── */
     async function loadSettingsStatus() {
       try {
         const res = await apiFetch('/admin/api/status');
         const status = await res.json();
 
-        /* Update badges */
-        setBadge('twilio-badge', status.twilio?.configured);
-        setBadge('resend-badge', status.resend?.configured);
-        setBadge('tts-badge', status.tts?.configured);
-
-        /* Pre-fill masked values */
-        if (status.twilio?.accountSid) {
-          document.getElementById('twilio-sid').placeholder = status.twilio.accountSid;
-        }
+        /* Pre-fill voice / server / config values */
         if (status.server?.webhookBaseUrl) {
           document.getElementById('server-webhook').placeholder = status.server.webhookBaseUrl;
         }
-        if (status.tts?.provider) {
-          document.getElementById('tts-provider').value = status.tts.provider;
-          onTtsProviderChange();
-        }
         if (status.voice?.voice) {
-          /* Will be applied after voices load */
           document.getElementById('voice-select').dataset.preselect = status.voice.voice;
         }
         if (status.voice?.greeting) {
@@ -3197,35 +3629,14 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
       } catch (err) {
         console.error('Status load error:', err);
       }
+
+      /* Also load the catalog early so editing providers is instant */
+      try {
+        const catRes = await apiFetch('/admin/api/providers/catalog');
+        const catData = await catRes.json();
+        _catalogData = catData.catalog || [];
+      } catch {}
     }
-
-    function setBadge(id, configured) {
-      const el = document.getElementById(id);
-      if (!el) return;
-      if (configured === true) {
-        el.textContent = 'Configured';
-        el.className = 'badge badge-success';
-      } else if (configured === false) {
-        el.textContent = 'Not Set';
-        el.className = 'badge badge-error';
-      } else {
-        el.textContent = '--';
-        el.className = 'badge badge-info';
-      }
-    }
-
-    /* ── Settings: TTS Provider Toggle ────────────────────────── */
-    function onTtsProviderChange() {
-      const provider = document.getElementById('tts-provider').value;
-      const elField = document.getElementById('field-elevenlabs-key');
-      const oaiField = document.getElementById('field-openai-key');
-
-      elField.classList.toggle('visible', provider === 'elevenlabs');
-      oaiField.classList.toggle('visible', provider === 'openai');
-    }
-
-    /* Init on load */
-    onTtsProviderChange();
 
     /* ── Settings: Load Voices ────────────────────────────────── */
     const RECOMMENDED_VOICES = {
@@ -3245,7 +3656,6 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
           return;
         }
 
-        /* Categorize voices by gender */
         const male = [];
         const female = [];
         const other = [];
@@ -3282,7 +3692,6 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
 
         select.innerHTML = html;
 
-        /* Apply preselected voice */
         const preselect = select.dataset.preselect;
         if (preselect) {
           select.value = preselect;
@@ -3293,126 +3702,22 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
       }
     }
 
-    /* ── Settings: Test Connections ────────────────────────────── */
-    async function testTwilio() {
-      const resultEl = document.getElementById('twilio-result');
-      resultEl.className = 'test-result';
-      resultEl.textContent = 'Testing...';
-
-      try {
-        const res = await apiFetch('/admin/api/test/twilio', {
-          method: 'POST',
-          body: JSON.stringify({
-            accountSid: document.getElementById('twilio-sid').value,
-            authToken: document.getElementById('twilio-token').value
-          })
-        });
-        const data = await res.json();
-        resultEl.className = 'test-result ' + (data.success ? 'success' : 'error');
-        resultEl.innerHTML = (data.success ? '&#10003; ' : '&#10007; ') + escHtml(data.message || (data.success ? 'Connected' : 'Failed'));
-      } catch (err) {
-        resultEl.className = 'test-result error';
-        resultEl.textContent = '&#10007; Network error';
-      }
-    }
-
-    async function testResend() {
-      const resultEl = document.getElementById('resend-result');
-      resultEl.className = 'test-result';
-      resultEl.textContent = 'Testing...';
-
-      try {
-        const res = await apiFetch('/admin/api/test/resend', {
-          method: 'POST',
-          body: JSON.stringify({
-            apiKey: document.getElementById('resend-key').value
-          })
-        });
-        const data = await res.json();
-        resultEl.className = 'test-result ' + (data.success ? 'success' : 'error');
-        resultEl.innerHTML = (data.success ? '&#10003; ' : '&#10007; ') + escHtml(data.message || (data.success ? 'Connected' : 'Failed'));
-      } catch (err) {
-        resultEl.className = 'test-result error';
-        resultEl.textContent = '&#10007; Network error';
-      }
-    }
-
-    async function testTts() {
-      const resultEl = document.getElementById('tts-result');
-      resultEl.className = 'test-result';
-      resultEl.textContent = 'Testing...';
-
-      const provider = document.getElementById('tts-provider').value;
-      let endpoint = '/admin/api/test/elevenlabs';
-      let body = {};
-
-      if (provider === 'elevenlabs') {
-        endpoint = '/admin/api/test/elevenlabs';
-        body = { apiKey: document.getElementById('elevenlabs-key').value };
-      } else if (provider === 'openai') {
-        /* If an OpenAI test endpoint exists, use it; otherwise generic */
-        endpoint = '/admin/api/test/elevenlabs';
-        body = { apiKey: document.getElementById('openai-key').value };
-      } else {
-        /* Edge TTS is free, no test needed */
-        resultEl.className = 'test-result success';
-        resultEl.innerHTML = '&#10003; Edge TTS is free — no key needed';
-        return;
-      }
-
-      try {
-        const res = await apiFetch(endpoint, {
-          method: 'POST',
-          body: JSON.stringify(body)
-        });
-        const data = await res.json();
-        resultEl.className = 'test-result ' + (data.success ? 'success' : 'error');
-        resultEl.innerHTML = (data.success ? '&#10003; ' : '&#10007; ') + escHtml(data.message || (data.success ? 'Connected' : 'Failed'));
-      } catch (err) {
-        resultEl.className = 'test-result error';
-        resultEl.textContent = '&#10007; Network error';
-      }
-    }
-
     /* ── Settings: Save ───────────────────────────────────────── */
-    async function saveComms() {
-      const credentials = {};
-      const sid = document.getElementById('twilio-sid').value.trim();
-      const token = document.getElementById('twilio-token').value.trim();
-      const resendKey = document.getElementById('resend-key').value.trim();
-
-      if (sid) credentials.TWILIO_ACCOUNT_SID = sid;
-      if (token) credentials.TWILIO_AUTH_TOKEN = token;
-      if (resendKey) credentials.RESEND_API_KEY = resendKey;
-
-      if (Object.keys(credentials).length === 0) {
-        alert('Enter at least one credential to save.');
-        return;
-      }
-
-      await doSave(credentials);
-    }
-
     async function saveVoice() {
       const credentials = {};
-      const provider = document.getElementById('tts-provider').value;
       const voice = document.getElementById('voice-select').value;
       const greeting = document.getElementById('voice-greeting').value.trim();
       const prompt = document.getElementById('voice-prompt').value.trim();
       const language = document.getElementById('voice-language').value;
 
-      credentials.PROVIDER_TTS = provider;
       if (voice) credentials.VOICE_DEFAULT_VOICE = voice;
       if (greeting) credentials.VOICE_DEFAULT_GREETING = greeting;
       if (prompt) credentials.VOICE_DEFAULT_SYSTEM_PROMPT = prompt;
       if (language) credentials.VOICE_DEFAULT_LANGUAGE = language;
 
-      if (provider === 'elevenlabs') {
-        const key = document.getElementById('elevenlabs-key').value.trim();
-        if (key) credentials.ELEVENLABS_API_KEY = key;
-      } else if (provider === 'openai') {
-        const key = document.getElementById('openai-key').value.trim();
-        if (key) credentials.OPENAI_API_KEY = key;
+      if (Object.keys(credentials).length === 0) {
+        showToast('No voice settings to save.', 'error');
+        return;
       }
 
       await doSave(credentials);
@@ -3497,6 +3802,7 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
 
         renderAgentsTable();
         updatePoolCapacity();
+        populateAgentVoiceDropdowns();
       } catch (err) {
         console.error('Agents load error:', err);
         document.getElementById('agents-body').innerHTML =
@@ -3674,6 +3980,24 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         html += '<tr class="agent-edit-panel" id="agent-edit-' + idx + '">' +
           '<td colspan="7">' +
           '<div class="edit-panel-inner">' +
+          /* Full-width: Agent Profile + Channel IDs */
+          '<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--border);margin-bottom:0.25rem;">' +
+          '<div>' +
+          '<h4 style="font-size:0.8rem;font-weight:600;color:var(--text-heading);margin-bottom:0.75rem;">Agent Profile</h4>' +
+          '<div class="field"><label>Display Name</label><input type="text" id="profile-name-' + idx + '" value="' + escAttr(agent.display_name || '') + '"></div>' +
+          '<div class="field"><label>Greeting</label><input type="text" id="profile-greeting-' + idx + '" value="' + escAttr(agent.greeting || '') + '" placeholder="Hello! How can I help?"></div>' +
+          '<div class="field"><label>System Prompt</label><textarea id="profile-prompt-' + idx + '" rows="3" style="width:100%;padding:8px 10px;font-size:0.85rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;outline:none;resize:vertical;font-family:inherit;">' + escHtml(agent.system_prompt || '') + '</textarea></div>' +
+          '<div class="field"><label>Voice</label><select id="profile-voice-' + idx + '" data-current="' + escAttr(agent.voice_id || '') + '"><option value="">Loading voices...</option></select></div>' +
+          '<div style="margin-top:0.75rem;"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();saveAgentProfile(\\'' + escAttr(agentId) + '\\',' + idx + ')">Save Profile</button></div>' +
+          '</div>' +
+          '<div>' +
+          '<h4 style="font-size:0.8rem;font-weight:600;color:var(--text-heading);margin-bottom:0.75rem;">Channel Identifiers</h4>' +
+          '<p style="font-size:0.7rem;color:var(--text-muted);margin-bottom:0.75rem;">Outbound caller IDs assigned at provisioning (read-only)</p>' +
+          '<div class="field"><label>Phone</label><div style="display:flex;align-items:center;gap:6px;"><input type="text" value="' + escAttr(agent.phone_number || 'Not assigned') + '" readonly style="font-family:monospace;background:var(--bg-card);opacity:0.8;flex:1;">' + (agent.phone_number ? '<button class="btn btn-sm" onclick="event.stopPropagation();copyText(\\'' + escAttr(agent.phone_number) + '\\')" style="padding:2px 8px;font-size:0.7rem;">Copy</button>' : '') + '</div></div>' +
+          '<div class="field"><label>WhatsApp</label><div style="display:flex;align-items:center;gap:6px;"><input type="text" value="' + escAttr(agent.whatsapp_sender_sid || 'Not assigned') + '" readonly style="font-family:monospace;background:var(--bg-card);opacity:0.8;flex:1;">' + (agent.whatsapp_sender_sid ? '<button class="btn btn-sm" onclick="event.stopPropagation();copyText(\\'' + escAttr(agent.whatsapp_sender_sid) + '\\')" style="padding:2px 8px;font-size:0.7rem;">Copy</button>' : '') + '</div></div>' +
+          '<div class="field"><label>Email</label><div style="display:flex;align-items:center;gap:6px;"><input type="text" value="' + escAttr(agent.email_address || 'Not assigned') + '" readonly style="font-family:monospace;background:var(--bg-card);opacity:0.8;flex:1;">' + (agent.email_address ? '<button class="btn btn-sm" onclick="event.stopPropagation();copyText(\\'' + escAttr(agent.email_address) + '\\')" style="padding:2px 8px;font-size:0.7rem;">Copy</button>' : '') + '</div></div>' +
+          '</div>' +
+          '</div>' +
           /* Left: Rate Limits */
           '<div class="edit-section">' +
           '<h4>Rate Limits</h4>' +
@@ -3706,32 +4030,32 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
           '<h4>Agent Language</h4>' +
           '<div class="field"><label>Operating Language</label>' +
           '<select id="agent-lang-' + idx + '">' +
-          '<option value="en-US"' + (a.language === 'en-US' || !a.language ? ' selected' : '') + '>English (US)</option>' +
-          '<option value="en-GB"' + (a.language === 'en-GB' ? ' selected' : '') + '>English (UK)</option>' +
-          '<option value="es-ES"' + (a.language === 'es-ES' ? ' selected' : '') + '>Spanish (Spain)</option>' +
-          '<option value="es-MX"' + (a.language === 'es-MX' ? ' selected' : '') + '>Spanish (Mexico)</option>' +
-          '<option value="fr-FR"' + (a.language === 'fr-FR' ? ' selected' : '') + '>French</option>' +
-          '<option value="de-DE"' + (a.language === 'de-DE' ? ' selected' : '') + '>German</option>' +
-          '<option value="it-IT"' + (a.language === 'it-IT' ? ' selected' : '') + '>Italian</option>' +
-          '<option value="pt-BR"' + (a.language === 'pt-BR' ? ' selected' : '') + '>Portuguese (Brazil)</option>' +
-          '<option value="ja-JP"' + (a.language === 'ja-JP' ? ' selected' : '') + '>Japanese</option>' +
-          '<option value="ko-KR"' + (a.language === 'ko-KR' ? ' selected' : '') + '>Korean</option>' +
-          '<option value="zh-CN"' + (a.language === 'zh-CN' ? ' selected' : '') + '>Chinese (Mandarin)</option>' +
-          '<option value="ar-SA"' + (a.language === 'ar-SA' ? ' selected' : '') + '>Arabic</option>' +
-          '<option value="he-IL"' + (a.language === 'he-IL' ? ' selected' : '') + '>Hebrew</option>' +
-          '<option value="hi-IN"' + (a.language === 'hi-IN' ? ' selected' : '') + '>Hindi</option>' +
-          '<option value="nl-NL"' + (a.language === 'nl-NL' ? ' selected' : '') + '>Dutch</option>' +
-          '<option value="pl-PL"' + (a.language === 'pl-PL' ? ' selected' : '') + '>Polish</option>' +
-          '<option value="ru-RU"' + (a.language === 'ru-RU' ? ' selected' : '') + '>Russian</option>' +
-          '<option value="sv-SE"' + (a.language === 'sv-SE' ? ' selected' : '') + '>Swedish</option>' +
-          '<option value="tr-TR"' + (a.language === 'tr-TR' ? ' selected' : '') + '>Turkish</option>' +
+          '<option value="en-US"' + (agent.language === 'en-US' || !agent.language ? ' selected' : '') + '>English (US)</option>' +
+          '<option value="en-GB"' + (agent.language === 'en-GB' ? ' selected' : '') + '>English (UK)</option>' +
+          '<option value="es-ES"' + (agent.language === 'es-ES' ? ' selected' : '') + '>Spanish (Spain)</option>' +
+          '<option value="es-MX"' + (agent.language === 'es-MX' ? ' selected' : '') + '>Spanish (Mexico)</option>' +
+          '<option value="fr-FR"' + (agent.language === 'fr-FR' ? ' selected' : '') + '>French</option>' +
+          '<option value="de-DE"' + (agent.language === 'de-DE' ? ' selected' : '') + '>German</option>' +
+          '<option value="it-IT"' + (agent.language === 'it-IT' ? ' selected' : '') + '>Italian</option>' +
+          '<option value="pt-BR"' + (agent.language === 'pt-BR' ? ' selected' : '') + '>Portuguese (Brazil)</option>' +
+          '<option value="ja-JP"' + (agent.language === 'ja-JP' ? ' selected' : '') + '>Japanese</option>' +
+          '<option value="ko-KR"' + (agent.language === 'ko-KR' ? ' selected' : '') + '>Korean</option>' +
+          '<option value="zh-CN"' + (agent.language === 'zh-CN' ? ' selected' : '') + '>Chinese (Mandarin)</option>' +
+          '<option value="ar-SA"' + (agent.language === 'ar-SA' ? ' selected' : '') + '>Arabic</option>' +
+          '<option value="he-IL"' + (agent.language === 'he-IL' ? ' selected' : '') + '>Hebrew</option>' +
+          '<option value="hi-IN"' + (agent.language === 'hi-IN' ? ' selected' : '') + '>Hindi</option>' +
+          '<option value="nl-NL"' + (agent.language === 'nl-NL' ? ' selected' : '') + '>Dutch</option>' +
+          '<option value="pl-PL"' + (agent.language === 'pl-PL' ? ' selected' : '') + '>Polish</option>' +
+          '<option value="ru-RU"' + (agent.language === 'ru-RU' ? ' selected' : '') + '>Russian</option>' +
+          '<option value="sv-SE"' + (agent.language === 'sv-SE' ? ' selected' : '') + '>Swedish</option>' +
+          '<option value="tr-TR"' + (agent.language === 'tr-TR' ? ' selected' : '') + '>Turkish</option>' +
           '</select></div>' +
           '<div style="margin-top:0.5rem;"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();saveAgentLanguage(\\'' + escAttr(agentId) + '\\',' + idx + ')">Save Language</button></div>' +
           '<div class="field" style="margin-top:0.75rem;"><label>Gender <span style="color:var(--text-dim);font-size:0.75rem">(for gendered languages)</span></label>' +
           '<select id="agent-gender-' + idx + '">' +
-          '<option value="male"' + (a.agent_gender === 'male' || !a.agent_gender ? ' selected' : '') + '>Male</option>' +
-          '<option value="female"' + (a.agent_gender === 'female' ? ' selected' : '') + '>Female</option>' +
-          '<option value="neutral"' + (a.agent_gender === 'neutral' ? ' selected' : '') + '>Neutral</option>' +
+          '<option value="male"' + (agent.agent_gender === 'male' || !agent.agent_gender ? ' selected' : '') + '>Male</option>' +
+          '<option value="female"' + (agent.agent_gender === 'female' ? ' selected' : '') + '>Female</option>' +
+          '<option value="neutral"' + (agent.agent_gender === 'neutral' ? ' selected' : '') + '>Neutral</option>' +
           '</select></div>' +
           '<div style="margin-top:0.5rem;"><button class="btn btn-sm btn-primary" onclick="event.stopPropagation();saveAgentGender(\\'' + escAttr(agentId) + '\\',' + idx + ')">Save Gender</button></div>' +
           '<hr style="border-color:var(--border);margin:0.75rem 0;">' +
@@ -3863,6 +4187,54 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
       }
     }
 
+    async function saveAgentProfile(agentId, idx) {
+      try {
+        const res = await apiFetch('/admin/api/agents/' + encodeURIComponent(agentId) + '/profile', {
+          method: 'POST',
+          body: JSON.stringify({
+            displayName: document.getElementById('profile-name-' + idx).value.trim(),
+            greeting: document.getElementById('profile-greeting-' + idx).value.trim(),
+            systemPrompt: document.getElementById('profile-prompt-' + idx).value.trim(),
+            voiceId: document.getElementById('profile-voice-' + idx).value
+          })
+        });
+        const data = await res.json();
+        showToast(data.success ? 'Profile saved' : (data.error || 'Failed'), data.success ? 'success' : 'error');
+        if (data.success) loadAgents();
+      } catch {
+        showToast('Network error', 'error');
+      }
+    }
+
+    /* Populate per-agent voice dropdowns after agent table renders */
+    var cachedAgentVoices = null;
+    async function populateAgentVoiceDropdowns() {
+      try {
+        if (!cachedAgentVoices) {
+          const res = await apiFetch('/admin/api/voices');
+          const data = await res.json();
+          cachedAgentVoices = data.voices || [];
+        }
+        var voices = cachedAgentVoices;
+        agentsData.forEach(function(agent, idx) {
+          var select = document.getElementById('profile-voice-' + idx);
+          if (!select) return;
+          var current = select.dataset.current || '';
+          var html = '<option value="">-- Default --</option>';
+          voices.forEach(function(v) {
+            var id = v.voice_id || v.id || '';
+            var name = v.name || id;
+            var sel = (id === current) ? ' selected' : '';
+            html += '<option value="' + escAttr(id) + '"' + sel + '>' + escHtml(name) + '</option>';
+          });
+          select.innerHTML = html;
+          if (current) select.value = current;
+        });
+      } catch {
+        /* silent — dropdowns stay as "Loading voices..." */
+      }
+    }
+
     function onBlockAllChange(idx) {
       var blockAll = document.getElementById('block-all-' + idx).checked;
       ['sms','voice','email','whatsapp','line'].forEach(function(ch) {
@@ -3970,11 +4342,13 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
     }
 
     /* ── Swagger UI ───────────────────────────────────────────── */
-    function initSwagger() {
+    async function initSwagger() {
       if (swaggerLoaded) return;
       swaggerLoaded = true;
 
       try {
+        document.getElementById('swagger-container').innerHTML = '<div style="padding:1rem;color:var(--text-muted);">Loading API docs...</div>';
+        await ensureSwaggerUI();
         SwaggerUIBundle({
           spec: API_SPEC,
           dom_id: '#swagger-container',

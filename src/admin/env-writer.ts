@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, renameSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import type { CatalogProvider } from "./provider-catalog.js";
 
 const ENV_PATH = join(process.cwd(), ".env");
 const ENV_TMP_PATH = join(process.cwd(), ".env.tmp");
@@ -156,4 +157,91 @@ export function saveCredentials(credentials: Record<string, string>): void {
   // Atomic write: write to .env.tmp then rename
   writeFileSync(ENV_TMP_PATH, output, "utf-8");
   renameSync(ENV_TMP_PATH, ENV_PATH);
+}
+
+/** Delete specific env keys from .env — sets them to empty string */
+export function deleteCredentials(keys: string[]): void {
+  if (!existsSync(ENV_PATH)) return;
+
+  const content = readFileSync(ENV_PATH, "utf-8");
+  let entries = parseEnvFile(content);
+
+  const keysToDelete = new Set(keys);
+
+  // Remove matching lines entirely
+  entries = entries.filter((entry) => {
+    if (entry.key && keysToDelete.has(entry.key)) {
+      return false; // remove this line
+    }
+    return true;
+  });
+
+  const output = entries.map((e) => e.line).join("\n");
+  writeFileSync(ENV_TMP_PATH, output, "utf-8");
+  renameSync(ENV_TMP_PATH, ENV_PATH);
+}
+
+/** Read .env and cross-reference the catalog to find which providers have credentials set */
+export function getConfiguredProviders(catalog: CatalogProvider[]): Array<{
+  id: string;
+  name: string;
+  type: string;
+  configured: boolean;
+  disabled: boolean;
+  fields: Record<string, string>; // masked values
+}> {
+  const env: Record<string, string> = {};
+
+  if (existsSync(ENV_PATH)) {
+    const content = readFileSync(ENV_PATH, "utf-8");
+    for (const entry of parseEnvFile(content)) {
+      if (entry.key && entry.value !== undefined) {
+        env[entry.key] = entry.value;
+      }
+    }
+  }
+
+  const result: Array<{
+    id: string;
+    name: string;
+    type: string;
+    configured: boolean;
+    disabled: boolean;
+    fields: Record<string, string>;
+  }> = [];
+
+  for (const provider of catalog) {
+    // Check if any required fields are set
+    const fieldValues: Record<string, string> = {};
+    let hasAnyField = false;
+
+    for (const field of provider.fields) {
+      const val = env[field.envKey];
+      if (val && val.length > 0) {
+        fieldValues[field.key] = mask(val);
+        hasAnyField = true;
+      }
+    }
+
+    // Edge TTS has no fields — it's always "configured"
+    if (provider.fields.length === 0) {
+      hasAnyField = true;
+    }
+
+    if (hasAnyField) {
+      const disabledKey = `PROVIDER_${provider.id.toUpperCase().replace(/-/g, "_")}_DISABLED`;
+      const isDisabled = env[disabledKey] === "true";
+
+      result.push({
+        id: provider.id,
+        name: provider.name,
+        type: provider.type,
+        configured: true,
+        disabled: isDisabled,
+        fields: fieldValues,
+      });
+    }
+  }
+
+  return result;
 }

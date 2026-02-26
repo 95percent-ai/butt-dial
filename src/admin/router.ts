@@ -2,8 +2,13 @@ import { Router } from "express";
 import type { Request, Response, NextFunction } from "express";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { getProviderStatus, saveCredentials } from "./env-writer.js";
-import { testTwilioCredentials, testElevenLabsCredentials, testResendCredentials } from "./credential-testers.js";
+import { getProviderStatus, saveCredentials, deleteCredentials, getConfiguredProviders } from "./env-writer.js";
+import {
+  testTwilioCredentials, testElevenLabsCredentials, testResendCredentials,
+  testAnthropicCredentials, testOpenAICredentials, testDeepgramCredentials,
+  testVonageCredentials, testLINECredentials,
+} from "./credential-testers.js";
+import { PROVIDER_CATALOG, getCatalogProvider, getAllCatalogEnvKeys } from "./provider-catalog.js";
 import { renderSetupPage } from "./setup-page.js";
 import { renderSwaggerPage } from "./swagger-page.js";
 import { renderDashboardPage } from "./dashboard-page.js";
@@ -149,6 +154,7 @@ function requireSessionForPage(req: Request, res: Response, next: NextFunction):
 // Disclaimer is shown as a modal overlay inside the admin page itself.
 adminRouter.get("/admin", requireSessionForPage, adminAuth, (req: Request, res: Response) => {
   const spec = generateOpenApiSpec();
+  res.set("Cache-Control", "no-store");
   res.type("html").send(renderAdminPage(JSON.stringify(spec)));
 });
 
@@ -608,7 +614,7 @@ adminRouter.get("/admin/api/agents", adminAuth, (req: Request, res: Response) =>
     const of = orgFilter(getAuthInfo(req));
 
     const agents = db.query<Record<string, unknown>>(
-      `SELECT agent_id, display_name, phone_number, email_address, whatsapp_sender_sid, status, language, blocked_channels, agent_gender
+      `SELECT agent_id, display_name, phone_number, email_address, whatsapp_sender_sid, status, language, blocked_channels, agent_gender, voice_id, greeting, system_prompt
        FROM agent_channels WHERE 1=1${of.clause} ORDER BY provisioned_at DESC LIMIT 100`,
       of.params
     );
@@ -750,6 +756,34 @@ adminRouter.post("/admin/api/agents/:agentId/gender", adminAuth, (req: Request, 
   }
 });
 
+/** Update agent profile (display name, greeting, system prompt, voice) */
+adminRouter.post("/admin/api/agents/:agentId/profile", adminAuth, (req: Request, res: Response) => {
+  try {
+    const agentId = String(req.params.agentId);
+    const { displayName, greeting, systemPrompt, voiceId } = req.body ?? {};
+
+    const sets: string[] = [];
+    const params: unknown[] = [];
+
+    if (displayName !== undefined) { sets.push("display_name = ?"); params.push(displayName || null); }
+    if (greeting !== undefined) { sets.push("greeting = ?"); params.push(greeting || null); }
+    if (systemPrompt !== undefined) { sets.push("system_prompt = ?"); params.push(systemPrompt || null); }
+    if (voiceId !== undefined) { sets.push("voice_id = ?"); params.push(voiceId || null); }
+
+    if (sets.length === 0) {
+      res.status(400).json({ success: false, error: "No fields to update" });
+      return;
+    }
+
+    params.push(agentId);
+    const db = getProvider("database");
+    db.run(`UPDATE agent_channels SET ${sets.join(", ")} WHERE agent_id = ?`, params);
+    res.json({ success: true, agentId });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
 /** Run demo scenarios */
 adminRouter.post("/admin/api/run-scenarios", adminAuth, async (_req: Request, res: Response) => {
   const serverUrl = `http://localhost:${config.port}`;
@@ -811,28 +845,25 @@ adminRouter.post("/admin/api/save", adminAuth, (req: Request, res: Response) => 
     return;
   }
 
-  // Only allow known credential keys
+  // Only allow known credential keys — catalog env keys + config keys + PROVIDER_*_DISABLED
   const allowed = new Set([
-    "TWILIO_ACCOUNT_SID",
-    "TWILIO_AUTH_TOKEN",
-    "ELEVENLABS_API_KEY",
-    "RESEND_API_KEY",
+    ...getAllCatalogEnvKeys(),
     "EMAIL_DEFAULT_DOMAIN",
     "WEBHOOK_BASE_URL",
     "ORCHESTRATOR_SECURITY_TOKEN",
     "MASTER_SECURITY_TOKEN",
-    "ANTHROPIC_API_KEY",
     "VOICE_DEFAULT_GREETING",
     "VOICE_DEFAULT_VOICE",
     "VOICE_DEFAULT_LANGUAGE",
     "VOICE_DEFAULT_SYSTEM_PROMPT",
     "PROVIDER_TTS",
-    "OPENAI_API_KEY",
     "IDENTITY_MODE",
     "ISOLATION_MODE",
     "VOICE_AI_DISCLOSURE",
     "VOICE_AI_DISCLOSURE_TEXT",
     "REQUIRE_EMAIL_VERIFICATION",
+    // PROVIDER_*_DISABLED keys (toggle support)
+    ...PROVIDER_CATALOG.map((p) => `PROVIDER_${p.id.toUpperCase().replace(/-/g, "_")}_DISABLED`),
   ]);
 
   const filtered: Record<string, string> = {};
@@ -1059,6 +1090,250 @@ adminRouter.post("/admin/api/regenerate-token", adminAuth, (req: Request, res: R
     res.json({ success: true, token: newToken });
   } catch (err) {
     res.status(500).json({ error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
+// ── Provider Management Endpoints ─────────────────────────────────
+
+/** List configured providers with masked credentials */
+adminRouter.get("/admin/api/providers", adminAuth, (_req: Request, res: Response) => {
+  try {
+    const providers = getConfiguredProviders(PROVIDER_CATALOG);
+    res.json({ providers });
+  } catch (err) {
+    res.status(500).json({ providers: [], error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
+/** Full provider catalog for the "Add Provider" modal */
+adminRouter.get("/admin/api/providers/catalog", adminAuth, (_req: Request, res: Response) => {
+  res.json({ catalog: PROVIDER_CATALOG });
+});
+
+/** Unified test endpoint — tests credentials for any provider */
+adminRouter.post("/admin/api/providers/:id/test", adminAuth, async (req: Request, res: Response) => {
+  const providerId = String(req.params.id);
+  const creds = req.body ?? {};
+
+  const catalogEntry = getCatalogProvider(providerId);
+  if (!catalogEntry) {
+    res.status(404).json({ success: false, message: `Unknown provider: ${providerId}` });
+    return;
+  }
+
+  if (!catalogEntry.testable) {
+    res.json({ success: true, message: `${catalogEntry.name} does not require credential testing` });
+    return;
+  }
+
+  try {
+    let result: { success: boolean; message: string };
+
+    switch (providerId) {
+      case "twilio":
+        if (!creds.accountSid || !creds.authToken) { res.status(400).json({ success: false, message: "accountSid and authToken required" }); return; }
+        result = await testTwilioCredentials(String(creds.accountSid), String(creds.authToken));
+        break;
+      case "resend":
+        if (!creds.apiKey) { res.status(400).json({ success: false, message: "apiKey required" }); return; }
+        result = await testResendCredentials(String(creds.apiKey));
+        break;
+      case "elevenlabs":
+        if (!creds.apiKey) { res.status(400).json({ success: false, message: "apiKey required" }); return; }
+        result = await testElevenLabsCredentials(String(creds.apiKey));
+        break;
+      case "openai-tts":
+        if (!creds.apiKey) { res.status(400).json({ success: false, message: "apiKey required" }); return; }
+        result = await testOpenAICredentials(String(creds.apiKey));
+        break;
+      case "deepgram":
+        if (!creds.apiKey) { res.status(400).json({ success: false, message: "apiKey required" }); return; }
+        result = await testDeepgramCredentials(String(creds.apiKey));
+        break;
+      case "anthropic":
+        if (!creds.apiKey) { res.status(400).json({ success: false, message: "apiKey required" }); return; }
+        result = await testAnthropicCredentials(String(creds.apiKey));
+        break;
+      case "vonage":
+        if (!creds.apiKey || !creds.apiSecret) { res.status(400).json({ success: false, message: "apiKey and apiSecret required" }); return; }
+        result = await testVonageCredentials(String(creds.apiKey), String(creds.apiSecret));
+        break;
+      case "line":
+        if (!creds.channelAccessToken) { res.status(400).json({ success: false, message: "channelAccessToken required" }); return; }
+        result = await testLINECredentials(String(creds.channelAccessToken));
+        break;
+      default:
+        result = { success: false, message: `No test available for ${providerId}` };
+    }
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, message: String(err instanceof Error ? err.message : err) });
+  }
+});
+
+/** Save credentials for a specific provider */
+adminRouter.post("/admin/api/providers/:id/save", adminAuth, (req: Request, res: Response) => {
+  const providerId = String(req.params.id);
+  const creds = req.body ?? {};
+
+  const catalogEntry = getCatalogProvider(providerId);
+  if (!catalogEntry) {
+    res.status(404).json({ success: false, message: `Unknown provider: ${providerId}` });
+    return;
+  }
+
+  // Map credential keys to env keys
+  const envCreds: Record<string, string> = {};
+  for (const field of catalogEntry.fields) {
+    const val = creds[field.key];
+    if (val && typeof val === "string" && val.length > 0 && !val.startsWith("*")) {
+      envCreds[field.envKey] = val;
+    }
+  }
+
+  if (Object.keys(envCreds).length === 0) {
+    res.status(400).json({ success: false, message: "No valid credentials provided" });
+    return;
+  }
+
+  try {
+    saveCredentials(envCreds);
+    res.json({ success: true, message: `${catalogEntry.name} credentials saved. Deploy to apply.` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: `Failed to save: ${String(err)}` });
+  }
+});
+
+/** Delete a provider's credentials from .env */
+adminRouter.delete("/admin/api/providers/:id", adminAuth, (req: Request, res: Response) => {
+  const providerId = String(req.params.id);
+
+  const catalogEntry = getCatalogProvider(providerId);
+  if (!catalogEntry) {
+    res.status(404).json({ success: false, message: `Unknown provider: ${providerId}` });
+    return;
+  }
+
+  if (catalogEntry.fields.length === 0) {
+    res.status(400).json({ success: false, message: `${catalogEntry.name} has no credentials to remove` });
+    return;
+  }
+
+  try {
+    const keysToDelete = catalogEntry.fields.map((f) => f.envKey);
+    // Also remove the disabled flag
+    keysToDelete.push(`PROVIDER_${providerId.toUpperCase().replace(/-/g, "_")}_DISABLED`);
+    deleteCredentials(keysToDelete);
+    res.json({ success: true, message: `${catalogEntry.name} credentials removed. Deploy to apply.` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: `Failed to delete: ${String(err)}` });
+  }
+});
+
+/** Toggle a provider on/off (writes PROVIDER_X_DISABLED to .env) */
+adminRouter.post("/admin/api/providers/:id/toggle", adminAuth, (req: Request, res: Response) => {
+  const providerId = String(req.params.id);
+  const { disabled } = req.body ?? {};
+
+  const catalogEntry = getCatalogProvider(providerId);
+  if (!catalogEntry) {
+    res.status(404).json({ success: false, message: `Unknown provider: ${providerId}` });
+    return;
+  }
+
+  try {
+    const envKey = `PROVIDER_${providerId.toUpperCase().replace(/-/g, "_")}_DISABLED`;
+    if (disabled) {
+      saveCredentials({ [envKey]: "true" });
+    } else {
+      deleteCredentials([envKey]);
+    }
+    res.json({ success: true, disabled: !!disabled, message: `${catalogEntry.name} ${disabled ? "disabled" : "enabled"}. Deploy to apply.` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: `Failed to toggle: ${String(err)}` });
+  }
+});
+
+/** Live health check — tests saved credentials from .env */
+adminRouter.get("/admin/api/providers/:id/health", adminAuth, async (req: Request, res: Response) => {
+  const providerId = String(req.params.id);
+
+  const catalogEntry = getCatalogProvider(providerId);
+  if (!catalogEntry) {
+    res.status(404).json({ success: false, message: `Unknown provider: ${providerId}` });
+    return;
+  }
+
+  if (!catalogEntry.testable) {
+    res.json({ success: true, message: "No health check needed" });
+    return;
+  }
+
+  // Read current env values for this provider
+  const status = getProviderStatus();
+
+  try {
+    let result: { success: boolean; message: string };
+
+    switch (providerId) {
+      case "twilio": {
+        const sid = process.env.TWILIO_ACCOUNT_SID;
+        const token = process.env.TWILIO_AUTH_TOKEN;
+        if (!sid || !token) { res.json({ success: false, message: "Not configured" }); return; }
+        result = await testTwilioCredentials(sid, token);
+        break;
+      }
+      case "resend": {
+        const key = process.env.RESEND_API_KEY;
+        if (!key) { res.json({ success: false, message: "Not configured" }); return; }
+        result = await testResendCredentials(key);
+        break;
+      }
+      case "elevenlabs": {
+        const key = process.env.ELEVENLABS_API_KEY;
+        if (!key) { res.json({ success: false, message: "Not configured" }); return; }
+        result = await testElevenLabsCredentials(key);
+        break;
+      }
+      case "openai-tts": {
+        const key = process.env.OPENAI_API_KEY;
+        if (!key) { res.json({ success: false, message: "Not configured" }); return; }
+        result = await testOpenAICredentials(key);
+        break;
+      }
+      case "deepgram": {
+        const key = process.env.DEEPGRAM_API_KEY;
+        if (!key) { res.json({ success: false, message: "Not configured" }); return; }
+        result = await testDeepgramCredentials(key);
+        break;
+      }
+      case "anthropic": {
+        const key = process.env.ANTHROPIC_API_KEY;
+        if (!key) { res.json({ success: false, message: "Not configured" }); return; }
+        result = await testAnthropicCredentials(key);
+        break;
+      }
+      case "vonage": {
+        const key = process.env.VONAGE_API_KEY;
+        const secret = process.env.VONAGE_API_SECRET;
+        if (!key || !secret) { res.json({ success: false, message: "Not configured" }); return; }
+        result = await testVonageCredentials(key, secret);
+        break;
+      }
+      case "line": {
+        const token = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+        if (!token) { res.json({ success: false, message: "Not configured" }); return; }
+        result = await testLINECredentials(token);
+        break;
+      }
+      default:
+        result = { success: false, message: `No health check for ${providerId}` };
+    }
+
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, message: String(err instanceof Error ? err.message : err) });
   }
 });
 

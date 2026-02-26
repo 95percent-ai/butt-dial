@@ -1,6 +1,36 @@
-<!-- version: 4.4 | updated: 2026-02-22 -->
+<!-- version: 4.7 | updated: 2026-02-24 -->
 
 # Decisions Log
+
+## DEC-081: Agent Profile Edit — Partial Update Endpoint
+**Date:** 2026-02-24
+**What:** New `POST /admin/api/agents/:agentId/profile` endpoint accepts partial updates for display_name, greeting, system_prompt, and voice_id. Builds SET clauses dynamically from provided fields only. Empty strings are stored as NULL.
+**Why:** The agent edit panel previously only showed rate limits, channel blocking, language, and gender. Key fields (display name, greeting, system prompt, voice) were set at provisioning but couldn't be edited. This endpoint lets admins update agent personality and behavior without deprovisioning.
+**Alternatives considered:** Reuse existing provisioning endpoint (too destructive), single PUT replacing all fields (requires sending all fields even if only changing one).
+
+## DEC-080: Lazy CDN Loading — Chart.js & Swagger UI On-Demand
+**Date:** 2026-02-24
+**What:** Removed eager `<script>` and `<link>` tags for Chart.js (209KB), Swagger UI Bundle (1.5MB), and Swagger UI CSS (177KB). All three are now loaded on-demand via `loadScript()`/`loadCSS()` helper functions with promise caching. Chart.js loads when the Dashboard or Analytics tab activates. Swagger UI loads when the API docs section opens.
+**Why:** The admin page was loading ~2MB of render-blocking CDN resources on every page load, even though most users only visit the Agents tab. Lazy loading eliminates this bottleneck — initial page load fetches zero CDN resources.
+**Alternatives considered:** Self-hosting the JS/CSS (adds maintenance burden and increases deploy size), removing features (loses value), code splitting (not applicable to a single HTML page with inline JS).
+
+## DEC-079: Provider Management System in Settings Tab
+**Date:** 2026-02-23
+**What:** Replaced hardcoded provider cards (Twilio, Resend, ElevenLabs/TTS) in the Settings tab with a dynamic provider management system: a table listing all connected providers with health status, active toggle, edit, and delete — plus an "Add Provider" flow with a catalog of all 11 available providers (descriptions, costs, required fields).
+**Why:** The old UI only showed 3 providers as static cards. The system now supports 11 providers (Twilio, Vonage, Resend, ElevenLabs, OpenAI TTS, Edge TTS, Deepgram, Anthropic, LINE, S3, R2) with unified test/save/delete/toggle/health endpoints. Configuration cards (Voice, AI Disclosure, Email Verification, Server) stay as-is.
+**Files:** New `provider-catalog.ts` (catalog data), updated `env-writer.ts` (delete/list), `credential-testers.ts` (+5 testers), `router.ts` (+7 endpoints), `config.ts`/`factory.ts` (disabled flags), `unified-admin.ts` (UI rewrite).
+**Alternatives:** Could have kept adding individual cards per provider — rejected because it doesn't scale and duplicates logic.
+
+## DEC-078: Phone-Based Admin Access — CANCELLED (Security Risk)
+**Date:** 2026-02-23
+**What:** Proposed granting admin access via application channels (SMS, WhatsApp) based on registered phone numbers. First registered account would be default admin; admin phone numbers would grant access via channels.
+**Why cancelled:** Multiple security risks identified:
+- Phone number spoofing — SMS sender IDs can be faked
+- SIM swap attacks — attacker ports admin's number to their SIM
+- No second factor — phone number alone is weaker than current email/password + session auth
+- Expanded attack surface — every inbound webhook becomes a potential admin entry point
+**Decision:** Skip this feature. Account details (phone, name) from registration are for mockup/demo testing only — not for authentication or authorization via channels. Admin access remains web-only with email/password + session cookies.
+**No code changes.**
 
 ## DEC-077: Agent Channel Blocking — Per-Channel Kill Switch
 **Date:** 2026-02-22

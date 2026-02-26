@@ -162,6 +162,19 @@ const configSchema = z.object({
   // Billing
   billingMarkupPercent: z.coerce.number().default(0),
 
+  // Provider disabled flags (toggle support)
+  providerTwilioDisabled: z.string().transform((v) => v === "true").default("false"),
+  providerVonageDisabled: z.string().transform((v) => v === "true").default("false"),
+  providerResendDisabled: z.string().transform((v) => v === "true").default("false"),
+  providerElevenlabsDisabled: z.string().transform((v) => v === "true").default("false"),
+  providerOpenaiTtsDisabled: z.string().transform((v) => v === "true").default("false"),
+  providerEdgeTtsDisabled: z.string().transform((v) => v === "true").default("false"),
+  providerDeepgramDisabled: z.string().transform((v) => v === "true").default("false"),
+  providerAnthropicDisabled: z.string().transform((v) => v === "true").default("false"),
+  providerLineDisabled: z.string().transform((v) => v === "true").default("false"),
+  providerS3Disabled: z.string().transform((v) => v === "true").default("false"),
+  providerR2Disabled: z.string().transform((v) => v === "true").default("false"),
+
   // Demo mode
   demoMode: z
     .string()
@@ -252,6 +265,17 @@ function loadConfig() {
     voiceAiDisclosure: process.env.VOICE_AI_DISCLOSURE,
     voiceAiDisclosureText: process.env.VOICE_AI_DISCLOSURE_TEXT,
     billingMarkupPercent: process.env.BILLING_MARKUP_PERCENT,
+    providerTwilioDisabled: process.env.PROVIDER_TWILIO_DISABLED,
+    providerVonageDisabled: process.env.PROVIDER_VONAGE_DISABLED,
+    providerResendDisabled: process.env.PROVIDER_RESEND_DISABLED,
+    providerElevenlabsDisabled: process.env.PROVIDER_ELEVENLABS_DISABLED,
+    providerOpenaiTtsDisabled: process.env.PROVIDER_OPENAI_TTS_DISABLED,
+    providerEdgeTtsDisabled: process.env.PROVIDER_EDGE_TTS_DISABLED,
+    providerDeepgramDisabled: process.env.PROVIDER_DEEPGRAM_DISABLED,
+    providerAnthropicDisabled: process.env.PROVIDER_ANTHROPIC_DISABLED,
+    providerLineDisabled: process.env.PROVIDER_LINE_DISABLED,
+    providerS3Disabled: process.env.PROVIDER_S3_DISABLED,
+    providerR2Disabled: process.env.PROVIDER_R2_DISABLED,
     demoMode: process.env.DEMO_MODE,
   };
 

@@ -1,6 +1,63 @@
-<!-- version: 4.2 | updated: 2026-02-22 -->
+<!-- version: 4.4 | updated: 2026-02-24 -->
 
 # Changelog
+
+## Session 29 — 2026-02-24
+
+### QA Fixes — Logout, Agent Form, Channel IDs
+
+#### Fix 1: Logout Cache Prevention
+- Added `Cache-Control: no-store` header to the admin page response (`GET /admin`)
+- Browser back button after logout now redirects to login instead of showing cached page
+
+#### Fix 2: Agent Profile Edit Panel
+- Added "Agent Profile" section to the agent edit panel (above Rate Limits) with:
+  - Display Name — text input (editable)
+  - Greeting — text input (editable)
+  - System Prompt — textarea (editable)
+  - Voice — dropdown populated from `/admin/api/voices` (cached)
+  - Save Profile button
+- Expanded `GET /admin/api/agents` query to include `voice_id`, `greeting`, `system_prompt`
+- New endpoint: `POST /admin/api/agents/:agentId/profile` — partial update of display_name, greeting, system_prompt, voice_id
+- Added `saveAgentProfile()` and `populateAgentVoiceDropdowns()` JS functions
+
+#### Fix 3: Channel Identifiers Section
+- Added "Channel Identifiers" section in the edit panel (between Profile and Rate Limits)
+- Shows read-only Phone, WhatsApp, Email fields with Copy buttons
+- Uses existing `copyText()` helper for clipboard + toast
+
+#### Bug Fixes
+- Fixed `a.language` → `agent.language` and `a.agent_gender` → `agent.agent_gender` variable naming in agent table forEach loop
+- Fixed Copy button syntax error caused by triple-escaped quotes in inline onclick handlers — replaced with `copyText()` helper calls
+- The syntax error was killing the entire `<script>` block, making the site unresponsive to clicks
+
+#### Performance: Lazy CDN Loading (DEC-080)
+- Removed eager loading of Chart.js (209KB), Swagger UI JS (1.5MB), and Swagger UI CSS (177KB) — ~2MB of render-blocking resources
+- Chart.js now loads on-demand when the Dashboard or Analytics tab activates
+- Swagger UI (JS + CSS) loads on-demand when the REST API docs section opens
+- Added `loadScript()`, `loadCSS()`, `ensureChartJS()`, `ensureSwaggerUI()` helper functions with promise caching
+- Initial page load has zero CDN fetches — reduced load time significantly
+
+### Files Modified
+- `src/admin/router.ts` — Cache-Control header, expanded agents query, new profile save endpoint
+- `src/admin/unified-admin.ts` — Agent Profile section, Channel IDs section, lazy CDN loading, variable naming fix, Copy button fix
+
+## Session 28 — 2026-02-23
+
+### Provider Management System (DEC-079)
+- Replaced hardcoded Twilio/Resend/TTS cards in Settings tab with dynamic provider management
+- New `src/admin/provider-catalog.ts` — catalog of 11 providers with metadata (descriptions, costs, env key mappings, field definitions)
+- Updated `src/admin/env-writer.ts` — added `deleteCredentials()` and `getConfiguredProviders()` functions
+- Updated `src/admin/credential-testers.ts` — added 5 new testers: Anthropic, OpenAI, Deepgram, Vonage, LINE
+- Added 7 new API endpoints: `GET /providers`, `GET /providers/catalog`, `POST /providers/:id/test`, `POST /providers/:id/save`, `DELETE /providers/:id`, `POST /providers/:id/toggle`, `GET /providers/:id/health`
+- Expanded allowed save keys in `POST /admin/api/save` to include all provider env keys
+- Added `PROVIDER_*_DISABLED` env vars to `config.ts` for provider toggle support
+- Updated `factory.ts` to check disabled flags before initializing providers
+- Settings tab UI: provider table with health dots, active toggles, edit/delete buttons; Add Provider modal with two-step flow (catalog grid → configure form)
+- Configuration cards (Voice, AI Disclosure, Email Verification, Server) unchanged
+- Old test endpoints (`/admin/api/test/twilio`, etc.) kept for backward compatibility
+- Fixed OpenAI TTS factory initialization (was passing `voice` instead of `defaultVoice`)
+- Tests: 247/247 assertions pass (catalog completeness, deleteCredentials, 7 API endpoints, UI presence, backward compatibility)
 
 ## Session 27 — 2026-02-22
 
