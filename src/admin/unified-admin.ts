@@ -3345,13 +3345,13 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         html += '</td>';
         html += '<td><span class="type-badge" style="background:' + typeColor + ';">' + escHtml(p.type) + '</span></td>';
         html += '<td><span class="health-dot checking" id="health-' + escAttr(p.id) + '" title="Checking..."></span></td>';
-        html += '<td><label class="toggle-switch"><input type="checkbox" ' + (isActive ? 'checked' : '') + ' onchange="toggleProvider(\'' + escAttr(p.id) + '\', !this.checked)"><span class="toggle-slider"></span></label><span class="restart-indicator" id="restart-' + escAttr(p.id) + '" style="display:none;">restart required</span></td>';
+        html += '<td><label class="toggle-switch"><input type="checkbox" ' + (isActive ? 'checked' : '') + ' onchange="toggleProvider(\\'' + escAttr(p.id) + '\\', !this.checked)"><span class="toggle-slider"></span></label><span class="restart-indicator" id="restart-' + escAttr(p.id) + '" style="display:none;">restart required</span></td>';
         html += '<td style="text-align:right;">';
-        html += '<button class="provider-action-btn" onclick="editProvider(\'' + escAttr(p.id) + '\')" title="Edit">Edit</button>';
+        html += '<button class="provider-action-btn" onclick="editProvider(\\'' + escAttr(p.id) + '\\')" title="Edit">Edit</button>';
         /* Edge TTS has no fields — can't delete */
         const cat = _catalogData.find(c => c.id === p.id);
         if (cat && cat.fields && cat.fields.length > 0) {
-          html += '<button class="provider-action-btn danger" onclick="deleteProvider(\'' + escAttr(p.id) + '\')" title="Delete">Delete</button>';
+          html += '<button class="provider-action-btn danger" onclick="deleteProvider(\\'' + escAttr(p.id) + '\\')" title="Delete">Delete</button>';
         }
         html += '</td>';
         html += '</tr>';
@@ -3414,7 +3414,7 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         html += '<div style="grid-column:1/-1;margin-top:0.5rem;"><span class="type-badge" style="background:' + (TYPE_COLORS[type] || '#8b949e') + ';">' + escHtml(type) + '</span></div>';
         providers.forEach(p => {
           const isCfg = configuredIds.has(p.id);
-          html += '<div class="catalog-tile' + (isCfg ? ' configured' : '') + '" onclick="selectCatalogProvider(\'' + escAttr(p.id) + '\')">';
+          html += '<div class="catalog-tile' + (isCfg ? ' configured' : '') + '" onclick="selectCatalogProvider(\\'' + escAttr(p.id) + '\\')">';
           html += '<div class="tile-name">' + escHtml(p.name) + (isCfg ? ' <span style="font-size:0.65rem;color:var(--success);">&#10003; connected</span>' : '') + '</div>';
           html += '<div class="tile-desc">' + escHtml(p.description) + '</div>';
           html += '</div>';
