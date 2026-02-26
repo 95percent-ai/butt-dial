@@ -53,9 +53,9 @@ export function generateOpenApiSpec(): Record<string, unknown> {
         get: {
           summary: "MCP SSE endpoint",
           tags: ["MCP"],
-          description: "Connect an MCP client via Server-Sent Events. Pass ?agentId=X to register an agent session.",
+          description: "Connect an MCP client via Server-Sent Events. Agent tokens auto-resolve agentId. Org/orchestrator tokens can pass ?agentId=X.",
           parameters: [
-            { name: "agentId", in: "query", schema: { type: "string" }, description: "Agent ID to register for voice routing" },
+            { name: "agentId", in: "query", schema: { type: "string" }, description: "Agent ID (optional — auto-detected from agent token)" },
           ],
           responses: {
             "200": { description: "SSE stream opened" },
@@ -196,9 +196,9 @@ export function generateOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "to", "body"],
+                  required: ["to", "body"],
                   properties: {
-                    agentId: { type: "string", description: "Agent ID that owns the sending address" },
+                    agentId: { type: "string", description: "Agent ID (optional — auto-detected from agent token)" },
                     to: { type: "string", description: "Recipient (E.164 phone or email)" },
                     body: { type: "string", description: "Message text" },
                     channel: { type: "string", enum: ["sms", "email", "whatsapp", "line"], default: "sms" },
@@ -230,9 +230,9 @@ export function generateOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "to"],
+                  required: ["to"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Optional — auto-detected from agent token" },
                     to: { type: "string", description: "E.164 phone number" },
                     systemPrompt: { type: "string" },
                     greeting: { type: "string" },
@@ -294,9 +294,9 @@ export function generateOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "to", "text"],
+                  required: ["to", "text"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Optional — auto-detected from agent token" },
                     to: { type: "string" },
                     text: { type: "string", description: "Text to convert to speech" },
                     voice: { type: "string", description: "TTS voice ID" },
@@ -322,9 +322,9 @@ export function generateOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "callSid", "to"],
+                  required: ["callSid", "to"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Optional — auto-detected from agent token" },
                     callSid: { type: "string", description: "Twilio Call SID" },
                     to: { type: "string", description: "Target phone (E.164) or agent ID" },
                     announcementText: { type: "string" },
@@ -339,20 +339,38 @@ export function generateOpenApiSpec(): Record<string, unknown> {
           },
         },
       },
-      "/api/v1/messages": {
+      "/api/v1/waiting-messages": {
         get: {
-          summary: "List messages for an agent",
+          summary: "Get waiting (undelivered) messages — auto-acknowledges on fetch",
           tags: ["REST API"],
           security: [{ bearerAuth: [] }],
+          description: "Returns pending dead-letter messages for the agent. Fetching automatically marks them as acknowledged. These are messages that failed to deliver or arrived while the agent was offline.",
           parameters: [
-            { name: "agentId", in: "query", required: true, schema: { type: "string" } },
-            { name: "limit", in: "query", schema: { type: "integer", default: 20 } },
+            { name: "agentId", in: "query", schema: { type: "string" }, description: "Agent ID (optional if using an agent token)" },
+            { name: "limit", in: "query", schema: { type: "integer", default: 50 } },
             { name: "channel", in: "query", schema: { type: "string", enum: ["sms", "email", "whatsapp", "voice", "line"] } },
-            { name: "contactAddress", in: "query", schema: { type: "string" }, description: "Filter by contact phone/email" },
           ],
           responses: {
-            "200": { description: "Messages list", content: { "application/json": { schema: { $ref: "#/components/schemas/RestMessagesResponse" } } } },
+            "200": { description: "Waiting messages list", content: { "application/json": { schema: { $ref: "#/components/schemas/RestWaitingMessagesResponse" } } } },
           },
+        },
+      },
+      "/api/v1/agents/{agentId}/tokens": {
+        get: {
+          summary: "List active tokens for an agent (admin only)",
+          tags: ["REST API"],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "agentId", in: "path", required: true, schema: { type: "string" } }],
+          responses: { "200": { description: "Token list", content: { "application/json": { schema: { type: "object", properties: { tokens: { type: "array", items: { type: "object", properties: { id: { type: "string" }, label: { type: "string" }, createdAt: { type: "string" }, lastUsedAt: { type: "string", nullable: true } } } } } } } } } },
+        },
+      },
+      "/api/v1/agents/{agentId}/regenerate-token": {
+        post: {
+          summary: "Revoke all tokens and generate a new one (admin only)",
+          tags: ["REST API"],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: "agentId", in: "path", required: true, schema: { type: "string" } }],
+          responses: { "200": { description: "New token generated", content: { "application/json": { schema: { type: "object", properties: { success: { type: "boolean" }, token: { type: "string" }, revokedCount: { type: "integer" } } } } } } },
         },
       },
       "/api/v1/provision": {
@@ -366,21 +384,19 @@ export function generateOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "displayName", "capabilities"],
+                  required: ["displayName", "capabilities"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Optional — auto-generated UUID if omitted" },
                     displayName: { type: "string" },
                     greeting: { type: "string" },
                     systemPrompt: { type: "string" },
                     country: { type: "string", default: "US" },
                     capabilities: {
-                      type: "object",
-                      properties: {
-                        phone: { type: "boolean" },
-                        whatsapp: { type: "boolean" },
-                        email: { type: "boolean" },
-                        voiceAi: { type: "boolean" },
-                      },
+                      description: "Object format: {phone: true, voiceAi: true} — or array format: [\"sms\", \"voice\", \"email\", \"whatsapp\"]",
+                      oneOf: [
+                        { type: "object", properties: { phone: { type: "boolean" }, whatsapp: { type: "boolean" }, email: { type: "boolean" }, voiceAi: { type: "boolean" } } },
+                        { type: "array", items: { type: "string", enum: ["sms", "phone", "voice", "voiceAi", "email", "whatsapp"] } },
+                      ],
                     },
                     emailDomain: { type: "string" },
                   },
@@ -402,9 +418,8 @@ export function generateOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Optional — auto-detected from agent token" },
                     releaseNumber: { type: "boolean", default: true },
                   },
                 },
@@ -434,9 +449,9 @@ export function generateOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "displayName"],
+                  required: ["displayName"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Optional — auto-generated UUID if omitted" },
                     displayName: { type: "string" },
                     capabilities: { type: "object", properties: { phone: { type: "boolean" }, whatsapp: { type: "boolean" }, email: { type: "boolean" }, voiceAi: { type: "boolean" } } },
                     emailDomain: { type: "string" },
@@ -486,9 +501,8 @@ export function generateOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Optional — auto-detected from agent token" },
                     tier: { type: "string", enum: ["free", "starter", "pro", "enterprise"] },
                     markupPercent: { type: "number", minimum: 0, maximum: 500 },
                     billingEmail: { type: "string", format: "email" },
@@ -511,9 +525,9 @@ export function generateOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "limits"],
+                  required: ["limits"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Optional — auto-detected from agent token" },
                     limits: {
                       type: "object",
                       properties: {
@@ -559,6 +573,15 @@ export function generateOpenApiSpec(): Record<string, unknown> {
             channel: { type: "string" },
             from: { type: "string" },
             to: { type: "string" },
+            genderContext: {
+              type: "object",
+              description: "Gender context for gendered languages (Hebrew, Arabic, French, etc.)",
+              properties: {
+                agentGender: { type: "string", enum: ["male", "female", "neutral"] },
+                targetGender: { type: "string", enum: ["male", "female", "neutral"] },
+              },
+            },
+            demo: { type: "boolean", description: "Present and true when server is in demo mode — message was not actually delivered" },
           },
         },
         RestMakeCallResponse: {
@@ -573,10 +596,29 @@ export function generateOpenApiSpec(): Record<string, unknown> {
             to: { type: "string" },
           },
         },
-        RestMessagesResponse: {
+        RestWaitingMessagesResponse: {
           type: "object",
           properties: {
-            messages: { type: "array", items: { type: "object" } },
+            messages: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  agentId: { type: "string" },
+                  channel: { type: "string" },
+                  direction: { type: "string", enum: ["inbound", "outbound"] },
+                  reason: { type: "string", enum: ["agent_offline", "send_failed", "provider_error"] },
+                  from: { type: "string" },
+                  to: { type: "string" },
+                  body: { type: "string", nullable: true },
+                  mediaUrl: { type: "string", nullable: true },
+                  errorDetails: { type: "string", nullable: true },
+                  externalId: { type: "string", nullable: true },
+                  createdAt: { type: "string" },
+                },
+              },
+            },
             count: { type: "integer" },
           },
         },

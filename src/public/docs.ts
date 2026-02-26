@@ -48,7 +48,7 @@ Set \`DEMO_MODE=true\` in \`.env\` to run with mock providers. No real API calls
 ## Connect Your AI Agent
 
 \`\`\`
-GET http://localhost:3100/sse?token=<agent-token>&agentId=<agent-id>
+GET http://localhost:3100/sse?token=<agent-token>
 \`\`\`
 
 Any MCP-compatible client works: Claude Desktop, Cursor, or custom orchestrators.
@@ -153,7 +153,7 @@ ngrok http 3100
 Your AI agent connects via MCP over SSE:
 
 \`\`\`
-GET http://localhost:3100/sse?token=<agent-security-token>&agentId=<agent-id>
+GET http://localhost:3100/sse?token=<agent-security-token>
 \`\`\`
 
 - \`token\` — Security token generated during provisioning
@@ -619,7 +619,7 @@ Prometheus-compatible metrics in text format. See [Monitoring](/docs/monitoring)
 Server-Sent Events endpoint for MCP client connections.
 
 \`\`\`
-GET /sse?token=<agent-security-token>&agentId=<agent-id>
+GET /sse?token=<agent-security-token>
 \`\`\`
 
 | Parameter | Description |
@@ -1023,7 +1023,7 @@ Every MCP tool call requires a security token bound to an agent ID.
 
 - Generated during provisioning (\`comms_provision_channels\`)
 - Stored as SHA-256 hashes in the \`agent_tokens\` table
-- Passed via SSE: \`/sse?token=<token>&agentId=<agentId>\`
+- Passed via SSE: \`/sse?token=<token>\`
 - **Impersonation guard:** token is bound to a specific agentId
 
 ### Orchestrator Token
@@ -1413,7 +1413,7 @@ After registration, each organization gets:
 - Access to the admin dashboard
 
 \`\`\`
-GET /sse?token=<org-token>&agentId=<agent-id>
+GET /sse?token=<org-token>&agentId=<agent-id>  (agentId required for org tokens)
 \`\`\`
 
 ## Security
@@ -1482,7 +1482,7 @@ This returns any messages that couldn't be delivered while your agent was offlin
 | **Orchestrator Token** | Super-admins | \`.env\` file | Everything |
 
 REST: \`Authorization: Bearer YOUR_TOKEN\`
-MCP: \`GET /sse?token=YOUR_TOKEN&agentId=my-agent\`
+MCP: \`GET /sse?token=YOUR_TOKEN\`
 
 ---
 
@@ -1524,7 +1524,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
 const transport = new SSEClientTransport(
-  new URL("http://localhost:3100/sse?token=YOUR_TOKEN&agentId=my-agent")
+  new URL("http://localhost:3100/sse?token=YOUR_TOKEN")
 );
 const client = new Client({ name: "my-agent", version: "1.0.0" });
 await client.connect(transport);
@@ -1538,7 +1538,7 @@ const result = await client.callTool({
 Claude Desktop / Cursor config:
 
 \`\`\`json
-{ "mcpServers": { "butt-dial": { "url": "http://localhost:3100/sse?token=TOKEN&agentId=my-agent" } } }
+{ "mcpServers": { "butt-dial": { "url": "http://localhost:3100/sse?token=TOKEN" } } }
 \`\`\`
 
 ---
@@ -1654,7 +1654,7 @@ See also:
 ## Voice Calls
 
 ### Call connects but no AI response
-**Fix:** Ensure agent is connected to \`/sse?agentId=<agentId>\`. Falls back to answering machine after 8 seconds.
+**Fix:** Ensure agent is connected to \`/sse?token=<token>\`. Falls back to answering machine after 8 seconds.
 
 ### ConversationRelay WebSocket errors
 **Fix:** Ensure \`WEBHOOK_BASE_URL\` is publicly accessible via HTTPS. Twilio requires WSS.

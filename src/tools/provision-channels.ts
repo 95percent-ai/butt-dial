@@ -32,7 +32,7 @@ export function registerProvisionChannelsTool(server: McpServer): void {
     "comms_provision_channels",
     "Provision a new agent with communication channels (phone, WhatsApp, email, voice AI). Buys a phone number, assigns WhatsApp from pool, generates email address, and registers the agent.",
     {
-      agentId: z.string().describe("Unique agent identifier"),
+      agentId: z.string().optional().describe("Agent identifier (auto-generated UUID if omitted)"),
       displayName: z.string().describe("Human-readable agent name"),
       greeting: z.string().optional().describe("Greeting message for voice calls"),
       systemPrompt: z.string().optional().describe("System prompt for AI voice conversations"),
@@ -48,7 +48,9 @@ export function registerProvisionChannelsTool(server: McpServer): void {
       routeDuplication: z.record(z.string()).optional().describe("Route duplication config"),
       agentGender: z.enum(["male", "female", "neutral"]).default("male").describe("Agent's grammatical gender for gendered languages (Hebrew, Arabic, French, etc.)"),
     },
-    async ({ agentId, displayName, greeting, systemPrompt, country, capabilities, emailDomain, providerOverrides, routeDuplication, agentGender }, extra) => {
+    async ({ agentId: explicitAgentId, displayName, greeting, systemPrompt, country, capabilities, emailDomain, providerOverrides, routeDuplication, agentGender }, extra) => {
+      // Auto-generate agentId if not provided
+      const agentId = explicitAgentId || randomUUID();
       // Auth: only admin can provision
       try {
         requireAdmin(extra.authInfo as AuthInfo | undefined);

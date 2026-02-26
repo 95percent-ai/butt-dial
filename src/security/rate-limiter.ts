@@ -182,6 +182,42 @@ export function checkRateLimits(
       );
     }
   }
+
+  // 7. Org-level aggregate spending caps
+  const orgId = authInfo?.orgId || "default";
+  try {
+    const orgRows = db.query<{ max_spend_per_day: number | null; max_spend_per_month: number | null }>(
+      "SELECT max_spend_per_day, max_spend_per_month FROM organizations WHERE id = ?",
+      [orgId]
+    );
+    if (orgRows.length > 0) {
+      const org = orgRows[0];
+
+      if (org.max_spend_per_day !== null) {
+        const orgDaySpend = db.query<SumRow>(
+          "SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE org_id = ? AND created_at >= date('now')",
+          [orgId]
+        )[0]?.total ?? 0;
+
+        if (orgDaySpend >= org.max_spend_per_day) {
+          fireRateLimitAlert("org_spend_day", orgDaySpend, org.max_spend_per_day, "at midnight UTC");
+        }
+      }
+
+      if (org.max_spend_per_month !== null) {
+        const orgMonthSpend = db.query<SumRow>(
+          "SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE org_id = ? AND created_at >= date('now', 'start of month')",
+          [orgId]
+        )[0]?.total ?? 0;
+
+        if (orgMonthSpend >= org.max_spend_per_month) {
+          fireRateLimitAlert("org_spend_month", orgMonthSpend, org.max_spend_per_month, "at the start of next month");
+        }
+      }
+    }
+  } catch {
+    // organizations table might not exist yet — skip org check
+  }
 }
 
 // ── Log usage ──────────────────────────────────────────────────────

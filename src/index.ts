@@ -61,7 +61,7 @@ async function main() {
   const transports = new Map<string, SSEServerTransport>();
 
   app.get("/sse", async (req, res) => {
-    const agentId = req.query.agentId as string | undefined;
+    let agentId = req.query.agentId as string | undefined;
     const token = req.query.token as string | undefined;
     logger.info("mcp_sse_connection", { agentId, url: sanitizeUrl(req.originalUrl) });
 
@@ -81,16 +81,18 @@ async function main() {
         } else {
           recordFailedAuth(ip);
           recordBruteForceFailure(ip);
-          res.status(401).json({ error: "Missing token. Use: /sse?token=<token>&agentId=<id>" });
+          res.status(401).json({ error: "Missing token. Use: /sse?token=<token>" });
           return;
         }
       } else {
         let authorized = false;
+        let isOrchestratorOrOrg = false;
 
         // 1. Orchestrator token → can connect as any agentId
         if (config.orchestratorSecurityToken && token === config.orchestratorSecurityToken) {
           resetBruteForce(ip);
           authorized = true;
+          isOrchestratorOrOrg = true;
         }
 
         // 2. Org token → can connect as any agentId within org
@@ -101,13 +103,14 @@ async function main() {
             if (orgVerified) {
               resetBruteForce(ip);
               authorized = true;
+              isOrchestratorOrOrg = true;
             }
           } catch {
             // org_tokens table might not exist yet
           }
         }
 
-        // 3. Agent token → must match agentId param
+        // 3. Agent token → auto-resolve agentId from token if not provided
         if (!authorized) {
           const db = getProvider("database");
           const verified = verifyToken(db, token);
@@ -118,6 +121,10 @@ async function main() {
               recordBruteForceFailure(ip);
               res.status(401).json({ error: "Token agentId does not match requested agentId" });
               return;
+            }
+            // Auto-resolve agentId from token if not explicitly provided
+            if (!agentId) {
+              agentId = verified.agentId;
             }
             resetBruteForce(ip);
             authorized = true;
@@ -130,6 +137,11 @@ async function main() {
           recordBruteForceFailure(ip);
           res.status(401).json({ error: "Invalid or revoked token" });
           return;
+        }
+
+        // Orchestrator/org tokens managing multiple agents still require agentId param
+        if (isOrchestratorOrOrg && !agentId) {
+          // Allowed — they may connect without targeting a specific agent
         }
       }
     }

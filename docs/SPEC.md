@@ -1,4 +1,4 @@
-<!-- version: 2.2 | updated: 2026-02-22 -->
+<!-- version: 2.3 | updated: 2026-02-26 -->
 
 # AgentOS Communication MCP Server — Spec
 
@@ -106,11 +106,12 @@ Both **live AI voice** (ConversationRelay/Media Streams) and **pre-recorded TTS 
 
 **Unified threading** via Twilio Conversations API. All channels (SMS, WhatsApp, voice transcripts) merged into one thread per contact. Critical for agent context continuity.
 
-### Cost Model (three layers)
+### Cost Model (four layers)
 
 1. **Per-action cost tracking** — every action's cost logged and attributed to the agent
 2. **Tier/quota enforcement** — configurable limits to control spend and prevent misuse
 3. **Configurable markup** — deployer sets a markup percentage as a revenue stream
+4. **Org-level spending caps** — aggregate daily/monthly caps across all agents in an org (`max_spend_per_day`, `max_spend_per_month` on `organizations` table)
 
 ### Media Handling (configurable, default: pass-through)
 
@@ -242,8 +243,10 @@ Full schema in `docs/references/PROJECT-SCOPE.md`.
 
 ## Security
 
-- Every tool call authenticated with security token
-- Tokens are rotatable and revocable, bound to agentId (impersonation prevention)
+- Every tool call authenticated with security token (the token IS the agent's identifier)
+- Tokens are rotatable and revocable, bound to an internal agentId (auto-generated UUID)
+- `agentId` is auto-generated at provisioning — users never choose or manage it. The token is the sole user-facing credential
+- SSE connection: `GET /sse?token=<token>` (agentId auto-resolved from token; org/orchestrator tokens can pass `?agentId=X`)
 - **Session cookies for admin UI** — email/password login sets an encrypted session cookie (`__bd_session`, AES-256-CBC). Admin middleware checks cookie before Bearer token. Users go straight to `/admin` after login/registration — no token copy-paste needed. Tokens remain for API/MCP access. (DEC-066)
 - Webhook signatures validated on every inbound request
 - Provider credentials encrypted at rest (AES-256)
@@ -281,7 +284,7 @@ Full schema in `docs/references/PROJECT-SCOPE.md`.
 
 ## Observability
 
-1. **Health checks:** `/health` (liveness), `/health/ready` (provider connectivity)
+1. **Health checks:** `/health` (liveness, includes `mode` field: "demo" or "live"), `/health/ready` (provider connectivity)
 2. **Metrics:** `/metrics` (Prometheus-compatible counters/gauges)
 3. **Structured logging:** JSON format, no PII, ELK/Datadog/Loki compatible
 4. **Audit trail:** Immutable append-only log with SHA-256 hash chain
@@ -295,6 +298,7 @@ Full schema in `docs/references/PROJECT-SCOPE.md`.
 - **Swagger UI** at `/admin/api-docs` — interactive API explorer
 - **Setup wizard** at `/admin/setup` — 7-step guided configuration
 - **Dashboard** at `/admin/dashboard` — provisioned agents, costs, alerts, channel blocking controls
+- **Operation mode** — demo/live toggle in Settings tab with confirmation modal for live mode. `DEMO_MODE` env var. Auto-deploys on save
 - **Demo mode** (`DEMO_MODE=true`) — mock providers, no real costs
 
 ---
@@ -409,3 +413,6 @@ When complete, the server should:
 26. Sandbox-to-production gating with admin approval
 27. Data retention auto-purge
 28. Session cookie auth for admin panel — login/register → auto-redirect to admin
+29. Token-as-API-key: token is the sole user-facing identifier, agentId auto-generated UUID
+30. Demo/live mode toggle in admin UI with warning modal
+31. Org-level spending caps (daily + monthly)

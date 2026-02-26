@@ -30,7 +30,7 @@ export function registerOnboardCustomerTool(server: McpServer): void {
     "comms_onboard_customer",
     "Full customer onboarding: provisions all channels (phone, WhatsApp, email, voice AI), generates email DNS records, and returns a complete setup package with security token, channels, DNS records, webhook URLs, and SSE connection instructions.",
     {
-      agentId: z.string().describe("Unique agent identifier"),
+      agentId: z.string().optional().describe("Agent identifier (auto-generated UUID if omitted)"),
       displayName: z.string().describe("Human-readable agent name"),
       capabilities: z.object({
         phone: z.boolean().default(true).describe("Buy a phone number for SMS"),
@@ -43,7 +43,9 @@ export function registerOnboardCustomerTool(server: McpServer): void {
       systemPrompt: z.string().optional().describe("System prompt for AI voice conversations"),
       country: z.string().default("US").describe("Country code for phone number (default: US)"),
     },
-    async ({ agentId, displayName, capabilities, emailDomain, greeting, systemPrompt, country }, extra) => {
+    async ({ agentId: explicitAgentId, displayName, capabilities, emailDomain, greeting, systemPrompt, country }, extra) => {
+      // Auto-generate agentId if not provided
+      const agentId = explicitAgentId || randomUUID();
       // Auth: only admin can onboard
       try {
         requireAdmin(extra.authInfo as AuthInfo | undefined);
@@ -244,13 +246,13 @@ export function registerOnboardCustomerTool(server: McpServer): void {
                 voiceWs: capabilities.voiceAi ? `${baseUrl.replace("http", "ws")}/webhooks/${agentId}/voice-ws` : null,
               },
               connectionInstructions: {
-                sseEndpoint: `${baseUrl}/sse?agentId=${agentId}`,
+                sseEndpoint: `${baseUrl}/sse?token=${plainToken}`,
                 messagesEndpoint: `${baseUrl}/messages`,
                 authHeader: `Bearer ${plainToken}`,
                 steps: [
-                  `1. Connect to SSE: GET ${baseUrl}/sse?agentId=${agentId}`,
+                  `1. Connect to SSE: GET ${baseUrl}/sse?token=${plainToken}`,
                   `2. Send tool calls: POST ${baseUrl}/messages?sessionId=<from-sse> with Authorization: Bearer ${plainToken}`,
-                  "3. Available tools: comms_send_message, comms_get_messages, comms_make_call, comms_send_voice_message, comms_get_channel_status, comms_get_usage_dashboard",
+                  "3. Available tools: comms_send_message, comms_get_waiting_messages, comms_make_call, comms_send_voice_message, comms_get_channel_status, comms_get_usage_dashboard",
                 ],
               },
             }, null, 2),

@@ -2004,6 +2004,56 @@ export function renderAdminPage(specJson: string): string {
           </div>
         </div>
 
+        <div class="group-heading">Operation</div>
+
+        <div class="card" id="card-operation-mode">
+          <div class="card-header">
+            <span class="card-title">Operation Mode</span>
+            <span class="badge badge-info" id="operation-mode-badge">...</span>
+          </div>
+          <div class="card-desc">Controls whether the server uses real providers (live) or mock providers (demo). Switching to live mode will send real messages and incur charges.</div>
+          <div style="display:flex;align-items:center;gap:1rem;margin-top:0.75rem;">
+            <button class="btn btn-sm" id="mode-toggle-btn" onclick="toggleOperationMode()" style="padding:8px 20px;font-size:0.85rem;font-weight:600;border-radius:6px;cursor:pointer;">Switch to Live Mode</button>
+            <span id="mode-toggle-result" style="font-size:0.8rem;"></span>
+          </div>
+        </div>
+
+        <div class="card" id="card-org-spending">
+          <div class="card-header">
+            <span class="card-title">Organization Spending Limits</span>
+          </div>
+          <div class="card-desc">Set aggregate spending caps for all agents in your organization. Leave blank for unlimited.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:0.75rem;">
+            <div class="field">
+              <label>Daily spending cap ($)</label>
+              <input type="number" id="org-spend-day" placeholder="No limit" min="0" step="0.01" style="width:100%;">
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Today: $<span id="org-spend-today">0.00</span></div>
+            </div>
+            <div class="field">
+              <label>Monthly spending cap ($)</label>
+              <input type="number" id="org-spend-month" placeholder="No limit" min="0" step="0.01" style="width:100%;">
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">This month: $<span id="org-spend-this-month">0.00</span></div>
+            </div>
+          </div>
+          <div class="settings-actions">
+            <button class="btn btn-sm btn-primary" onclick="saveOrgSpendingLimits()">Save</button>
+          </div>
+        </div>
+
+        <!-- Mode Switch Confirmation Modal -->
+        <div id="mode-switch-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
+          <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:2rem;max-width:500px;width:90%;">
+            <h3 style="color:var(--text-heading);margin-bottom:0.75rem;" id="mode-modal-title">Switch to Live Mode?</h3>
+            <div id="mode-modal-warning" style="background:rgba(248,81,73,0.15);border:1px solid rgba(248,81,73,0.3);color:var(--error);padding:10px 14px;border-radius:6px;font-size:0.85rem;margin-bottom:1rem;">
+              You are about to switch to <strong>LIVE</strong> mode. Real providers will be used &mdash; messages will be sent, calls will be placed, and charges will apply. Make sure all provider credentials are configured correctly.
+            </div>
+            <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+              <button onclick="closeModeSwitchModal()" style="padding:8px 16px;font-size:0.85rem;background:transparent;color:var(--text-muted);border:1px solid var(--border);border-radius:6px;cursor:pointer;">Cancel</button>
+              <button onclick="confirmModeSwitch()" id="mode-confirm-btn" style="padding:8px 20px;font-size:0.85rem;font-weight:600;background:var(--error);color:#fff;border:none;border-radius:6px;cursor:pointer;">Confirm Switch</button>
+            </div>
+          </div>
+        </div>
+
         <div class="group-heading">Server</div>
 
         <div class="card" id="card-server">
@@ -2059,7 +2109,6 @@ export function renderAdminPage(specJson: string): string {
         <div id="provision-form" class="card" style="display:none;margin-bottom:1rem;padding:1.5rem;">
           <h3 style="color:var(--text-heading);margin-bottom:1rem;font-size:1rem;">Provision New Agent</h3>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
-            <div class="field"><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:4px;">Agent ID</label><input type="text" id="prov-agent-id" placeholder="my-agent-001" style="width:100%;padding:8px 10px;font-size:0.85rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;outline:none;"></div>
             <div class="field"><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:4px;">Display Name</label><input type="text" id="prov-display-name" placeholder="My Agent" style="width:100%;padding:8px 10px;font-size:0.85rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;outline:none;"></div>
             <div class="field"><label style="font-size:0.75rem;color:var(--text-muted);display:block;margin-bottom:4px;">Country</label><select id="prov-country" style="width:100%;padding:8px 10px;font-size:0.85rem;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:6px;outline:none;">
               <option value="US">United States</option><option value="GB">United Kingdom</option><option value="CA">Canada</option><option value="AU">Australia</option><option value="DE">Germany</option><option value="FR">France</option><option value="IL">Israel</option><option value="JP">Japan</option><option value="BR">Brazil</option><option value="IN">India</option>
@@ -2087,11 +2136,11 @@ export function renderAdminPage(specJson: string): string {
         <!-- Token Reveal Modal (hidden) -->
         <div id="token-reveal-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:2rem;max-width:500px;width:90%;">
-            <h3 style="color:var(--text-heading);margin-bottom:0.75rem;">Security Token</h3>
+            <h3 style="color:var(--text-heading);margin-bottom:0.75rem;">API Key</h3>
             <div style="background:rgba(210,153,34,0.15);border:1px solid rgba(210,153,34,0.3);color:#d29922;padding:10px 14px;border-radius:6px;font-size:0.8rem;margin-bottom:1rem;">
-              Save this security token now! It cannot be recovered later.
+              This is your API key. Save it now — it cannot be recovered later. Use it to connect your agent via SSE or REST API.
             </div>
-            <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:6px;">Agent Security Token:</p>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin-bottom:6px;">Agent API Key:</p>
             <div id="revealed-token" style="background:var(--bg-input);border:1px solid var(--border);border-radius:6px;padding:12px;word-break:break-all;font-family:monospace;font-size:0.8rem;color:var(--accent);margin-bottom:1rem;"></div>
             <div style="display:flex;gap:0.75rem;">
               <button onclick="copyRevealedToken()" style="padding:8px 16px;font-size:0.8rem;background:transparent;color:var(--accent);border:1px solid var(--border);border-radius:6px;cursor:pointer;" id="copy-revealed-btn">Copy Token</button>
@@ -2104,7 +2153,6 @@ export function renderAdminPage(specJson: string): string {
           <table class="agents-table" id="agents-table">
             <thead>
               <tr>
-                <th>Agent ID</th>
                 <th>Name</th>
                 <th>Phone</th>
                 <th>Email</th>
@@ -2114,7 +2162,7 @@ export function renderAdminPage(specJson: string): string {
               </tr>
             </thead>
             <tbody id="agents-body">
-              <tr><td colspan="7" style="color:var(--text-muted);text-align:center;padding:1.5rem;">Loading agents...</td></tr>
+              <tr><td colspan="6" style="color:var(--text-muted);text-align:center;padding:1.5rem;">Loading agents...</td></tr>
             </tbody>
           </table>
         </div>
@@ -2162,7 +2210,7 @@ export function renderAdminPage(specJson: string): string {
               <div class="code-block">
                 <button class="copy-btn" onclick="copyCodeBlock(this)">Copy</button>
                 <pre># Connect with any MCP client
-SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
+SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?token=YOUR_API_KEY
 
 # In Claude Desktop config:
 {
@@ -2260,7 +2308,7 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
             <div class="mcp-tools-section">
               <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:1rem;">
                 MCP (Model Context Protocol) lets AI agents call tools directly via a persistent SSE connection.
-                Connect to <code>/sse?agentId=YOUR_AGENT</code> with any MCP-compatible client.
+                Connect to <code>/sse?token=YOUR_API_KEY</code> with any MCP-compatible client.
               </p>
               <div id="mcp-tools"></div>
             </div>
@@ -3626,9 +3674,17 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
             evBadge.className = 'badge ' + (status.registration.requireEmailVerification ? 'badge-success' : 'badge-info');
           }
         }
+
+        /* Operation mode */
+        if (status.demoMode !== undefined) {
+          updateModeUI(status.demoMode);
+        }
       } catch (err) {
         console.error('Status load error:', err);
       }
+
+      /* Load org spending limits */
+      loadOrgSpendingLimits();
 
       /* Also load the catalog early so editing providers is instant */
       try {
@@ -3806,7 +3862,7 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
       } catch (err) {
         console.error('Agents load error:', err);
         document.getElementById('agents-body').innerHTML =
-          '<tr><td colspan="7" style="color:var(--error);text-align:center;padding:1.5rem;">Failed to load agents</td></tr>';
+          '<tr><td colspan="6" style="color:var(--error);text-align:center;padding:1.5rem;">Failed to load agents</td></tr>';
       }
     }
 
@@ -3834,11 +3890,10 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
       result.textContent = 'Provisioning...';
       result.style.color = 'var(--text-muted)';
 
-      const agentId = document.getElementById('prov-agent-id').value.trim();
       const displayName = document.getElementById('prov-display-name').value.trim();
 
-      if (!agentId || !displayName) {
-        result.textContent = 'Agent ID and Display Name are required.';
+      if (!displayName) {
+        result.textContent = 'Display Name is required.';
         result.style.color = 'var(--error)';
         btn.disabled = false;
         return;
@@ -3861,7 +3916,6 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         const res = await apiFetch('/api/v1/provision', {
           method: 'POST',
           body: JSON.stringify({
-            agentId,
             displayName,
             capabilities,
             country: document.getElementById('prov-country').value,
@@ -3889,7 +3943,6 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         document.getElementById('provision-form').style.display = 'none';
 
         /* Clear form */
-        document.getElementById('prov-agent-id').value = '';
         document.getElementById('prov-display-name').value = '';
         document.getElementById('prov-system-prompt').value = '';
         document.getElementById('prov-greeting').value = '';
@@ -3939,7 +3992,7 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
       const body = document.getElementById('agents-body');
 
       if (agentsData.length === 0) {
-        body.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted);text-align:center;padding:1.5rem;">No agents found. Click "+ New Agent" to provision one.</td></tr>';
+        body.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted);text-align:center;padding:1.5rem;">No agents found. Click "+ New Agent" to provision one.</td></tr>';
         return;
       }
 
@@ -3967,7 +4020,6 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         }
 
         html += '<tr onclick="toggleAgentEdit(' + idx + ')" data-agent-idx="' + idx + '">' +
-          '<td style="font-family:monospace;font-size:0.8rem;">' + escHtml(agentId) + '</td>' +
           '<td>' + escHtml(name) + '</td>' +
           '<td>' + escHtml(phone) + '</td>' +
           '<td>' + escHtml(email) + '</td>' +
@@ -3978,7 +4030,7 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
 
         /* Edit panel row */
         html += '<tr class="agent-edit-panel" id="agent-edit-' + idx + '">' +
-          '<td colspan="7">' +
+          '<td colspan="6">' +
           '<div class="edit-panel-inner">' +
           /* Full-width: Agent Profile + Channel IDs */
           '<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;padding-bottom:1rem;border-bottom:1px solid var(--border);margin-bottom:0.25rem;">' +
@@ -4355,6 +4407,131 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
         showToast(data.success ? 'Email verification ' + (enabled === 'true' ? 'enabled' : 'disabled') : (data.message || 'Failed'), data.success ? 'success' : 'error');
         document.getElementById('email-verification-badge').textContent = enabled === 'true' ? 'Required' : 'Off';
         document.getElementById('email-verification-badge').className = 'badge ' + (enabled === 'true' ? 'badge-success' : 'badge-info');
+      } catch {
+        showToast('Network error', 'error');
+      }
+    }
+
+    /* ── Settings: Operation Mode Toggle ─────────────────────── */
+    let currentDemoMode = true;
+    let pendingModeSwitchTo = null;
+
+    function updateModeUI(isDemo) {
+      currentDemoMode = isDemo;
+      const badge = document.getElementById('operation-mode-badge');
+      const btn = document.getElementById('mode-toggle-btn');
+      if (badge) {
+        badge.textContent = isDemo ? 'DEMO' : 'LIVE';
+        badge.className = 'badge ' + (isDemo ? 'badge-warning' : 'badge-success');
+      }
+      if (btn) {
+        btn.textContent = isDemo ? 'Switch to Live Mode' : 'Switch to Demo Mode';
+        btn.style.background = isDemo ? 'var(--accent)' : 'var(--warning)';
+        btn.style.color = '#fff';
+        btn.style.border = 'none';
+      }
+    }
+
+    function toggleOperationMode() {
+      if (currentDemoMode) {
+        // Switching to live — show warning modal
+        pendingModeSwitchTo = 'false';
+        var modal = document.getElementById('mode-switch-modal');
+        modal.style.display = 'flex';
+        document.getElementById('mode-modal-title').textContent = 'Switch to Live Mode?';
+        document.getElementById('mode-modal-warning').style.background = 'rgba(248,81,73,0.15)';
+        document.getElementById('mode-modal-warning').style.borderColor = 'rgba(248,81,73,0.3)';
+        document.getElementById('mode-modal-warning').style.color = 'var(--error)';
+        document.getElementById('mode-modal-warning').innerHTML = 'You are about to switch to <strong>LIVE</strong> mode. Real providers will be used &mdash; messages will be sent, calls will be placed, and charges will apply. Make sure all provider credentials are configured correctly.';
+        document.getElementById('mode-confirm-btn').style.background = 'var(--error)';
+        document.getElementById('mode-confirm-btn').textContent = 'Confirm Switch to Live';
+      } else {
+        // Switching to demo — simple confirmation
+        pendingModeSwitchTo = 'true';
+        var modal = document.getElementById('mode-switch-modal');
+        modal.style.display = 'flex';
+        document.getElementById('mode-modal-title').textContent = 'Switch to Demo Mode?';
+        document.getElementById('mode-modal-warning').style.background = 'rgba(63,185,80,0.15)';
+        document.getElementById('mode-modal-warning').style.borderColor = 'rgba(63,185,80,0.3)';
+        document.getElementById('mode-modal-warning').style.color = 'var(--success)';
+        document.getElementById('mode-modal-warning').innerHTML = 'The server will switch to <strong>DEMO</strong> mode. All API calls will use mock providers &mdash; no real messages or charges.';
+        document.getElementById('mode-confirm-btn').style.background = 'var(--success)';
+        document.getElementById('mode-confirm-btn').textContent = 'Confirm Switch to Demo';
+      }
+    }
+
+    function closeModeSwitchModal() {
+      document.getElementById('mode-switch-modal').style.display = 'none';
+      pendingModeSwitchTo = null;
+    }
+
+    async function confirmModeSwitch() {
+      if (!pendingModeSwitchTo) return;
+      closeModeSwitchModal();
+      var resultEl = document.getElementById('mode-toggle-result');
+      resultEl.textContent = 'Saving...';
+      resultEl.style.color = 'var(--warning)';
+
+      try {
+        var res = await apiFetch('/admin/api/save', {
+          method: 'POST',
+          body: JSON.stringify({ credentials: { DEMO_MODE: pendingModeSwitchTo } })
+        });
+        var data = await res.json();
+        if (data.success) {
+          resultEl.textContent = 'Saved. Restarting server...';
+          // Auto-deploy to apply the change
+          try { await apiFetch('/admin/api/deploy', { method: 'POST' }); } catch {}
+          resultEl.textContent = 'Server restarting. Page will reload in 5 seconds...';
+          setTimeout(function() { location.reload(); }, 5000);
+        } else {
+          resultEl.textContent = data.message || 'Failed';
+          resultEl.style.color = 'var(--error)';
+        }
+      } catch {
+        resultEl.textContent = 'Network error';
+        resultEl.style.color = 'var(--error)';
+      }
+    }
+
+    /* ── Settings: Org Spending Limits ────────────────────────── */
+    async function loadOrgSpendingLimits() {
+      try {
+        var res = await apiFetch('/admin/api/org-spending-limits', { method: 'POST', body: '{}' });
+        var data = await res.json();
+        if (data.success) {
+          if (data.maxSpendPerDay !== null && data.maxSpendPerDay !== undefined) {
+            document.getElementById('org-spend-day').value = data.maxSpendPerDay;
+          }
+          if (data.maxSpendPerMonth !== null && data.maxSpendPerMonth !== undefined) {
+            document.getElementById('org-spend-month').value = data.maxSpendPerMonth;
+          }
+          document.getElementById('org-spend-today').textContent = (data.spendToday || 0).toFixed(2);
+          document.getElementById('org-spend-this-month').textContent = (data.spendThisMonth || 0).toFixed(2);
+        }
+      } catch {}
+    }
+
+    async function saveOrgSpendingLimits() {
+      var dayVal = document.getElementById('org-spend-day').value;
+      var monthVal = document.getElementById('org-spend-month').value;
+      var body = {};
+      body.maxSpendPerDay = dayVal === '' ? null : parseFloat(dayVal);
+      body.maxSpendPerMonth = monthVal === '' ? null : parseFloat(monthVal);
+
+      try {
+        var res = await apiFetch('/admin/api/org-spending-limits', {
+          method: 'POST',
+          body: JSON.stringify(body)
+        });
+        var data = await res.json();
+        if (data.success) {
+          showToast('Spending limits saved', 'success');
+          document.getElementById('org-spend-today').textContent = (data.spendToday || 0).toFixed(2);
+          document.getElementById('org-spend-this-month').textContent = (data.spendThisMonth || 0).toFixed(2);
+        } else {
+          showToast(data.message || 'Failed', 'error');
+        }
       } catch {
         showToast('Network error', 'error');
       }

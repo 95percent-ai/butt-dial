@@ -1,4 +1,4 @@
-<!-- version: 5.2 | updated: 2026-02-21 -->
+<!-- version: 5.3 | updated: 2026-02-26 -->
 
 # TODO — AgentOS Communication MCP Server
 
@@ -450,6 +450,27 @@ Dead-simple developer onboarding: register → get token → test in sandbox →
 ### Tests
 - [x] Update existing tests to reflect queue model (12 test files, 335+ assertions pass)
 - [x] Remove translation-related test assertions (translation test rewritten for removal verification)
+
+## Phase 28 — Demo/Live Toggle + Org Spending Limits
+Admin UI controls for switching between demo and live mode, plus organization-level spending caps.
+
+- [x] **28.1** Operation Mode card in Settings tab — demo/live toggle with confirmation modal for switching to live
+- [x] **28.2** Auto-deploy on mode change — saves `DEMO_MODE` to `.env` and restarts server
+- [x] **28.3** Org-level spending limits — `max_spend_per_day`, `max_spend_per_month` on `organizations` table
+- [x] **28.4** Two-tier cost enforcement — org caps checked before per-agent caps in rate limiter
+- [x] **28.5** `mode` field in health endpoint response — "demo" or "live"
+
+## Phase 29 — Token-as-API-Key (DEC-082)
+Simplify authentication: the token IS the agent's identifier. No more user-chosen agentIds.
+
+- [x] **29.1** `agentId` auto-generated UUID at provisioning (optional param for backward compat)
+- [x] **29.2** SSE connection: `GET /sse?token=<token>` — agentId auto-resolved from agent token
+- [x] **29.3** All MCP tools: agentId optional, auto-detected from token
+- [x] **29.4** REST API: provision, deprovision, onboard, billing, limits — agentId optional
+- [x] **29.5** Admin UI: removed Agent ID input from provision form, token shown as "API Key"
+- [x] **29.6** OpenAPI spec: agentId marked optional in all schemas
+- [x] **29.7** Docs pages: SSE examples use token-only URL, curl examples omit agentId
+- [x] **29.8** All documentation updated (SPEC, INTEGRATION, STRUCTURE, DECISIONS, CHANGELOG)
 
 ---
 

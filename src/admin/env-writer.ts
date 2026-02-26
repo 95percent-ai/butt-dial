@@ -35,6 +35,7 @@ interface ProviderStatus {
   registration: {
     requireEmailVerification: boolean;
   };
+  demoMode: boolean;
 }
 
 /** Mask a value — show only last 4 characters */
@@ -85,6 +86,7 @@ export function getProviderStatus(): ProviderStatus {
   const ttsProvider = env["PROVIDER_TTS"];
   const anthropicKey = env["ANTHROPIC_API_KEY"];
   const requireEmailVerification = env["REQUIRE_EMAIL_VERIFICATION"];
+  const demoMode = env["DEMO_MODE"];
 
   return {
     twilio: {
@@ -116,6 +118,7 @@ export function getProviderStatus(): ProviderStatus {
     registration: {
       requireEmailVerification: requireEmailVerification === "true",
     },
+    demoMode: demoMode !== "false",
   };
 }
 

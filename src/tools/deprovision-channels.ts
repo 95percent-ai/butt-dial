@@ -9,7 +9,7 @@ import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
 import { releasePhoneNumber } from "../provisioning/phone-number.js";
 import { returnToPool } from "../provisioning/whatsapp-sender.js";
-import { requireAdmin, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAdmin, getOrgId, resolveAgentId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { requireAgentInOrg } from "../security/org-scope.js";
 import { revokeAgentTokens } from "../security/token-manager.js";
 import { appendAuditLog } from "../observability/audit-log.js";
@@ -26,10 +26,10 @@ export function registerDeprovisionChannelsTool(server: McpServer): void {
     "comms_deprovision_channels",
     "Deprovision an agent — release phone number, return WhatsApp to pool, mark channels inactive.",
     {
-      agentId: z.string().describe("The agent ID to deprovision"),
+      agentId: z.string().optional().describe("The agent ID to deprovision (auto-detected from token if omitted)"),
       releaseNumber: z.boolean().default(true).describe("Whether to release the phone number back to Twilio (default: true)"),
     },
-    async ({ agentId, releaseNumber: shouldRelease }, extra) => {
+    async ({ agentId: explicitAgentId, releaseNumber: shouldRelease }, extra) => {
       // Auth: only admin can deprovision
       try {
         requireAdmin(extra.authInfo as AuthInfo | undefined);
@@ -37,9 +37,17 @@ export function registerDeprovisionChannelsTool(server: McpServer): void {
         return authErrorResponse(err);
       }
 
+      const authInfo = extra.authInfo as AuthInfo | undefined;
+      const agentId = resolveAgentId(authInfo, explicitAgentId);
+      if (!agentId) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (pass it explicitly or use an agent token)" }) }],
+          isError: true,
+        };
+      }
+
       const db = getProvider("database");
 
-      const authInfo = extra.authInfo as AuthInfo | undefined;
       try { requireAgentInOrg(db, agentId, authInfo); } catch (err) { return authErrorResponse(err); }
 
       // 1. Look up agent

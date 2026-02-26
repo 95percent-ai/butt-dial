@@ -8,7 +8,7 @@ import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getProvider } from "../providers/factory.js";
 import { logger } from "../lib/logger.js";
-import { requireAdmin, getOrgId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
+import { requireAdmin, getOrgId, resolveAgentId, authErrorResponse, type AuthInfo } from "../security/auth-guard.js";
 import { requireAgentInOrg } from "../security/org-scope.js";
 import { getAgentLimits } from "../security/rate-limiter.js";
 
@@ -27,7 +27,7 @@ export function registerSetAgentLimitsTool(server: McpServer): void {
     "comms_set_agent_limits",
     "Configure rate limits and spending caps for an agent. Admin only. All fields are optional — only provided fields are updated.",
     {
-      agentId: z.string().describe("The agent to configure"),
+      agentId: z.string().optional().describe("The agent to configure (auto-detected from token if omitted)"),
       limits: z.object({
         maxActionsPerMinute: z.number().int().positive().optional().describe("Max actions per minute"),
         maxActionsPerHour: z.number().int().positive().optional().describe("Max actions per hour"),
@@ -36,7 +36,7 @@ export function registerSetAgentLimitsTool(server: McpServer): void {
         maxSpendPerMonth: z.number().nonnegative().optional().describe("Max monthly spend in USD"),
       }).describe("Limits to set (partial — only provided fields change)"),
     },
-    async ({ agentId, limits }, extra) => {
+    async ({ agentId: explicitAgentId, limits }, extra) => {
       // Auth: admin only
       try {
         requireAdmin(extra.authInfo as AuthInfo | undefined);
@@ -44,9 +44,17 @@ export function registerSetAgentLimitsTool(server: McpServer): void {
         return authErrorResponse(err);
       }
 
+      const authInfo = extra.authInfo as AuthInfo | undefined;
+      const agentId = resolveAgentId(authInfo, explicitAgentId);
+      if (!agentId) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (pass it explicitly or use an agent token)" }) }],
+          isError: true,
+        };
+      }
+
       const db = getProvider("database");
 
-      const authInfo = extra.authInfo as AuthInfo | undefined;
       try { requireAgentInOrg(db, agentId, authInfo); } catch (err) { return authErrorResponse(err); }
 
       // Verify agent exists

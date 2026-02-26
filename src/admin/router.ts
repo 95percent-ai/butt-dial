@@ -904,6 +904,7 @@ adminRouter.post("/admin/api/save", adminAuth, (req: Request, res: Response) => 
     "VOICE_AI_DISCLOSURE",
     "VOICE_AI_DISCLOSURE_TEXT",
     "REQUIRE_EMAIL_VERIFICATION",
+    "DEMO_MODE",
     // PROVIDER_*_DISABLED keys (toggle support)
     ...PROVIDER_CATALOG.map((p) => `PROVIDER_${p.id.toUpperCase().replace(/-/g, "_")}_DISABLED`),
   ]);
@@ -925,6 +926,55 @@ adminRouter.post("/admin/api/save", adminAuth, (req: Request, res: Response) => 
     res.json({ success: true, message: `Saved ${Object.keys(filtered).length} credential(s)` });
   } catch (err) {
     res.status(500).json({ success: false, message: `Failed to save: ${String(err)}` });
+  }
+});
+
+/** Get/set org-level aggregate spending limits */
+adminRouter.post("/admin/api/org-spending-limits", adminAuth, (req: Request, res: Response) => {
+  try {
+    const authInfo = getAuthInfo(req);
+    const orgId = authInfo?.orgId || "default";
+    const db = getProvider("database");
+    const { maxSpendPerDay, maxSpendPerMonth } = req.body ?? {};
+
+    // Update limits if provided
+    if (maxSpendPerDay !== undefined || maxSpendPerMonth !== undefined) {
+      if (maxSpendPerDay !== undefined) {
+        const val = maxSpendPerDay === null ? null : Number(maxSpendPerDay);
+        db.run("UPDATE organizations SET max_spend_per_day = ? WHERE id = ?", [val, orgId]);
+      }
+      if (maxSpendPerMonth !== undefined) {
+        const val = maxSpendPerMonth === null ? null : Number(maxSpendPerMonth);
+        db.run("UPDATE organizations SET max_spend_per_month = ? WHERE id = ?", [val, orgId]);
+      }
+    }
+
+    // Return current limits + current spend
+    const orgRow = db.query<{ max_spend_per_day: number | null; max_spend_per_month: number | null }>(
+      "SELECT max_spend_per_day, max_spend_per_month FROM organizations WHERE id = ?",
+      [orgId],
+    );
+    const limits = orgRow.length > 0 ? orgRow[0] : { max_spend_per_day: null, max_spend_per_month: null };
+
+    const spendToday = db.query<{ total: number | null }>(
+      "SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE org_id = ? AND created_at >= date('now')",
+      [orgId],
+    )[0]?.total ?? 0;
+
+    const spendThisMonth = db.query<{ total: number | null }>(
+      "SELECT COALESCE(SUM(cost), 0) as total FROM usage_logs WHERE org_id = ? AND created_at >= date('now', 'start of month')",
+      [orgId],
+    )[0]?.total ?? 0;
+
+    res.json({
+      success: true,
+      maxSpendPerDay: limits.max_spend_per_day,
+      maxSpendPerMonth: limits.max_spend_per_month,
+      spendToday,
+      spendThisMonth,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: String(err) });
   }
 });
 

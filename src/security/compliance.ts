@@ -153,7 +153,7 @@ export function getConsentAnnouncement(): string {
 // ------------------------------------------------------------------
 
 export function checkCanSpam(html: string | undefined, body: string): ComplianceResult {
-  const content = html || body;
+  const content = String(html || body || "");
   if (!content) return { allowed: true };
 
   // CAN-SPAM only applies to commercial emails

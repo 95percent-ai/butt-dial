@@ -1,4 +1,4 @@
-<!-- version: 3.9 | updated: 2026-02-23 -->
+<!-- version: 4.0 | updated: 2026-02-26 -->
 
 # Project Structure
 
@@ -64,7 +64,7 @@ agentos-comms-mcp/
 │   │   ├── schema-call-logs.sql # Call logs table (duration, cost, recording, transfer)
 │   │   ├── schema-compliance.sql # DNC list + GDPR erasure requests tables
 │   │   ├── schema-billing.sql   # Billing config table
-│   │   ├── schema-org.sql       # Organization + org_tokens tables (multi-tenant)
+│   │   ├── schema-org.sql       # Organization + org_tokens tables (multi-tenant, incl. max_spend_per_day/month)
 │   │   ├── schema-otp.sql       # OTP verification codes table
 │   │   ├── schema-number-pool.sql # Number pool table (shared phone numbers for smart routing)
 │   │   ├── schema-consent.sql   # Consent tracking + country terms accepted tables
@@ -86,7 +86,7 @@ agentos-comms-mcp/
 │   │   ├── waiting-messages.ts   # comms_get_waiting_messages (fetch dead letters — fetch = acknowledge)
 │   │   ├── send-voice-message.ts # comms_send_voice_message (TTS → call → play audio)
 │   │   ├── make-call.ts          # comms_make_call (outbound AI voice call via ConversationRelay)
-│   │   ├── provision-channels.ts # comms_provision_channels (buy number, assign WhatsApp, generate email)
+│   │   ├── provision-channels.ts # comms_provision_channels (buy number, assign WhatsApp, generate email; agentId auto-UUID)
 │   │   ├── deprovision-channels.ts # comms_deprovision_channels (release number, return pool, deactivate)
 │   │   ├── get-channel-status.ts # comms_get_channel_status (per-channel info, message counts, pool)
 │   │   ├── register-provider.ts  # comms_register_provider (verify + save credentials to .env)

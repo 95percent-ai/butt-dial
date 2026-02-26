@@ -1,6 +1,30 @@
-<!-- version: 4.4 | updated: 2026-02-24 -->
+<!-- version: 4.5 | updated: 2026-02-26 -->
 
 # Changelog
+
+## Session 30 — 2026-02-26
+
+### Token-as-API-Key (DEC-082)
+- **Provisioning:** `agentId` is now auto-generated as a UUID. Users no longer need to choose an agent ID — the token is the sole credential they manage.
+- **SSE connection:** `GET /sse?token=<token>` — agentId is auto-resolved from agent tokens. Org/orchestrator tokens can still pass `?agentId=X`.
+- **MCP tools:** `agentId` made optional in `comms_provision_channels`, `comms_onboard_customer`, `comms_deprovision_channels`, `comms_set_agent_limits`, `comms_set_billing_config`. All auto-detect from token.
+- **REST API:** Same pattern — provision, deprovision, onboard, billing/config, agent-limits endpoints accept optional agentId.
+- **Admin UI:** Removed "Agent ID" input from provision form. Token reveal modal relabeled to "API Key". Agents table no longer shows Agent ID column.
+- **OpenAPI spec:** All schemas updated — agentId marked optional with "auto-detected from token" descriptions.
+- **Docs:** SSE examples in docs pages and INTEGRATION.md use token-only URLs. Curl examples omit agentId from request bodies.
+
+### Demo/Live Toggle + Org Spending Limits (DEC-083, DEC-084)
+- **Operation Mode card** in Settings tab — demo/live toggle with confirmation modal for switching to live mode
+- **Org spending limits** — `max_spend_per_day` and `max_spend_per_month` on organizations table, enforced before per-agent caps
+- **Health endpoint** now includes `mode` field ("demo" or "live") in response
+
+### Documentation Alignment
+- Updated SPEC.md (v2.3): token-only auth model, org spending caps, demo/live toggle, mode in health
+- Updated TODO.md (v5.3): Phase 28 (demo/live + org spending) and Phase 29 (token-as-API-key) entries
+- Updated DECISIONS.md (v4.8): DEC-082, DEC-083, DEC-084
+- Updated STRUCTURE.md (v4.0): org columns, agent_id auto-generated note
+- Updated INTEGRATION.md (v1.4): token-only SSE, no agentId in curl examples, mode in health
+- Updated test-report-response.md: live mode toggle info
 
 ## Session 29 — 2026-02-24
 

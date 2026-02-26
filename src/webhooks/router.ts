@@ -24,6 +24,7 @@ webhookRouter.get("/health", (_req: Request, res: Response) => {
     version: "0.1.0",
     environment: config.nodeEnv,
     demoMode: config.demoMode,
+    mode: config.demoMode ? "demo" : "live",
   });
 });
 

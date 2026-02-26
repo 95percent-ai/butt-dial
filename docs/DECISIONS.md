@@ -1,6 +1,24 @@
-<!-- version: 4.7 | updated: 2026-02-24 -->
+<!-- version: 4.8 | updated: 2026-02-26 -->
 
 # Decisions Log
+
+## DEC-084: Org-Level Spending Limits
+**Date:** 2026-02-26
+**What:** Added `max_spend_per_day` and `max_spend_per_month` columns to the `organizations` table. Org-level caps are checked before per-agent caps in the rate limiter — if the org exceeds its aggregate daily/monthly budget, all agents in that org are blocked from further actions.
+**Why:** Per-agent caps alone don't prevent a rogue org from running up costs across many agents. Org-level caps give deployers an aggregate safety net.
+**Alternatives considered:** Only per-agent caps (insufficient for multi-agent orgs), external billing system integration (adds dependency).
+
+## DEC-083: Demo/Live Mode Toggle in Admin UI
+**Date:** 2026-02-26
+**What:** Added Operation Mode card in the Settings tab with a demo/live toggle. Switching to live shows a confirmation modal warning about real API calls and costs. On save, the `DEMO_MODE` env var is written to `.env` and the server auto-deploys (restarts).
+**Why:** Previously required manual `.env` editing and server restart to switch modes. The toggle provides a safe, explicit UI action with clear warnings.
+**Alternatives considered:** Environment-only toggle (no UI, error-prone), auto-detect from credentials (unreliable — credentials may be configured in demo too).
+
+## DEC-082: Token Replaces Agent ID as User-Facing Identifier
+**Date:** 2026-02-26
+**What:** The security token is now the sole user-facing identifier for an agent. `agentId` is auto-generated as a UUID at provisioning — users never choose or manage it. SSE connection: `GET /sse?token=<token>` (agentId auto-resolved from agent token). All MCP tools and REST endpoints accept agentId as optional — it's auto-detected from the token. Webhook URLs still use the internal UUID (never expose the secret token in URLs). Admin UI removes the Agent ID input from the provision form and labels the token as "API Key".
+**Why:** The tester found the system confusing — agent_id and token were separate concepts that users had to manage together. One credential (the token) is simpler and eliminates a class of user errors.
+**Alternatives considered:** Keep agent_id user-chosen but auto-fill (still two concepts), use token in webhook URLs (security risk — tokens are secrets), remove agent_id from DB entirely (breaks webhook routing and internal references).
 
 ## DEC-081: Agent Profile Edit — Partial Update Endpoint
 **Date:** 2026-02-24

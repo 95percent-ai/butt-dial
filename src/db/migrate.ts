@@ -166,6 +166,14 @@ export function runMigrations(): void {
     // Column already exists
   }
 
+  // Org-level aggregate spending caps (NULL = unlimited)
+  try {
+    db.run("ALTER TABLE organizations ADD COLUMN max_spend_per_day REAL DEFAULT NULL");
+  } catch {}
+  try {
+    db.run("ALTER TABLE organizations ADD COLUMN max_spend_per_month REAL DEFAULT NULL");
+  } catch {}
+
   // Add KYC fields to user_accounts
   try {
     db.run("ALTER TABLE user_accounts ADD COLUMN company_name TEXT");

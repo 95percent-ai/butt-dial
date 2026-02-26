@@ -1,4 +1,4 @@
-<!-- version: 1.3 | updated: 2026-02-22 -->
+<!-- version: 1.4 | updated: 2026-02-26 -->
 
 # Butt-Dial MCP — Integration Guide
 
@@ -88,7 +88,7 @@ Authorization: Bearer YOUR_TOKEN
 
 **MCP (SSE):**
 ```
-GET http://localhost:3100/sse?token=YOUR_TOKEN&agentId=YOUR_AGENT_ID
+GET http://localhost:3100/sse?token=YOUR_TOKEN
 ```
 
 ---
@@ -132,19 +132,19 @@ All endpoints are at `/api/v1/`. Full interactive docs at `/admin#docs`.
 curl -X POST http://localhost:3100/api/v1/send-message \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"agentId":"my-agent","to":"+15559876543","body":"Hello!","channel":"sms"}'
+  -d '{"to":"+15559876543","body":"Hello!","channel":"sms"}'
 
 # Email
 curl -X POST http://localhost:3100/api/v1/send-message \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"agentId":"my-agent","to":"user@example.com","body":"Hello!","channel":"email","subject":"Hi"}'
+  -d '{"to":"user@example.com","body":"Hello!","channel":"email","subject":"Hi"}'
 
 # WhatsApp
 curl -X POST http://localhost:3100/api/v1/send-message \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"agentId":"my-agent","to":"+15559876543","body":"Hello!","channel":"whatsapp"}'
+  -d '{"to":"+15559876543","body":"Hello!","channel":"whatsapp"}'
 ```
 
 ### Make a Voice Call
@@ -153,7 +153,7 @@ curl -X POST http://localhost:3100/api/v1/send-message \
 curl -X POST http://localhost:3100/api/v1/make-call \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"agentId":"my-agent","to":"+15559876543","greeting":"Hello!"}'
+  -d '{"to":"+15559876543","greeting":"Hello!"}'
 ```
 
 ### Get Waiting Messages
@@ -170,7 +170,7 @@ curl http://localhost:3100/api/v1/waiting-messages?agentId=my-agent \
 curl -X POST http://localhost:3100/api/v1/provision \
   -H "Authorization: Bearer TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"agentId":"my-agent","displayName":"My Agent","capabilities":["sms","voice","email"]}'
+  -d '{"displayName":"My Agent","capabilities":["sms","voice","email"]}'
 ```
 
 ---
@@ -182,7 +182,7 @@ curl -X POST http://localhost:3100/api/v1/provision \
 Your AI agent connects via the MCP protocol over Server-Sent Events:
 
 ```
-GET http://localhost:3100/sse?token=AGENT_TOKEN&agentId=my-agent
+GET http://localhost:3100/sse?token=AGENT_TOKEN
 ```
 
 ### Node.js Example
@@ -192,7 +192,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
 const transport = new SSEClientTransport(
-  new URL("http://localhost:3100/sse?token=YOUR_TOKEN&agentId=my-agent")
+  new URL("http://localhost:3100/sse?token=YOUR_TOKEN")
 );
 
 const client = new Client({ name: "my-agent", version: "1.0.0" });
@@ -220,7 +220,7 @@ console.log(JSON.parse(result.content[0].text));
 {
   "mcpServers": {
     "butt-dial": {
-      "url": "http://localhost:3100/sse?token=YOUR_TOKEN&agentId=my-agent"
+      "url": "http://localhost:3100/sse?token=YOUR_TOKEN"
     }
   }
 }
@@ -380,7 +380,7 @@ Since the server doesn't store conversation history, **your agent must manage it
 
 ```bash
 curl http://localhost:3100/health
-# {"status":"ok","uptime":...,"version":"1.0.0"}
+# {"status":"ok","uptime":...,"version":"1.0.0","mode":"demo"}
 ```
 
 ### Logs

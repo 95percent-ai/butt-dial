@@ -63,6 +63,7 @@ restRouter.get("/health", (_req, res) => {
     status: "ok",
     uptime: Math.round(process.uptime()),
     version: "1.0.0",
+    mode: config.demoMode ? "demo" : "live",
   });
 });
 
@@ -125,6 +126,7 @@ restRouter.post("/send-message", async (req, res) => {
 
     sanitize(body, "body");
     sanitize(to, "to");
+    if (html) sanitize(html, "html");
 
     const db = getProvider("database");
     const orgId = getOrgId(auth);
@@ -165,7 +167,7 @@ restRouter.post("/send-message", async (req, res) => {
       logUsage(db, { agentId, actionType: "email", channel: "email", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
       metrics.increment("mcp_messages_sent_total", { channel: "email" });
       maybeTriggerSandboxReply({ orgId, agentId, channel: "email", to, from: agent.email_address, body });
-      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "email", from: agent.email_address, to, genderContext });
+      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "email", from: agent.email_address, to, genderContext, ...(config.demoMode && { demo: true }) });
     }
 
     if (channel === "whatsapp") {
@@ -175,7 +177,7 @@ restRouter.post("/send-message", async (req, res) => {
       logUsage(db, { agentId, actionType: "whatsapp", channel: "whatsapp", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
       metrics.increment("mcp_messages_sent_total", { channel: "whatsapp" });
       maybeTriggerSandboxReply({ orgId, agentId, channel: "whatsapp", to, from: agent.whatsapp_sender_sid, body });
-      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "whatsapp", from: agent.whatsapp_sender_sid, to, genderContext });
+      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "whatsapp", from: agent.whatsapp_sender_sid, to, genderContext, ...(config.demoMode && { demo: true }) });
     }
 
     if (channel === "line") {
@@ -185,7 +187,7 @@ restRouter.post("/send-message", async (req, res) => {
       logUsage(db, { agentId, actionType: "line", channel: "line", targetAddress: to, cost: result.cost ?? 0, externalId: result.messageId });
       metrics.increment("mcp_messages_sent_total", { channel: "line" });
       maybeTriggerSandboxReply({ orgId, agentId, channel: "line", to, from: agentId, body });
-      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "line", from: agentId, to, genderContext });
+      return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "line", from: agentId, to, genderContext, ...(config.demoMode && { demo: true }) });
     }
 
     // Default: SMS
@@ -198,7 +200,7 @@ restRouter.post("/send-message", async (req, res) => {
     maybeTriggerSandboxReply({ orgId, agentId, channel: "sms", to, from: fromNumber, body });
 
     logger.info("rest_send_message", { agentId, to, channel: "sms" });
-    return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "sms", from: fromNumber, to, genderContext });
+    return res.json({ success: true, externalId: result.messageId, status: result.status, channel: "sms", from: fromNumber, to, genderContext, ...(config.demoMode && { demo: true }) });
   } catch (err) {
     return handleRestError(res, err);
   }
@@ -602,8 +604,9 @@ restRouter.get("/waiting-messages", async (req, res) => {
 // POST /api/v1/provision
 restRouter.post("/provision", async (req, res) => {
   try {
-    const { agentId, displayName, greeting, systemPrompt, country = "US", capabilities: rawCaps, emailDomain } = req.body;
-    if (!agentId || !displayName || !rawCaps) return errorJson(res, 400, "Required: agentId, displayName, capabilities");
+    const { agentId: explicitAgentId, displayName, greeting, systemPrompt, country = "US", capabilities: rawCaps, emailDomain } = req.body;
+    if (!displayName || !rawCaps) return errorJson(res, 400, "Required: displayName, capabilities");
+    const agentId = explicitAgentId || randomUUID();
 
     // Normalize capabilities: accept array ['sms','voice'] or object {phone,voiceAi}
     const caps = Array.isArray(rawCaps)
@@ -695,6 +698,7 @@ restRouter.post("/provision", async (req, res) => {
           voiceAi: caps.voiceAi ? { status: "active", usesPhoneNumber: phoneNumber } : null,
         },
         pool: { slotsRemaining },
+        ...(config.demoMode && { demo: true }),
       });
     } catch (err) {
       if (boughtNumber) try { await releasePhoneNumber(boughtNumber.phoneNumber); } catch {}
@@ -712,11 +716,11 @@ restRouter.post("/provision", async (req, res) => {
 // POST /api/v1/deprovision
 restRouter.post("/deprovision", async (req, res) => {
   try {
-    const { agentId, releaseNumber = true } = req.body;
-    if (!agentId) return errorJson(res, 400, "Required: agentId");
-
+    const { agentId: explicitAgentId, releaseNumber = true } = req.body;
     const auth = authInfo(req);
     requireAdmin(auth);
+    const agentId = resolveAgentId(auth, explicitAgentId);
+    if (!agentId) return errorJson(res, 400, "Required: agentId (pass it explicitly or use an agent token)");
 
     const db = getProvider("database");
     requireAgentInOrg(db, agentId, auth);
@@ -852,8 +856,9 @@ restRouter.get("/channel-status", async (req, res) => {
 // POST /api/v1/onboard
 restRouter.post("/onboard", async (req, res) => {
   try {
-    const { agentId, displayName, capabilities = { phone: true, whatsapp: true, email: true, voiceAi: true }, emailDomain, greeting, systemPrompt, country = "US" } = req.body;
-    if (!agentId || !displayName) return errorJson(res, 400, "Required: agentId, displayName");
+    const { agentId: explicitAgentId, displayName, capabilities = { phone: true, whatsapp: true, email: true, voiceAi: true }, emailDomain, greeting, systemPrompt, country = "US" } = req.body;
+    if (!displayName) return errorJson(res, 400, "Required: displayName");
+    const agentId = explicitAgentId || randomUUID();
 
     const auth = authInfo(req);
     requireAdmin(auth);
@@ -955,6 +960,7 @@ restRouter.post("/onboard", async (req, res) => {
           voice: capabilities.voiceAi ? `${baseUrl}/webhooks/${agentId}/voice` : null,
         },
         connectionInstructions: {
+          sseEndpoint: `${baseUrl}/sse?token=${plainToken}`,
           restApiBase: `${baseUrl}/api/v1`,
           authHeader: `Bearer ${plainToken}`,
         },
@@ -1083,11 +1089,11 @@ restRouter.get("/billing", async (req, res) => {
 // POST /api/v1/billing/config
 restRouter.post("/billing/config", async (req, res) => {
   try {
-    const { agentId, tier, markupPercent, billingEmail } = req.body;
-    if (!agentId) return errorJson(res, 400, "Required: agentId");
-
+    const { agentId: explicitAgentId, tier, markupPercent, billingEmail } = req.body;
     const auth = authInfo(req);
     requireAdmin(auth);
+    const agentId = resolveAgentId(auth, explicitAgentId);
+    if (!agentId) return errorJson(res, 400, "Required: agentId (pass it explicitly or use an agent token)");
 
     const db = getProvider("database");
     const agents = db.query<any>("SELECT agent_id FROM agent_channels WHERE agent_id = ?", [agentId]);
@@ -1106,11 +1112,13 @@ restRouter.post("/billing/config", async (req, res) => {
 // POST /api/v1/agent-limits
 restRouter.post("/agent-limits", async (req, res) => {
   try {
-    const { agentId, limits } = req.body;
-    if (!agentId || !limits) return errorJson(res, 400, "Required: agentId, limits");
+    const { agentId: explicitAgentId, limits } = req.body;
+    if (!limits) return errorJson(res, 400, "Required: limits");
 
     const auth = authInfo(req);
     requireAdmin(auth);
+    const agentId = resolveAgentId(auth, explicitAgentId);
+    if (!agentId) return errorJson(res, 400, "Required: agentId (pass it explicitly or use an agent token)");
 
     const db = getProvider("database");
     requireAgentInOrg(db, agentId, auth);
@@ -1427,13 +1435,11 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
                     systemPrompt: { type: "string" },
                     country: { type: "string", default: "US" },
                     capabilities: {
-                      type: "object",
-                      properties: {
-                        phone: { type: "boolean" },
-                        whatsapp: { type: "boolean" },
-                        email: { type: "boolean" },
-                        voiceAi: { type: "boolean" },
-                      },
+                      description: "Object format: {phone: true, voiceAi: true} — or array format: [\"sms\", \"voice\", \"email\", \"whatsapp\"]",
+                      oneOf: [
+                        { type: "object", properties: { phone: { type: "boolean" }, whatsapp: { type: "boolean" }, email: { type: "boolean" }, voiceAi: { type: "boolean" } } },
+                        { type: "array", items: { type: "string", enum: ["sms", "phone", "voice", "voiceAi", "email", "whatsapp"] } },
+                      ],
                     },
                     emailDomain: { type: "string" },
                   },
@@ -1472,6 +1478,22 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
           tags: ["Management"],
           parameters: [{ name: "agentId", in: "query", schema: { type: "string" }, description: "Agent ID (optional if using an agent token)" }],
           responses: { "200": { description: "Channel status" } },
+        },
+      },
+      "/agents/{agentId}/tokens": {
+        get: {
+          summary: "List active tokens for an agent (admin only)",
+          tags: ["Management"],
+          parameters: [{ name: "agentId", in: "path", required: true, schema: { type: "string" } }],
+          responses: { "200": { description: "Token list" } },
+        },
+      },
+      "/agents/{agentId}/regenerate-token": {
+        post: {
+          summary: "Revoke all tokens and generate a new one (admin only)",
+          tags: ["Management"],
+          parameters: [{ name: "agentId", in: "path", required: true, schema: { type: "string" } }],
+          responses: { "200": { description: "New token generated" } },
         },
       },
       "/onboard": {
@@ -1597,6 +1619,15 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
             channel: { type: "string" },
             from: { type: "string" },
             to: { type: "string" },
+            genderContext: {
+              type: "object",
+              description: "Gender context for gendered languages (Hebrew, Arabic, French, etc.)",
+              properties: {
+                agentGender: { type: "string", enum: ["male", "female", "neutral"] },
+                targetGender: { type: "string", enum: ["male", "female", "neutral"] },
+              },
+            },
+            demo: { type: "boolean", description: "Present and true when server is in demo mode" },
           },
         },
         MakeCallResponse: {

@@ -122,16 +122,25 @@ export function registerBillingTools(server: McpServer): void {
     "comms_set_billing_config",
     "Configure billing settings for an agent — tier, markup percentage, billing email. Admin only.",
     {
-      agentId: z.string().describe("The agent to configure"),
+      agentId: z.string().optional().describe("The agent to configure (auto-detected from token if omitted)"),
       tier: z.enum(["free", "starter", "pro", "enterprise"]).optional().describe("Billing tier"),
       markupPercent: z.number().min(0).max(500).optional().describe("Markup percentage (0-500)"),
       billingEmail: z.string().email().optional().describe("Billing email for invoices"),
     },
-    async ({ agentId, tier, markupPercent, billingEmail }, extra) => {
+    async ({ agentId: explicitAgentId, tier, markupPercent, billingEmail }, extra) => {
       try {
         requireAdmin(extra.authInfo as AuthInfo | undefined);
       } catch (err) {
         return authErrorResponse(err);
+      }
+
+      const authInfo = extra.authInfo as AuthInfo | undefined;
+      const agentId = resolveAgentId(authInfo, explicitAgentId);
+      if (!agentId) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: "agentId is required (pass it explicitly or use an agent token)" }) }],
+          isError: true,
+        };
       }
 
       const db = getProvider("database");
