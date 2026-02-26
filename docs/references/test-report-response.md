@@ -44,16 +44,16 @@ Most of the "failures" in the test report are expected demo behavior, not real b
 **OpenAPI spec updated** to document this field.
 
 ### 6. `agentId` resolution / auth errors
-**Simplified — token is now the only credential you need.**
+**Simplified — your API key is the only credential you need.**
 
-When you provision an agent, you get back an API key (token). That's it — no separate `agentId` to manage. The system auto-generates an internal ID behind the scenes.
+When you provision an agent, you get back an API key. That's it — no separate `agentId` to manage. The system auto-generates an internal ID behind the scenes.
 
 **How to connect:**
-- **SSE:** `GET /sse?token=YOUR_TOKEN` — that's all. The agent is identified from the token.
-- **REST API:** Pass `Authorization: Bearer YOUR_TOKEN` — no `agentId` needed in the request body.
+- **SSE:** `GET /sse?token=YOUR_API_KEY` — that's all. The agent is identified from the key.
+- **REST API:** Pass `Authorization: Bearer YOUR_API_KEY` — no `agentId` needed in the request body.
 - **Admin/org tokens:** If you're using an orchestrator or org token (which manage multiple agents), you still need to pass `agentId` to specify which agent you're acting on behalf of.
 
-**Bottom line:** Use your agent token and skip `agentId` entirely. It's auto-detected.
+**Bottom line:** Use your API key and skip `agentId` entirely. It's auto-detected.
 
 ### 7. `demo: true` flag in responses
 **New addition.** When the server is in demo mode, send-message and provision responses now include `"demo": true` so API callers can programmatically detect that the message wasn't actually delivered.
