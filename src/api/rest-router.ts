@@ -117,9 +117,9 @@ restRouter.post("/send-message", async (req, res) => {
     const { to, body, channel = "sms", subject, html, templateId, templateVars, targetGender } = req.body;
     const agentId = resolveAgentId(authInfo(req), req.body.agentId);
 
-    if (!agentId || !to || !body) {
-      return errorJson(res, 400, "Required: agentId (or use an agent token), to, body");
-    }
+    if (!agentId) return errorJson(res, 400, "Missing agentId. It is auto-detected from your API key. If using an admin/org token, pass agentId in the request body.\n\nExample: { \"agentId\": \"abc123\", \"to\": \"+15551234567\", \"body\": \"Hello!\" }");
+    if (!to) return errorJson(res, 400, "Missing required field 'to'. Provide the recipient address: E.164 phone number (e.g. +15551234567) for SMS/WhatsApp, or email address for email channel.\n\nExample: { \"to\": \"+15551234567\", \"body\": \"Hello!\", \"channel\": \"sms\" }");
+    if (!body) return errorJson(res, 400, "Missing required field 'body'. Provide the message text to send.\n\nExample: { \"to\": \"+15551234567\", \"body\": \"Hello!\" }");
 
     const auth = authInfo(req);
     requireAgent(agentId, auth);
@@ -211,7 +211,8 @@ restRouter.post("/make-call", async (req, res) => {
   try {
     const { to, systemPrompt, greeting, voice, language, recipientTimezone, targetGender } = req.body;
     const agentId = resolveAgentId(authInfo(req), req.body.agentId);
-    if (!agentId || !to) return errorJson(res, 400, "Required: agentId (or use an agent token), to");
+    if (!agentId) return errorJson(res, 400, "Missing agentId. It is auto-detected from your API key. If using an admin/org token, pass agentId in the request body.\n\nExample: { \"to\": \"+15551234567\" }");
+    if (!to) return errorJson(res, 400, "Missing required field 'to'. Provide the recipient phone number in E.164 format.\n\nExample: { \"to\": \"+15551234567\" }");
 
     const auth = authInfo(req);
     requireAgent(agentId, auth);
@@ -307,7 +308,9 @@ restRouter.post("/call-on-behalf", async (req, res) => {
   try {
     const { target, targetName, requesterPhone, requesterName, message, recipientTimezone, targetGender } = req.body;
     const agentId = resolveAgentId(authInfo(req), req.body.agentId);
-    if (!agentId || !target || !requesterPhone) return errorJson(res, 400, "Required: agentId (or use an agent token), target, requesterPhone");
+    if (!agentId) return errorJson(res, 400, "Missing agentId. It is auto-detected from your API key. If using an admin/org token, pass agentId in the request body.");
+    if (!target) return errorJson(res, 400, "Missing required field 'target'. Provide the phone number of the person to call (E.164 format, e.g. +15551234567).");
+    if (!requesterPhone) return errorJson(res, 400, "Missing required field 'requesterPhone'. Provide your phone number where the call will be bridged to (E.164 format, e.g. +15559876543).");
 
     const auth = authInfo(req);
     requireAgent(agentId, auth);
@@ -421,7 +424,9 @@ restRouter.post("/send-voice-message", async (req, res) => {
   try {
     const { to, text, voice } = req.body;
     const agentId = resolveAgentId(authInfo(req), req.body.agentId);
-    if (!agentId || !to || !text) return errorJson(res, 400, "Required: agentId (or use an agent token), to, text");
+    if (!agentId) return errorJson(res, 400, "Missing agentId. It is auto-detected from your API key. If using an admin/org token, pass agentId in the request body.");
+    if (!to) return errorJson(res, 400, "Missing required field 'to'. Provide the recipient phone number in E.164 format (e.g. +15551234567).");
+    if (!text) return errorJson(res, 400, "Missing required field 'text'. Provide the text to convert to speech.\n\nExample: { \"to\": \"+15551234567\", \"text\": \"Hi, this is a voice message from your doctor.\" }");
 
     const auth = authInfo(req);
     requireAgent(agentId, auth);
@@ -487,7 +492,9 @@ restRouter.post("/transfer-call", async (req, res) => {
   try {
     const { callSid, to, announcementText } = req.body;
     const agentId = resolveAgentId(authInfo(req), req.body.agentId);
-    if (!agentId || !callSid || !to) return errorJson(res, 400, "Required: agentId (or use an agent token), callSid, to");
+    if (!agentId) return errorJson(res, 400, "Missing agentId. It is auto-detected from your API key. If using an admin/org token, pass agentId in the request body.");
+    if (!callSid) return errorJson(res, 400, "Missing required field 'callSid'. Provide the Twilio Call SID of the active call to transfer (starts with CA...).");
+    if (!to) return errorJson(res, 400, "Missing required field 'to'. Provide the transfer target: E.164 phone number (e.g. +15551234567) or another agent's ID.");
 
     const auth = authInfo(req);
     requireAgent(agentId, auth);
@@ -545,7 +552,7 @@ restRouter.get("/waiting-messages", async (req, res) => {
     const limit = parseInt(req.query.limit as string) || 50;
     const channel = req.query.channel as string | undefined;
 
-    if (!agentId) return errorJson(res, 400, "Required query param: agentId (or use an agent token)");
+    if (!agentId) return errorJson(res, 400, "Missing agentId. It is auto-detected from your API key. If using an admin/org token, pass ?agentId=<id> as a query parameter.\n\nExample: GET /api/v1/waiting-messages?agentId=my-agent&limit=50");
 
     const auth = authInfo(req);
     requireAgent(agentId, auth);
@@ -605,7 +612,8 @@ restRouter.get("/waiting-messages", async (req, res) => {
 restRouter.post("/provision", async (req, res) => {
   try {
     const { agentId: explicitAgentId, displayName, greeting, systemPrompt, country = "US", capabilities: rawCaps, emailDomain } = req.body;
-    if (!displayName || !rawCaps) return errorJson(res, 400, "Required: displayName, capabilities");
+    if (!displayName) return errorJson(res, 400, "Missing required field 'displayName'. Provide a human-readable name for the agent.\n\nExample: { \"displayName\": \"Support Bot\", \"capabilities\": { \"phone\": true, \"voiceAi\": true } }");
+    if (!rawCaps) return errorJson(res, 400, "Missing required field 'capabilities'. Specify which channels to enable.\n\nObject format: { \"phone\": true, \"voiceAi\": true, \"email\": true, \"whatsapp\": true }\nArray format: [\"sms\", \"voice\", \"email\", \"whatsapp\"]");
     const agentId = explicitAgentId || randomUUID();
 
     // Normalize capabilities: accept array ['sms','voice'] or object {phone,voiceAi}
@@ -720,7 +728,7 @@ restRouter.post("/deprovision", async (req, res) => {
     const auth = authInfo(req);
     requireAdmin(auth);
     const agentId = resolveAgentId(auth, explicitAgentId);
-    if (!agentId) return errorJson(res, 400, "Required: agentId (pass it explicitly or use an agent token)");
+    if (!agentId) return errorJson(res, 400, "Missing agentId. Pass it in the request body: { \"agentId\": \"<agent-id>\" }. If using an agent API key, it is auto-detected.\n\nExample: { \"agentId\": \"abc123\", \"releaseNumber\": true }");
 
     const db = getProvider("database");
     requireAgentInOrg(db, agentId, auth);
@@ -816,7 +824,7 @@ restRouter.post("/agents/:agentId/regenerate-token", async (req, res) => {
 restRouter.get("/channel-status", async (req, res) => {
   try {
     const agentId = resolveAgentId(authInfo(req), req.query.agentId as string);
-    if (!agentId) return errorJson(res, 400, "Required query param: agentId (or use an agent token)");
+    if (!agentId) return errorJson(res, 400, "Missing agentId. It is auto-detected from your API key. If using an admin/org token, pass ?agentId=<id> as a query parameter.\n\nExample: GET /api/v1/channel-status?agentId=my-agent");
 
     const auth = authInfo(req);
     requireAgent(agentId, auth);
@@ -857,7 +865,7 @@ restRouter.get("/channel-status", async (req, res) => {
 restRouter.post("/onboard", async (req, res) => {
   try {
     const { agentId: explicitAgentId, displayName, capabilities = { phone: true, whatsapp: true, email: true, voiceAi: true }, emailDomain, greeting, systemPrompt, country = "US" } = req.body;
-    if (!displayName) return errorJson(res, 400, "Required: displayName");
+    if (!displayName) return errorJson(res, 400, "Missing required field 'displayName' — a human-readable name for the agent.\n\nExample: { \"displayName\": \"Support Bot\", \"capabilities\": { \"phone\": true, \"email\": true } }");
     const agentId = explicitAgentId || randomUUID();
 
     const auth = authInfo(req);
@@ -994,7 +1002,7 @@ restRouter.get("/usage", async (req, res) => {
     if (agentId) {
       requireAgent(agentId, auth);
     } else if (!isAdmin) {
-      return errorJson(res, 400, "agentId is required (or use an agent token)");
+      return errorJson(res, 400, "Missing agentId. It is auto-detected from your API key. If using an admin/org token, pass ?agentId=<id> as a query parameter. Admins can omit agentId to see all agents.\n\nExample: GET /api/v1/usage?period=today  or  GET /api/v1/usage?agentId=my-agent&period=week\n\nValid periods: today, week, month, all");
     }
 
     const db = getProvider("database");
@@ -1040,7 +1048,7 @@ restRouter.get("/billing", async (req, res) => {
     if (agentId) {
       requireAgent(agentId, auth);
     } else if (!isAdmin) {
-      return errorJson(res, 400, "agentId is required (or use an agent token)");
+      return errorJson(res, 400, "Missing agentId. It is auto-detected from your API key. If using an admin/org token, pass ?agentId=<id> as a query parameter. Admins can omit agentId to see all agents.\n\nExample: GET /api/v1/billing?period=month  or  GET /api/v1/billing?agentId=my-agent\n\nValid periods: today, week, month, all");
     }
 
     const db = getProvider("database");
@@ -1093,7 +1101,7 @@ restRouter.post("/billing/config", async (req, res) => {
     const auth = authInfo(req);
     requireAdmin(auth);
     const agentId = resolveAgentId(auth, explicitAgentId);
-    if (!agentId) return errorJson(res, 400, "Required: agentId (pass it explicitly or use an agent token)");
+    if (!agentId) return errorJson(res, 400, "Missing agentId. Pass it in the request body: { \"agentId\": \"<agent-id>\" }. If using an agent API key, it is auto-detected.\n\nExample: { \"agentId\": \"abc123\", \"tier\": \"starter\" }");
 
     const db = getProvider("database");
     const agents = db.query<any>("SELECT agent_id FROM agent_channels WHERE agent_id = ?", [agentId]);
@@ -1113,12 +1121,12 @@ restRouter.post("/billing/config", async (req, res) => {
 restRouter.post("/agent-limits", async (req, res) => {
   try {
     const { agentId: explicitAgentId, limits } = req.body;
-    if (!limits) return errorJson(res, 400, "Required: limits");
+    if (!limits) return errorJson(res, 400, "Missing required field 'limits'. Provide an object with rate limit values.\n\nExample: { \"limits\": { \"maxActionsPerMinute\": 10, \"maxActionsPerHour\": 100, \"maxActionsPerDay\": 500, \"maxSpendPerDay\": 10, \"maxSpendPerMonth\": 100 } }");
 
     const auth = authInfo(req);
     requireAdmin(auth);
     const agentId = resolveAgentId(auth, explicitAgentId);
-    if (!agentId) return errorJson(res, 400, "Required: agentId (pass it explicitly or use an agent token)");
+    if (!agentId) return errorJson(res, 400, "Missing agentId. Pass it in the request body: { \"agentId\": \"<agent-id>\", \"limits\": {...} }. If using an agent API key, it is auto-detected.");
 
     const db = getProvider("database");
     requireAgentInOrg(db, agentId, auth);
@@ -1209,12 +1217,12 @@ function buildAgentDashboard(db: ReturnType<typeof getProvider<"database">>, age
 }
 
 function handleRestError(res: any, err: unknown) {
-  if (err instanceof AuthError) return errorJson(res, 403, err.message);
-  if (err instanceof SanitizationError) return errorJson(res, 400, err.message);
-  if (err instanceof RateLimitError) return errorJson(res, 429, err.message);
+  if (err instanceof AuthError) return errorJson(res, 403, `Auth error: ${err.message}. Check your Authorization header: Bearer <your-api-key>`);
+  if (err instanceof SanitizationError) return errorJson(res, 400, `Invalid input: ${err.message}`);
+  if (err instanceof RateLimitError) return errorJson(res, 429, `Rate limit exceeded: ${err.message}. Wait before retrying or request higher limits via POST /api/v1/agent-limits.`);
   const message = err instanceof Error ? err.message : String(err);
   logger.error("rest_api_error", { error: message });
-  return errorJson(res, 500, message);
+  return errorJson(res, 500, `Server error: ${message}`);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1427,7 +1435,7 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "displayName", "capabilities"],
+                  required: ["displayName", "capabilities"],
                   properties: {
                     agentId: { type: "string" },
                     displayName: { type: "string" },
@@ -1460,9 +1468,8 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Agent ID (optional if using an agent API key)" },
                     releaseNumber: { type: "boolean", default: true },
                   },
                 },
@@ -1506,9 +1513,9 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "displayName"],
+                  required: ["displayName"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Agent ID (optional — auto-generated UUID if omitted)" },
                     displayName: { type: "string" },
                     capabilities: { type: "object", properties: { phone: { type: "boolean" }, whatsapp: { type: "boolean" }, email: { type: "boolean" }, voiceAi: { type: "boolean" } } },
                     emailDomain: { type: "string" },
@@ -1555,9 +1562,8 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Agent ID (optional if using an agent API key)" },
                     tier: { type: "string", enum: ["free", "starter", "pro", "enterprise"] },
                     markupPercent: { type: "number", minimum: 0, maximum: 500 },
                     billingEmail: { type: "string", format: "email" },
@@ -1579,9 +1585,9 @@ function generateRestOpenApiSpec(): Record<string, unknown> {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["agentId", "limits"],
+                  required: ["limits"],
                   properties: {
-                    agentId: { type: "string" },
+                    agentId: { type: "string", description: "Agent ID (optional if using an agent API key)" },
                     limits: {
                       type: "object",
                       properties: {
