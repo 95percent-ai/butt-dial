@@ -602,8 +602,18 @@ restRouter.get("/waiting-messages", async (req, res) => {
 // POST /api/v1/provision
 restRouter.post("/provision", async (req, res) => {
   try {
-    const { agentId, displayName, greeting, systemPrompt, country = "US", capabilities, emailDomain } = req.body;
-    if (!agentId || !displayName || !capabilities) return errorJson(res, 400, "Required: agentId, displayName, capabilities");
+    const { agentId, displayName, greeting, systemPrompt, country = "US", capabilities: rawCaps, emailDomain } = req.body;
+    if (!agentId || !displayName || !rawCaps) return errorJson(res, 400, "Required: agentId, displayName, capabilities");
+
+    // Normalize capabilities: accept array ['sms','voice'] or object {phone,voiceAi}
+    const caps = Array.isArray(rawCaps)
+      ? {
+          phone: rawCaps.includes("sms") || rawCaps.includes("phone"),
+          voiceAi: rawCaps.includes("voice") || rawCaps.includes("voiceAi"),
+          email: rawCaps.includes("email"),
+          whatsapp: rawCaps.includes("whatsapp"),
+        }
+      : rawCaps;
 
     const auth = authInfo(req);
     requireAdmin(auth);
@@ -633,24 +643,24 @@ restRouter.post("/provision", async (req, res) => {
     let whatsappStatus = "inactive";
 
     try {
-      if (capabilities.phone || capabilities.voiceAi) {
+      if (caps.phone || caps.voiceAi) {
         boughtNumber = await searchAndBuyNumber(country, { voice: true, sms: true });
         phoneNumber = boughtNumber.phoneNumber;
         await configureNumberWebhooks(phoneNumber, agentId, config.webhookBaseUrl);
       }
 
-      if (capabilities.email) {
+      if (caps.email) {
         emailAddress = generateEmailAddress(agentId, emailDomain || config.emailDefaultDomain);
       }
 
       const channelId = randomUUID();
       db.run(
         `INSERT INTO agent_channels (id, agent_id, display_name, phone_number, whatsapp_sender_sid, whatsapp_status, email_address, voice_id, system_prompt, greeting, status, org_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)`,
-        [channelId, agentId, displayName, phoneNumber, null, whatsappStatus, emailAddress, capabilities.voiceAi ? "default" : null, systemPrompt || null, greeting || null, orgId],
+        [channelId, agentId, displayName, phoneNumber, null, whatsappStatus, emailAddress, caps.voiceAi ? "default" : null, systemPrompt || null, greeting || null, orgId],
       );
       agentInserted = true;
 
-      if (capabilities.whatsapp) {
+      if (caps.whatsapp) {
         const waResult = assignFromPool(db, agentId);
         if (waResult) {
           assignedWhatsApp = true;
@@ -680,9 +690,9 @@ restRouter.post("/provision", async (req, res) => {
         success: true, agentId, displayName, securityToken: plainToken,
         channels: {
           phone: phoneNumber ? { number: phoneNumber, status: "active" } : null,
-          whatsapp: capabilities.whatsapp ? { number: whatsappNumber, senderSid: whatsappSenderSid, status: whatsappStatus } : null,
+          whatsapp: caps.whatsapp ? { number: whatsappNumber, senderSid: whatsappSenderSid, status: whatsappStatus } : null,
           email: emailAddress ? { address: emailAddress, status: "active" } : null,
-          voiceAi: capabilities.voiceAi ? { status: "active", usesPhoneNumber: phoneNumber } : null,
+          voiceAi: caps.voiceAi ? { status: "active", usesPhoneNumber: phoneNumber } : null,
         },
         pool: { slotsRemaining },
       });
@@ -742,6 +752,57 @@ restRouter.post("/deprovision", async (req, res) => {
       whatsappReturned: !!agent.whatsapp_sender_sid,
       warnings: warnings.length > 0 ? warnings : undefined,
     });
+  } catch (err) {
+    return handleRestError(res, err);
+  }
+});
+
+// GET /api/v1/agents/:agentId/tokens
+restRouter.get("/agents/:agentId/tokens", async (req, res) => {
+  try {
+    const auth = authInfo(req);
+    requireAdmin(auth);
+
+    const agentId = String(req.params.agentId);
+    const db = getProvider("database");
+    requireAgentInOrg(db, agentId, auth);
+
+    const rows = db.query<any>(
+      "SELECT id, label, created_at, last_used_at FROM agent_tokens WHERE agent_id = ? AND revoked_at IS NULL ORDER BY created_at DESC",
+      [agentId],
+    );
+    return res.json({ tokens: rows.map((r: any) => ({ id: r.id, label: r.label, createdAt: r.created_at, lastUsedAt: r.last_used_at })) });
+  } catch (err) {
+    return handleRestError(res, err);
+  }
+});
+
+// POST /api/v1/agents/:agentId/regenerate-token
+restRouter.post("/agents/:agentId/regenerate-token", async (req, res) => {
+  try {
+    const auth = authInfo(req);
+    requireAdmin(auth);
+
+    const agentId = String(req.params.agentId);
+    const db = getProvider("database");
+    requireAgentInOrg(db, agentId, auth);
+
+    // Verify agent exists
+    const rows = db.query<any>("SELECT agent_id, org_id FROM agent_channels WHERE agent_id = ?", [agentId]);
+    if (rows.length === 0) return errorJson(res, 404, `Agent "${agentId}" not found`);
+    const orgId = rows[0].org_id || "default";
+
+    // Revoke all existing tokens
+    const revoked = revokeAgentTokens(db, agentId);
+
+    // Generate and store new token
+    const { plainToken, tokenHash } = generateToken();
+    storeToken(db, agentId, tokenHash, `regenerated`, orgId);
+
+    appendAuditLog(db, { eventType: "token_regenerated", actor: "admin", target: agentId, details: { revokedCount: revoked } });
+    logger.info("token_regenerated", { agentId, revokedCount: revoked });
+
+    return res.json({ success: true, token: plainToken, revokedCount: revoked });
   } catch (err) {
     return handleRestError(res, err);
   }

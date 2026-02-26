@@ -132,6 +132,19 @@ export const PROVIDER_CATALOG: CatalogProvider[] = [
 
   // ── Messaging ──────────────────────────────────────────────────
   {
+    id: "whatsapp-twilio",
+    name: "WhatsApp (Twilio)",
+    type: "messaging",
+    description: "WhatsApp Business API via Twilio. Uses your existing Twilio credentials.",
+    services: ["WhatsApp Messages", "WhatsApp Templates"],
+    costInfo: "Included with Twilio. ~$0.005/msg (US).",
+    fields: [
+      { key: "accountSid", envKey: "TWILIO_ACCOUNT_SID", label: "Account SID", placeholder: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", type: "text" },
+      { key: "authToken", envKey: "TWILIO_AUTH_TOKEN", label: "Auth Token", placeholder: "Your Twilio auth token", type: "password" },
+    ],
+    testable: true,
+  },
+  {
     id: "line",
     name: "LINE",
     type: "messaging",

@@ -35,7 +35,7 @@ async function testCatalog() {
   // Dynamic import to test the actual module
   const { PROVIDER_CATALOG, getCatalogProvider, getAllCatalogEnvKeys } = await import("../src/admin/provider-catalog.js");
 
-  assert(PROVIDER_CATALOG.length === 11, `Catalog has 11 providers (got ${PROVIDER_CATALOG.length})`);
+  assert(PROVIDER_CATALOG.length === 12, `Catalog has 12 providers (got ${PROVIDER_CATALOG.length})`);
 
   // Every provider must have required fields
   for (const p of PROVIDER_CATALOG) {
@@ -66,6 +66,14 @@ async function testCatalog() {
   assert(allKeys.includes("TWILIO_ACCOUNT_SID"), "getAllCatalogEnvKeys includes TWILIO_ACCOUNT_SID");
   assert(allKeys.includes("RESEND_API_KEY"), "getAllCatalogEnvKeys includes RESEND_API_KEY");
   assert(allKeys.includes("LINE_CHANNEL_ACCESS_TOKEN"), "getAllCatalogEnvKeys includes LINE_CHANNEL_ACCESS_TOKEN");
+
+  // WhatsApp (Twilio) catalog entry
+  const whatsapp = getCatalogProvider("whatsapp-twilio");
+  assert(whatsapp !== undefined, "WhatsApp (Twilio) exists in catalog");
+  assert(whatsapp!.type === "messaging", "WhatsApp type is messaging");
+  assert(whatsapp!.testable === true, "WhatsApp is testable");
+  assert(whatsapp!.fields.length === 2, "WhatsApp has 2 fields (accountSid, authToken)");
+  assert(whatsapp!.fields[0].envKey === "TWILIO_ACCOUNT_SID", "WhatsApp field 1 maps to TWILIO_ACCOUNT_SID");
 
   // Edge TTS has no fields
   const edgeTts = getCatalogProvider("edge-tts");
@@ -165,7 +173,7 @@ async function testApiEndpoints() {
   assert(catalogRes.ok, "GET /catalog returns 200");
   const catalogData = (await catalogRes.json()) as { catalog: Array<{ id: string; name: string; type: string; fields: unknown[]; testable: boolean }> };
   assert(Array.isArray(catalogData.catalog), "catalog is an array");
-  assert(catalogData.catalog.length === 11, `Catalog has 11 providers (got ${catalogData.catalog.length})`);
+  assert(catalogData.catalog.length === 12, `Catalog has 12 providers (got ${catalogData.catalog.length})`);
 
   // Verify catalog structure
   const twilio = catalogData.catalog.find((c) => c.id === "twilio");

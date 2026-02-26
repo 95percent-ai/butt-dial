@@ -242,6 +242,14 @@ export async function testVonageCredentials(
   }
 }
 
+/** Test WhatsApp (Twilio) credentials — delegates to testTwilioCredentials (same account) */
+export async function testWhatsAppTwilioCredentials(
+  accountSid: string,
+  authToken: string
+): Promise<TestResult> {
+  return testTwilioCredentials(accountSid, authToken);
+}
+
 /** Test LINE credentials by calling GET /v2/bot/info */
 export async function testLINECredentials(
   channelAccessToken: string

@@ -6,7 +6,7 @@ import { getProviderStatus, saveCredentials, deleteCredentials, getConfiguredPro
 import {
   testTwilioCredentials, testElevenLabsCredentials, testResendCredentials,
   testAnthropicCredentials, testOpenAICredentials, testDeepgramCredentials,
-  testVonageCredentials, testLINECredentials,
+  testVonageCredentials, testLINECredentials, testWhatsAppTwilioCredentials,
 } from "./credential-testers.js";
 import { PROVIDER_CATALOG, getCatalogProvider, getAllCatalogEnvKeys } from "./provider-catalog.js";
 import { renderSetupPage } from "./setup-page.js";
@@ -27,6 +27,8 @@ import type { AuthInfo } from "../security/auth-guard.js";
 import { getDemoDashboard, getDemoUsageHistory, getDemoTopContacts, getDemoAnalytics } from "./demo-data.js";
 import { buildBlockedChannels } from "../lib/channel-blocker.js";
 import { DISCLAIMER_VERSION } from "../public/disclaimer-page.js";
+import { generateToken, storeToken, revokeAgentTokens } from "../security/token-manager.js";
+import { appendAuditLog } from "../observability/audit-log.js";
 
 export const adminRouter = Router();
 
@@ -311,7 +313,7 @@ adminRouter.get("/admin/api/dashboard", adminAuth, disclaimerGate, (req: Request
       database: { status: "ok" as string, provider: "SQLite" },
       telephony: { status: providerStatus.twilio?.configured ? "ok" : "not_configured", provider: "Twilio" },
       email: { status: providerStatus.resend?.configured ? "ok" : "not_configured", provider: "Resend" },
-      whatsapp: { status: providerStatus.twilio?.configured ? "ok" : "not_configured", provider: "GreenAPI" },
+      whatsapp: { status: providerStatus.twilio?.configured ? "ok" : "not_configured", provider: "Twilio" },
       voice: { status: (providerStatus.elevenlabs?.configured || providerStatus.voice?.configured) ? "ok" : "not_configured", provider: providerStatus.voice?.ttsProvider === "openai" ? "OpenAI" : providerStatus.voice?.ttsProvider === "edge-tts" ? "Edge TTS" : "ElevenLabs" },
       assistant: { status: config.anthropicApiKey ? "ok" : "not_configured", provider: "Anthropic" },
     };
@@ -784,6 +786,46 @@ adminRouter.post("/admin/api/agents/:agentId/profile", adminAuth, (req: Request,
   }
 });
 
+/** Get active tokens for an agent (metadata only — never expose hashes) */
+adminRouter.get("/admin/api/agents/:agentId/tokens", adminAuth, (req: Request, res: Response) => {
+  try {
+    const agentId = String(req.params.agentId);
+    const db = getProvider("database");
+    const rows = db.query<any>(
+      "SELECT id, label, created_at, last_used_at FROM agent_tokens WHERE agent_id = ? AND revoked_at IS NULL ORDER BY created_at DESC",
+      [agentId],
+    );
+    res.json({ tokens: rows.map((r: any) => ({ id: r.id, label: r.label, createdAt: r.created_at, lastUsedAt: r.last_used_at })) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
+/** Regenerate token for an agent — revokes all existing tokens and issues a new one */
+adminRouter.post("/admin/api/agents/:agentId/regenerate-token", adminAuth, (req: Request, res: Response) => {
+  try {
+    const agentId = String(req.params.agentId);
+    const db = getProvider("database");
+
+    // Verify agent exists
+    const rows = db.query<any>("SELECT agent_id, org_id FROM agent_channels WHERE agent_id = ?", [agentId]);
+    if (rows.length === 0) { res.status(404).json({ success: false, error: `Agent "${agentId}" not found` }); return; }
+    const orgId = rows[0].org_id || "default";
+
+    // Revoke all existing tokens
+    const revoked = revokeAgentTokens(db, agentId);
+
+    // Generate and store new token
+    const { plainToken, tokenHash } = generateToken();
+    storeToken(db, agentId, tokenHash, `regenerated`, orgId);
+
+    appendAuditLog(db, { eventType: "token_regenerated", actor: "admin", target: agentId, details: { revokedCount: revoked } });
+    res.json({ success: true, token: plainToken, revokedCount: revoked });
+  } catch (err) {
+    res.status(500).json({ success: false, error: String(err instanceof Error ? err.message : err) });
+  }
+});
+
 /** Run demo scenarios */
 adminRouter.post("/admin/api/run-scenarios", adminAuth, async (_req: Request, res: Response) => {
   const serverUrl = `http://localhost:${config.port}`;
@@ -1158,6 +1200,10 @@ adminRouter.post("/admin/api/providers/:id/test", adminAuth, async (req: Request
         if (!creds.apiKey || !creds.apiSecret) { res.status(400).json({ success: false, message: "apiKey and apiSecret required" }); return; }
         result = await testVonageCredentials(String(creds.apiKey), String(creds.apiSecret));
         break;
+      case "whatsapp-twilio":
+        if (!creds.accountSid || !creds.authToken) { res.status(400).json({ success: false, message: "accountSid and authToken required" }); return; }
+        result = await testWhatsAppTwilioCredentials(String(creds.accountSid), String(creds.authToken));
+        break;
       case "line":
         if (!creds.channelAccessToken) { res.status(400).json({ success: false, message: "channelAccessToken required" }); return; }
         result = await testLINECredentials(String(creds.channelAccessToken));
@@ -1319,6 +1365,13 @@ adminRouter.get("/admin/api/providers/:id/health", adminAuth, async (req: Reques
         const secret = process.env.VONAGE_API_SECRET;
         if (!key || !secret) { res.json({ success: false, message: "Not configured" }); return; }
         result = await testVonageCredentials(key, secret);
+        break;
+      }
+      case "whatsapp-twilio": {
+        const sid = process.env.TWILIO_ACCOUNT_SID;
+        const token = process.env.TWILIO_AUTH_TOKEN;
+        if (!sid || !token) { res.json({ success: false, message: "Not configured" }); return; }
+        result = await testWhatsAppTwilioCredentials(sid, token);
         break;
       }
       case "line": {

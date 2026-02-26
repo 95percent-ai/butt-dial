@@ -168,7 +168,7 @@ export function initProviders(): void {
   if (config.demoMode) {
     providers.whatsapp = createMockWhatsAppProvider();
     logger.info("provider_initialized", { slot: "whatsapp", provider: "mock (demo mode)" });
-  } else if (config.twilioAccountSid && config.twilioAuthToken && !config.providerTwilioDisabled) {
+  } else if (config.twilioAccountSid && config.twilioAuthToken && !config.providerTwilioDisabled && !config.providerWhatsappTwilioDisabled) {
     providers.whatsapp = createTwilioWhatsAppProvider({
       accountSid: config.twilioAccountSid,
       authToken: config.twilioAuthToken,

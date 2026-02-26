@@ -2087,7 +2087,7 @@ export function renderAdminPage(specJson: string): string {
         <!-- Token Reveal Modal (hidden) -->
         <div id="token-reveal-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;">
           <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:2rem;max-width:500px;width:90%;">
-            <h3 style="color:var(--text-heading);margin-bottom:0.75rem;">Agent Provisioned Successfully</h3>
+            <h3 style="color:var(--text-heading);margin-bottom:0.75rem;">Security Token</h3>
             <div style="background:rgba(210,153,34,0.15);border:1px solid rgba(210,153,34,0.3);color:#d29922;padding:10px 14px;border-radius:6px;font-size:0.8rem;margin-bottom:1rem;">
               Save this security token now! It cannot be recovered later.
             </div>
@@ -3998,6 +3998,15 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
           '<div class="field"><label>Email</label><div style="display:flex;align-items:center;gap:6px;"><input type="text" value="' + escAttr(agent.email_address || 'Not assigned') + '" readonly style="font-family:monospace;background:var(--bg-card);opacity:0.8;flex:1;">' + (agent.email_address ? '<button class="btn btn-sm" onclick="event.stopPropagation();copyText(\\'' + escAttr(agent.email_address) + '\\')" style="padding:2px 8px;font-size:0.7rem;">Copy</button>' : '') + '</div></div>' +
           '</div>' +
           '</div>' +
+          /* Full-width: Security Token */
+          '<div style="grid-column:1/-1;padding-bottom:0.75rem;border-bottom:1px solid var(--border);margin-bottom:0.25rem;">' +
+          '<h4 style="font-size:0.8rem;font-weight:600;color:var(--text-heading);margin-bottom:0.75rem;">Security Token</h4>' +
+          '<div id="token-info-' + idx + '" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;">Loading token info...</div>' +
+          '<div style="display:flex;gap:0.75rem;align-items:center;">' +
+          '<button class="btn btn-sm" onclick="event.stopPropagation();regenerateAgentToken(\\'' + escAttr(agentId) + '\\',' + idx + ')" style="background:var(--warning);color:#000;font-size:0.75rem;font-weight:600;padding:6px 14px;border:none;border-radius:6px;cursor:pointer;">Regenerate Token</button>' +
+          '<span style="font-size:0.7rem;color:var(--text-muted);">Regenerating will revoke all existing tokens for this agent</span>' +
+          '</div>' +
+          '</div>' +
           /* Left: Rate Limits */
           '<div class="edit-section">' +
           '<h4>Rate Limits</h4>' +
@@ -4096,7 +4105,56 @@ SSE endpoint: <span id="mcp-base-url">SERVER</span>/sse?agentId=my-agent
     function toggleAgentEdit(idx) {
       const panel = document.getElementById('agent-edit-' + idx);
       if (panel) {
+        const wasOpen = panel.classList.contains('open');
         panel.classList.toggle('open');
+        if (!wasOpen) {
+          const agent = agentsData[idx];
+          if (agent) loadAgentTokenInfo(agent.agent_id, idx);
+        }
+      }
+    }
+
+    async function loadAgentTokenInfo(agentId, idx) {
+      const el = document.getElementById('token-info-' + idx);
+      if (!el) return;
+      try {
+        const res = await apiFetch('/admin/api/agents/' + encodeURIComponent(agentId) + '/tokens');
+        const data = await res.json();
+        const tokens = data.tokens || [];
+        if (tokens.length === 0) {
+          el.innerHTML = '<span style="color:var(--warning);">No active tokens</span>';
+        } else {
+          const t = tokens[0];
+          const created = t.createdAt ? new Date(t.createdAt + 'Z').toLocaleString() : 'Unknown';
+          const lastUsed = t.lastUsedAt ? new Date(t.lastUsedAt + 'Z').toLocaleString() : 'Never';
+          el.innerHTML = '<span style="color:var(--text);">Active token</span> &middot; ' +
+            'Created: ' + escHtml(created) + ' &middot; Last used: ' + escHtml(lastUsed) +
+            (tokens.length > 1 ? ' &middot; <span style="color:var(--text-muted);">(' + tokens.length + ' total)</span>' : '');
+        }
+      } catch {
+        el.innerHTML = '<span style="color:var(--error);">Failed to load token info</span>';
+      }
+    }
+
+    async function regenerateAgentToken(agentId, idx) {
+      if (!confirm('Regenerate token for "' + agentId + '"? All existing tokens will be revoked.')) return;
+      try {
+        const res = await apiFetch('/admin/api/agents/' + encodeURIComponent(agentId) + '/regenerate-token', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          showToast(data.error || 'Failed to regenerate token', 'error');
+          return;
+        }
+        /* Show token in the existing reveal modal */
+        lastRevealedToken = data.token || '';
+        if (lastRevealedToken) {
+          document.getElementById('revealed-token').textContent = lastRevealedToken;
+          document.getElementById('token-reveal-modal').style.display = 'flex';
+        }
+        showToast('Token regenerated (' + (data.revokedCount || 0) + ' old token(s) revoked)', 'success');
+        loadAgentTokenInfo(agentId, idx);
+      } catch {
+        showToast('Network error', 'error');
       }
     }
 
