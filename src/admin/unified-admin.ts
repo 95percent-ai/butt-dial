@@ -2063,26 +2063,30 @@ export function renderAdminPage(specJson: string): string {
           <div class="field">
             <label>Webhook Base URL</label>
             <input type="text" id="server-webhook" placeholder="https://your-domain.com">
+            <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px;">Your server's public URL. Twilio sends incoming calls, SMS, and WhatsApp messages here. Must be reachable from the internet.</div>
           </div>
           <div class="field">
             <label>Orchestrator Security Token</label>
             <input type="password" id="server-token" placeholder="A strong secret token">
+            <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px;">Master admin token with full access to all agents and operations. Used as <code style="font-size:0.65rem;">Authorization: Bearer &lt;token&gt;</code>. Keep it secret.</div>
           </div>
           <div class="field">
             <label>Identity Mode</label>
             <select id="server-identity">
-              <option value="dedicated">Dedicated</option>
-              <option value="shared">Shared</option>
-              <option value="hybrid">Hybrid</option>
+              <option value="dedicated">Dedicated — each agent gets its own phone number</option>
+              <option value="shared">Shared — agents share one number (coming soon)</option>
+              <option value="hybrid">Hybrid — mix of dedicated and shared (coming soon)</option>
             </select>
+            <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px;">How phone numbers are assigned to agents. Only Dedicated is currently supported.</div>
           </div>
           <div class="field">
             <label>Isolation Mode</label>
             <select id="server-isolation">
-              <option value="single-account">Single Account</option>
-              <option value="per-agent-subaccount">Per Agent Subaccount</option>
-              <option value="per-customer-subaccount">Per Customer Subaccount</option>
+              <option value="single-account">Single Account — all agents use one Twilio account</option>
+              <option value="per-agent-subaccount">Per Agent Subaccount — each agent gets a subaccount (coming soon)</option>
+              <option value="per-customer-subaccount">Per Customer Subaccount — each org gets a subaccount (coming soon)</option>
             </select>
+            <div style="font-size:0.7rem;color:var(--text-muted);margin-top:4px;">How Twilio accounts are structured. Only Single Account is currently supported.</div>
           </div>
           <div class="settings-actions">
             <button class="btn btn-sm btn-primary" onclick="saveServer()">Save</button>
