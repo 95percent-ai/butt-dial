@@ -98,8 +98,29 @@ declare global {
 }
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
-  // Demo mode — set dummy admin auth, skip checks
+  // Demo mode — still try to resolve agent tokens so agentId auto-detection works,
+  // but fall back to admin auth if no valid token provided
   if (config.demoMode) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.slice(7);
+      try {
+        const db = getProvider("database");
+        const verified = verifyToken(db, token);
+        if (verified) {
+          req.auth = {
+            token,
+            clientId: verified.agentId,
+            scopes: ["agent", "admin", "super-admin"],
+            orgId: verified.orgId || "default",
+          };
+          next();
+          return;
+        }
+      } catch {
+        // Fall through to default demo admin auth
+      }
+    }
     req.auth = {
       token: "demo",
       clientId: "demo",

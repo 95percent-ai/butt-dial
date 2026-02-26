@@ -65,6 +65,19 @@ async function main() {
     const token = req.query.token as string | undefined;
     logger.info("mcp_sse_connection", { agentId, url: sanitizeUrl(req.originalUrl) });
 
+    // --- Demo mode: still resolve agentId from token if provided ---
+    if (config.demoMode && token && !agentId) {
+      try {
+        const db = getProvider("database");
+        const verified = verifyToken(db, token);
+        if (verified) {
+          agentId = verified.agentId;
+        }
+      } catch {
+        // Ignore — demo mode allows all connections
+      }
+    }
+
     // --- Token validation (mirrors authMiddleware 3-tier check) ---
     if (!config.demoMode) {
       const ip = req.ip || req.socket.remoteAddress || "unknown";
